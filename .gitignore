@@ -1,0 +1,25 @@
+# Jupyter Notebooks
+.ipynb_checkpoints
+
+# macOC Desktop Services Store
+.DS_Store
+
+# Pytest
+.pytest_cache
+
+# Pytest-cov reports
+htmlcov/
+.coverage
+
+# Python byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Virtual Environments
+.venv
+
+# Visual Studio Code
+.vscode
+
+# Sphinx builds
+/doc/build/

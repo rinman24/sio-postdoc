@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "sio-postdoc"
+version = "0.1.0"
+description = ""
+authors = ["Rich Inman <rinman24@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+ipywidgets = "^8.1.1"
+jupyterlab = "^4.0.10"
+matplotlib = "^3.8.2"
+netcdf4 = "^1.6.5"
+numpy = "^1.26.3"
+pandas = "^2.1.4"
+seaborn = "^0.13.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
