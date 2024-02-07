@@ -23,3 +23,6 @@ __pycache__/
 
 # Sphinx builds
 /doc/build/
+
+# Data files
+*/data/
