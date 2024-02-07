@@ -13,8 +13,13 @@ matplotlib = "^3.8.2"
 netcdf4 = "^1.6.5"
 numpy = "^1.26.3"
 pandas = "^2.1.4"
+pydantic = "^2.6.1"
 seaborn = "^0.13.1"
 
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
+pytest-randomly = "^3.15.0"
 
 [build-system]
 requires = ["poetry-core"]
