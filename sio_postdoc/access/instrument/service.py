@@ -10,9 +10,9 @@ from sio_postdoc.access.instrument.contracts import (
     DateRange,
     DayRange,
     FilterRequest,
-    FilterResponse,
     MonthRange,
     RawDataRequest,
+    RawDataResponse,
 )
 
 
@@ -112,7 +112,7 @@ def _locate_previous(
     month: int,
     year: int,
     current_path: Path,
-) -> FilterResponse:
+) -> RawDataResponse:
     path: Path
     if month == 1:
         year: str = f"{year - 1}"
@@ -123,7 +123,7 @@ def _locate_previous(
     path: Path = current_path.parents[1] / year / month
     files: list[Path] = _get_files(path, ext="ncdf", sort=True)
     file: Path = files[-1]
-    return FilterResponse(
+    return RawDataResponse(
         paths=[file],
         datetimes=[_extract_datetime(file, int(year))],
     )
@@ -146,7 +146,7 @@ def _filter_files(request: FilterRequest) -> list[Path]:
             elif request.start < this_datetime and this_datetime < request.end:
                 if len(paths) == 0:
                     if i == 0:
-                        previous_response: FilterResponse = _locate_previous(
+                        previous_response: RawDataResponse = _locate_previous(
                             this_datetime.month,
                             request.year,
                             request.path,
@@ -170,13 +170,13 @@ def _filter_files(request: FilterRequest) -> list[Path]:
             paths.append(file)
             datetimes.append(this_datetime)
             break
-    return FilterResponse(paths=paths, datetimes=datetimes)
+    return RawDataResponse(paths=paths, datetimes=datetimes)
 
 
-def _identify_files(request: RawDataRequest) -> FilterResponse:
+def _identify_files(request: RawDataRequest) -> RawDataResponse:
     datadir: Path = Path(DATADIR / request.location / request.instr_name)
     day_rng: DayRange = _identify_days(request.daterange)
-    response: FilterResponse = FilterResponse(
+    response: RawDataResponse = RawDataResponse(
         paths=[],
         datetimes=[],
     )

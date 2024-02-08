@@ -80,7 +80,7 @@ class DayRange(BaseModel):
     days: dict[str, set[int]]  # keys are 'year-month': values are days
 
 
-class FilterResponse(BaseModel):
+class RawDataResponse(BaseModel):
     paths: list[Path]
     datetimes: list[datetime]
 
@@ -91,4 +91,4 @@ class FilterRequest(BaseModel):
     path: Path
     valid_days: list[int]
     year: int
-    response: FilterResponse
+    response: RawDataResponse
