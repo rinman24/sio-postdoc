@@ -10,6 +10,7 @@ from sio_postdoc.access.instrument.contracts import (
     DateRange,
     DayRange,
     FilterRequest,
+    FilterResponse,
     MonthRange,
     RawDataRequest,
 )
@@ -107,7 +108,11 @@ def _get_files(path: Path, ext: str, sort: bool) -> list[Path]:
     return result
 
 
-def _locate_previous(month: int, year: int, current_path: Path) -> list[Path]:
+def _locate_previous(
+    month: int,
+    year: int,
+    current_path: Path,
+) -> FilterResponse:
     path: Path
     if month == 1:
         year: str = f"{year - 1}"
@@ -118,11 +123,15 @@ def _locate_previous(month: int, year: int, current_path: Path) -> list[Path]:
     path: Path = current_path.parents[1] / year / month
     files: list[Path] = _get_files(path, ext="ncdf", sort=True)
     file: Path = files[-1]
-    return file
+    return FilterResponse(
+        paths=[file],
+        datetimes=[_extract_datetime(file, int(year))],
+    )
 
 
 def _filter_files(request: FilterRequest) -> list[Path]:
-    result: list[Path] = list(request.identified)
+    paths: list[Path] = list(request.response.paths)
+    datetimes: list[datetime] = list(request.response.datetimes)
     files: list[Path] = _get_files(request.path, ext="ncdf", sort=True)
     this_datetime: Union[None, datetime]
     for i, file in enumerate(files):
@@ -131,33 +140,46 @@ def _filter_files(request: FilterRequest) -> list[Path]:
             continue
         if this_datetime.day in request.valid_days:
             if this_datetime == request.start:
-                result.append(file)
+                paths.append(file)
+                datetimes.append(this_datetime)
                 continue
             elif request.start < this_datetime and this_datetime < request.end:
-                if len(result) == 0:
+                if len(paths) == 0:
                     if i == 0:
-                        previous_file: Path = _locate_previous(
+                        previous_response: FilterResponse = _locate_previous(
                             this_datetime.month,
                             request.year,
                             request.path,
                         )
+                        previous_file = previous_response.paths[0]
+                        previous_datetime = previous_response.datetimes[0]
                     else:
                         previous_file = files[i - 1]
-                    result.append(previous_file)
-                result.append(file)
+                        previous_datetime = _extract_datetime(
+                            previous_file, request.year
+                        )
+                    paths.append(previous_file)
+                    datetimes.append(previous_datetime)
+                paths.append(file)
+                datetimes.append(this_datetime)
             elif this_datetime == request.end:
-                result.append(file)
+                paths.append(file)
+                datetimes.append(this_datetime)
                 break
         if this_datetime > request.end:
-            result.append(file)
+            paths.append(file)
+            datetimes.append(this_datetime)
             break
-    return result
+    return FilterResponse(paths=paths, datetimes=datetimes)
 
 
-def _identify_files(request: RawDataRequest) -> list[Path]:
+def _identify_files(request: RawDataRequest) -> FilterResponse:
     datadir: Path = Path(DATADIR / request.location / request.instr_name)
     day_rng: DayRange = _identify_days(request.daterange)
-    identified: list[Path] = list()
+    response: FilterResponse = FilterResponse(
+        paths=[],
+        datetimes=[],
+    )
 
     for year in day_rng.years:
         yeardir = datadir / str(year)
@@ -169,7 +191,7 @@ def _identify_files(request: RawDataRequest) -> list[Path]:
                 path=filedir,
                 valid_days=day_rng.days[f"{year}-{month}"],
                 year=year,
-                identified=identified,
+                response=response,
             )
-            identified = _filter_files(filter_request)
-    return identified
+            response = _filter_files(filter_request)
+    return response
