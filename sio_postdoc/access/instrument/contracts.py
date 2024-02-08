@@ -92,3 +92,21 @@ class FilterRequest(BaseModel):
     valid_days: list[int]
     year: int
     response: RawDataResponse
+
+
+class RawTimeHeightData(BaseModel):
+    datetimes: list[datetime]  # This is the first index (rows)
+    elevations: list[float]  # This is the second index (column)
+    # The inner list is at constant time (elevation varies)
+    values: list[list[float]]
+
+
+class TimeHeightData(BaseModel):
+    datetimes: list[datetime]
+    elevations: list[float]  # km
+    values: list[list[float]]
+
+
+class LidarData(BaseModel):
+    far_parallel: TimeHeightData
+    depolarization: TimeHeightData
