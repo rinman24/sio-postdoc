@@ -1,9 +1,7 @@
-from pathlib import Path
-
 import pytest
 
 import sio_postdoc.access.instrument.service as access
-from sio_postdoc.access.instrument.contracts import RawDataRequest
+from sio_postdoc.access.instrument.contracts import FilterResponse, RawDataRequest
 from sio_postdoc.utility.builders import AccessContractsBuilder
 
 builder: AccessContractsBuilder = AccessContractsBuilder()
@@ -137,9 +135,9 @@ IDENTIFY_LIDAR_FILES: list[tuple[RawDataRequest, list[str]]] = [
 ]
 
 
-@pytest.mark.parametrize("daterange, expected", IDENTIFY_LIDAR_FILES)
-def test_identify_files(daterange, expected):
-    result: list[Path] = access._identify_files(daterange)
-    assert len(expected) == len(result)
-    for exp, res in zip(expected, result):
+@pytest.mark.parametrize("raw_data_request, expected", IDENTIFY_LIDAR_FILES)
+def test_identify_files(raw_data_request, expected):
+    response: FilterResponse = access._identify_files(raw_data_request)
+    assert len(expected) == len(response.paths)
+    for exp, res in zip(expected, response.paths):
         assert str(res).endswith(exp)
