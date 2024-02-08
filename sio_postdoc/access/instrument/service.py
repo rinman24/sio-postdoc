@@ -1,18 +1,23 @@
 import re
 from calendar import monthrange
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Union
+
+import netCDF4 as ncdf
 
 from sio_postdoc.access.instrument.constants import DATADIR, MONTH_DIRECTORIES
 from sio_postdoc.access.instrument.contracts import (
     DateRange,
     DayRange,
     FilterRequest,
+    LidarData,
     MonthRange,
     RawDataRequest,
     RawDataResponse,
+    RawTimeHeightData,
+    TimeHeightData,
 )
 
 
@@ -195,3 +200,53 @@ def _identify_files(request: RawDataRequest) -> RawDataResponse:
             )
             response = _filter_files(filter_request)
     return response
+
+
+def _initial_datetime(dataset: ncdf.Dataset, datetime_: datetime) -> datetime:
+    hours: float = float(dataset["time"][0].data)
+    delta: float = hours / 24
+    date_: date = datetime_.date()
+    reference: datetime = datetime.combine(date_, time(0))
+    initial_datetime: datetime = reference + timedelta(delta)
+    return initial_datetime
+
+
+def _get_datetime_indexes(
+    dataset: ncdf.Dataset,
+    name_datetime: datetime,
+) -> list[datetime]:
+    initial_datetime: datetime = _initial_datetime(dataset, name_datetime)
+    results: list[datetime] = [initial_datetime]
+    buffer: int = 0
+    for i, hour in enumerate(dataset["time"][1:].data):
+        previous_hour: float = float(dataset["time"][i].data)
+        if hour < previous_hour:
+            buffer = 24
+        delta = ((hour - previous_hour) + buffer) / 24
+        buffer = 0
+        results.append(results[i] + timedelta(delta))
+    return results
+
+
+def _concatinate_raw_data(files: RawDataResponse) -> RawTimeHeightData:
+    kwargs: dict[str:TimeHeightData] = dict()
+    for variable in ["far_parallel", "depolarization"]:
+        datetimes: list[datetime] = list()
+        elevations: list[float] = list()
+        values: list[list[float]] = list()
+        for path, datetime_ in zip(files.paths, files.datetimes):
+            dataset: ncdf.Dataset = ncdf.Dataset(path)
+            datetimes += _get_datetime_indexes(dataset, datetime_)
+            this_elevation = [i / 1000 for i in dataset["range"][:].data]
+            values += [row.tolist() for row in dataset[variable][:].data]
+            if len(elevations) == 0:
+                elevations = this_elevation
+            elif this_elevation != elevations:
+                raise ValueError("elevations do not match across files.")
+
+        kwargs[variable] = TimeHeightData(
+            datetimes=datetimes,
+            elevations=elevations,
+            values=values,
+        )
+    return LidarData(**kwargs)
