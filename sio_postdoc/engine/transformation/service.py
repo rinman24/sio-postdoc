@@ -1,7 +1,7 @@
 import pandas as pd
 from pydantic import BaseModel
 
-from sio_postdoc.access.instrument.contracts import TimeHeightData
+from sio_postdoc.access.instrument.contracts import DateRange, TimeHeightData
 
 
 def _to_df(data: TimeHeightData) -> pd.DataFrame:
@@ -28,5 +28,13 @@ def _replace(
 ) -> TimeHeightData:
     df: pd.DataFrame = _to_df(data)
     df = df.replace(flag, value)
-    result: TimeHeightData = _to_contract(df, TimeHeightData)
-    return result
+    return _to_contract(df, TimeHeightData)
+
+
+def _crop(data: TimeHeightData, range: DateRange) -> TimeHeightData:
+    df: pd.DataFrame = _to_df(data)
+    mask: list[bool] = (
+        (range.start <= df.index) & (df.index <= range.end)
+    ).tolist()  # noqa
+    df = df[mask]
+    return _to_contract(df, TimeHeightData)
