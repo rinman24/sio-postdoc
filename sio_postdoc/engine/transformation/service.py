@@ -68,5 +68,28 @@ def _top_hat(j: int) -> list[float]:
 
 
 def _wavelet(values, kind) -> float:
+    # TODO: Use a match case instead
     if kind == "tophat":
-        return sum(i * j for i, j in zip(_top_hat(len(values)), values))
+        length: int = len(values)
+        valid_lengths: set = set([4, 8, 16, 32, 64, 128, 256])
+        j_lookup: dict[int, int] = {
+            4: 2,
+            8: 3,
+            16: 4,
+            32: 5,
+            64: 6,
+            128: 7,
+            256: 8,
+        }
+        if length in valid_lengths:
+            j: int = j_lookup[length]
+            return sum(th * f for th, f in zip(_top_hat(j), values))
+    else:
+        raise ValueError(f"'{kind}' is not a valed wavelet option")
+
+
+def _periodogram(data: TimeHeightData, j: int) -> TimeHeightData:
+    # TODO: this j is trickey here, make sure you don't mix this up later
+    df: pd.DataFrame = _to_df(data)
+    df = (df**2) / (2 ** (j + 1))
+    return _to_contract(df, TimeHeightData)
