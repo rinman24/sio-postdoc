@@ -44,9 +44,10 @@ def _rolling_apply(
     data: TimeHeightData,
     func: object,
     window: str,
+    kwargs: dict,
 ) -> TimeHeightData:
     df: pd.DataFrame = _to_df(data)
-    result = df.rolling(window, center=True).apply(func)
+    result = df.rolling(window, center=True).apply(func, kwargs=kwargs)
     return _to_contract(result, TimeHeightData)
 
 
@@ -62,3 +63,8 @@ def _top_hat(j: int) -> list[float]:
         else:
             result.append(scale)
     return result
+
+
+def _wavelet(values, kind) -> float:
+    if kind == "tophat":
+        return sum(i * j for i, j in zip(_top_hat(len(values)), values))
