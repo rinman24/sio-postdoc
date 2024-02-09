@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pandas as pd
 from pydantic import BaseModel
 
@@ -44,7 +46,7 @@ def _rolling_apply(
     data: TimeHeightData,
     func: object,
     window: str,
-    kwargs: dict,
+    kwargs: Optional[dict] = None,
 ) -> TimeHeightData:
     df: pd.DataFrame = _to_df(data)
     result = df.rolling(window, center=True).apply(func, kwargs=kwargs)
