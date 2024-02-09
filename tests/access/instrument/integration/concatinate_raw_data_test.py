@@ -11,7 +11,9 @@ from sio_postdoc.access.instrument.contracts import (
     RawTimeHeightData,
 )
 
-PREFIX: str = "/Users/richardinman/Code/sio-postdoc/sio_postdoc/data/sheba/lidar/"
+PREFIX: str = (
+    "/Users/richardinman/Code/sio-postdoc/sio_postdoc/data/sheba/lidar/"  # noqa
+)
 SUFFIX: str = ".BARO.ncdf"
 
 
