@@ -48,3 +48,17 @@ def _rolling_apply(
     df: pd.DataFrame = _to_df(data)
     result = df.rolling(window, center=True).apply(func)
     return _to_contract(result, TimeHeightData)
+
+
+def _top_hat(j: int) -> list[float]:
+    tau: float
+    length: int = 2**j
+    scale: float = 1 / (2 ** (j + 1)) ** 0.5
+    result: list[float] = list()
+    for i in range(length):
+        tau = i / length
+        if (tau < 0.25) or (tau >= 0.75):
+            result.append(-scale)
+        else:
+            result.append(scale)
+    return result
