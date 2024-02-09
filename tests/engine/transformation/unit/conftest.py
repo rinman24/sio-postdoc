@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pytest
 
+import sio_postdoc.engine.transformation.service as engine
 from sio_postdoc.access.instrument.contracts import TimeHeightData
 
 
@@ -135,5 +136,24 @@ def _f_pulse_data(
             datetimes=_f_datetimes,
             elevations=_f_elevations,
             values=_f_pulse_values["double"],
+        ),
+    )
+
+
+# TODO: Can you use this in your tophad application test?
+@pytest.fixture
+def _f_tophat_application(_f_pulse_data) -> dict[str, TimeHeightData]:
+    return dict(
+        single=engine._rolling_apply(
+            data=_f_pulse_data["single"],
+            func=engine._wavelet,
+            window=7,
+            kwargs={"kind": "tophat"},
+        ),
+        double=engine._rolling_apply(
+            data=_f_pulse_data["double"],
+            func=engine._wavelet,
+            window=7,
+            kwargs={"kind": "tophat"},
         ),
     )
