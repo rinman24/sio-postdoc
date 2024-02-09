@@ -250,3 +250,9 @@ def _concatinate_raw_data(files: RawDataResponse) -> RawTimeHeightData:
             values=values,
         )
     return LidarData(**kwargs)
+
+
+def process(request: RawDataRequest) -> LidarData:
+    response: RawDataResponse = _identify_files(request)
+    data: LidarData = _concatinate_raw_data(response)
+    return data
