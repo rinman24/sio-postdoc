@@ -143,17 +143,19 @@ def _f_pulse_data(
 # TODO: Can you use this in your tophad application test?
 @pytest.fixture
 def _f_tophat_application(_f_pulse_data) -> dict[str, TimeHeightData]:
+    # TODO: You are getting a type error here when window is seven rather than
+    # surfacing the actual error from your code.
     return dict(
         single=engine._rolling_apply(
             data=_f_pulse_data["single"],
             func=engine._wavelet,
-            window=7,
+            window=8,
             kwargs={"kind": "tophat"},
         ),
         double=engine._rolling_apply(
             data=_f_pulse_data["double"],
             func=engine._wavelet,
-            window=7,
+            window=8,
             kwargs={"kind": "tophat"},
         ),
     )
