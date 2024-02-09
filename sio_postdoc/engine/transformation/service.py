@@ -38,3 +38,13 @@ def _crop(data: TimeHeightData, range: DateRange) -> TimeHeightData:
     ).tolist()  # noqa
     df = df[mask]
     return _to_contract(df, TimeHeightData)
+
+
+def _rolling_apply(
+    data: TimeHeightData,
+    func: object,
+    window: str,
+) -> TimeHeightData:
+    df: pd.DataFrame = _to_df(data)
+    result = df.rolling(window, center=True).apply(func)
+    return _to_contract(result, TimeHeightData)
