@@ -3,7 +3,10 @@ from datetime import datetime
 import pytest
 
 import sio_postdoc.access.instrument.service as access
-from sio_postdoc.access.instrument.contracts import RawDataRequest, RawDataResponse
+from sio_postdoc.access.instrument.contracts import (  # noqa
+    RawDataRequest,
+    RawDataResponse,
+)
 from sio_postdoc.utility.builders import AccessContractsBuilder
 
 builder: AccessContractsBuilder = AccessContractsBuilder()
