@@ -1,3 +1,5 @@
+"""Instrument Access Service."""
+
 import dataclasses
 import os
 import re
@@ -8,7 +10,11 @@ from pathlib import Path
 from typing import Protocol, Union
 
 import netCDF4 as ncdf
-from azure.core.exceptions import HttpResponseError, ResourceExistsError
+from azure.core.exceptions import (
+    HttpResponseError,
+    ResourceExistsError,
+    ResourceNotFoundError,
+)
 from azure.storage.blob import BlobServiceClient
 
 from sio_postdoc.access.instrument.constants import DATADIR, MONTH_DIRECTORIES
@@ -29,7 +35,6 @@ class BlobAccess(Protocol):
     """Define protocol for Azure Blob Storage."""
 
     # pylint: disable=missing-function-docstring
-
     def create_container(self, name: str) -> str: ...
     def add_blob(self, name: str, path: Path) -> None: ...
     def list_blobs(self, name: str) -> tuple[str, ...]: ...
@@ -104,8 +109,15 @@ class InstrumentAccess(BlobAccess):
     def list_blobs(self, name: str) -> tuple[str, ...]:
         """List the contents of the container."""
         blobs: tuple[str, ...]
-        with self.blob_service.get_container_client(name) as container:
-            blobs = tuple(sorted([str(blob.name) for blob in container.list_blobs()]))
+        try:
+            with self.blob_service.get_container_client(name) as container:
+                blobs = tuple(
+                    sorted([str(blob.name) for blob in container.list_blobs()])
+                )
+        except ResourceNotFoundError as exc:
+            raise ResourceNotFoundError(
+                f"Specified container not found: '{name}'"
+            ) from exc
         return blobs
 
 

@@ -29,6 +29,11 @@ class LocalAccess(DiskAccess):
             )
         except NotADirectoryError as exc:
             raise NotADirectoryError(f"Not a directory: '{directory}'") from exc
+        except FileNotFoundError as exc:
+            # TODO: Write a test for this
+            raise FileNotFoundError(
+                f"No such file or directory: '{directory}'"
+            ) from exc
 
     def rename_files(self, current: Contents, new: Contents) -> None:
         """Change the current names to the new names."""

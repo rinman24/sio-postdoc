@@ -1,6 +1,4 @@
-"""TODO: Module level docstring."""
-
-from typing import Optional
+"""Formatting Engine Service."""
 
 from sio_postdoc.engine.formatting.strategies import AbstractDateStrategy
 
