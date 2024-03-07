@@ -4,6 +4,21 @@ import dataclasses
 import re
 from abc import ABC, abstractmethod
 
+MONTH_MAP: dict[str, str] = dict(
+    jan="01",
+    feb="02",
+    mar="03",
+    apr="04",
+    may="05",
+    jun="06",
+    jul="07",
+    aug="08",
+    sep="09",
+    oct="10",
+    nov="11",
+    dec="12",
+)
+
 
 @dataclasses.dataclass
 class Date:
@@ -119,6 +134,31 @@ class YYYYMMDDdothhmmss(AbstractDateStrategy):
             hour=raw[9:11],
             minute=raw[11:13],
             second=raw[13:],
+        )
+
+        return DateTime(date=date, time=time)
+
+
+class DDMMMYYYYdothhColonmmDashhhColonmm(AbstractDateStrategy):
+    """DDMMMYYYYdothhColonmmDashhhColonmm strategy."""
+
+    def __init__(self) -> None:
+        self.pattern = re.compile(
+            "[0-9]{2}[a-z]{3}[0-9]{4}.[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}"
+        )
+
+    def extract_time(self, raw: str, _: str) -> DateTime:
+        """Concrete Implementation of date strategy."""
+        date: Date = Date(
+            year=raw[5:9],
+            month=MONTH_MAP[raw[2:5]],
+            day=raw[:2],
+        )
+
+        time: Time = Time(
+            hour=raw[10:12],
+            minute=raw[13:15],
+            second="00",
         )
 
         return DateTime(date=date, time=time)
