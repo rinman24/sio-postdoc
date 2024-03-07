@@ -35,6 +35,8 @@ TEST_DATA: _TestData = _TestData(
     ),
 )
 
+YEAR: str = "2024"
+
 
 @pytest.fixture(scope="module")
 def service() -> Generator[ObservationManager, None, None]:
@@ -57,7 +59,7 @@ def service() -> Generator[ObservationManager, None, None]:
 
 def test_format_directory(service):
     """Test that all files in a directory with a given extention are formatted."""
-    service.format_dir(TEMP_DIRECTORY, SUFFIX)
+    service.format_dir(TEMP_DIRECTORY, SUFFIX, YEAR)
     assert (
         service.local_access.list_files(TEMP_DIRECTORY, SUFFIX) == TEST_DATA.formatted
     )

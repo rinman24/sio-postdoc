@@ -78,13 +78,13 @@ class AbstractDateStrategy(ABC):
         )
 
     @abstractmethod
-    def extract_time(self, raw: str, prefix: str) -> DateTime:
+    def extract_time(self, raw: str, year: str) -> DateTime:
         """Delegated to strategies."""
 
-    def format(self, raw: str, prefix: str) -> str:
+    def format(self, raw: str, year: str) -> str:
         """Format the raw input."""
         decomposition: Decomposition = self.decompose(raw)
-        datetime: DateTime = self.extract_time(decomposition.target, prefix)
+        datetime: DateTime = self.extract_time(decomposition.target, year)
         date: str = f"{datetime.date.year}-{datetime.date.month}-{datetime.date.day}"
         time: str = (
             f"{datetime.time.hour}-{datetime.time.minute}-{datetime.time.second}"
@@ -99,10 +99,10 @@ class MMDDhhmm(AbstractDateStrategy):
     def __init__(self) -> None:
         self.pattern = re.compile("[0-9]{8}")
 
-    def extract_time(self, raw: str, prefix: str) -> DateTime:
+    def extract_time(self, raw: str, year: str) -> DateTime:
         """Concrete Implementation of date strategy."""
         date: Date = Date(
-            year=prefix,
+            year=year,
             month=raw[:2],
             day=raw[2:4],
         )

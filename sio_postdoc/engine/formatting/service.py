@@ -22,7 +22,6 @@ class FormattingContext:
         """Update the strategy at runtime."""
         self._strategy = strategy
 
-    def format(self, raw: str, prefix: Optional[str] = None) -> str:
+    def format(self, raw: str, year: str) -> str:
         """Concrete implementation of `format_filename`."""
-        prefix = "" if not prefix else prefix
-        return self.strategy.format(raw, prefix)
+        return self.strategy.format(raw, year)
