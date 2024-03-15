@@ -16,6 +16,7 @@ from azure.core.exceptions import (
     ResourceNotFoundError,
 )
 from azure.storage.blob import BlobServiceClient
+from dotenv import find_dotenv, load_dotenv
 
 from sio_postdoc.access.instrument.constants import DATADIR, MONTH_DIRECTORIES
 from sio_postdoc.access.instrument.contracts import (
@@ -60,6 +61,8 @@ class InstrumentAccess(BlobAccess):
     """Concrete implementation of Blob Access."""
 
     def __init__(self) -> None:
+        # Use environment variables for secrets
+        load_dotenv(find_dotenv())
         self._account: Account = Account(
             name=os.environ["STORAGE_ACCOUNT_NAME"],
             key=os.environ["STORAGE_ACCOUNT_KEY"],
