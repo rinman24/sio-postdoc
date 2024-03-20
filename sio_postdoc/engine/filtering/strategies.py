@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Union
 
 import sio_postdoc.utility.service as utility
@@ -80,7 +80,7 @@ class IndicesByDate(AbstractDateStrategy):
             mask: list[bool] = []
             for offset in item.time.offsets:
                 timestamp: datetime = reference + timedelta(seconds=offset)
-                if prototype is None and timestamp.date() == target:
+                if prototype is None and reference.date() == target:
                     prototype = item
                 mask.append(timestamp.date() == target)
             masks.append(tuple(mask))
@@ -118,7 +118,7 @@ class IndicesByDate(AbstractDateStrategy):
             )
             vectors.append(item)
         time: TemporalVector = TemporalVector(
-            initial=reference,
+            initial=datetime.combine(target, time()),
             offsets=offsets,
             units=prototype.time.units,
             name=prototype.time.name,
