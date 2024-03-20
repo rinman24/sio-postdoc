@@ -6,6 +6,11 @@ from pydantic import BaseModel, field_validator, model_validator
 from sio_postdoc.access.instrument.constants import VALID_LOCATIONS, VALID_NAMES  # noqa
 
 
+class AccessResponse(BaseModel):
+    success: bool
+    message: str
+
+
 class DateRange(BaseModel):
     start: datetime
     end: datetime
@@ -110,3 +115,46 @@ class TimeHeightData(BaseModel):
 class LidarData(BaseModel):
     far_parallel: TimeHeightData
     depolarization: TimeHeightData
+
+
+class UploadRequest(BaseModel):
+    site: str
+    instrument: str
+    year: int
+    month: int
+    directory: str
+    format: str
+
+
+# Here are the new ones
+
+
+class RICHBASE(BaseModel):
+    units: str
+    name: str
+    scale: float
+    flag: float
+
+
+class PhysicalVector(RICHBASE):
+    values: tuple[float, ...]
+
+
+class TemporalVector(RICHBASE):
+    initial: datetime
+    offsets: tuple[float, ...]
+    # Make sure that the units are in a subset of what we want
+
+
+class PhysicalMatrix(RICHBASE):
+    values: tuple[tuple[float, ...], ...]
+
+
+class InstrumentData(BaseModel):
+    time: TemporalVector
+    axis: tuple[PhysicalVector, ...]
+    matrices: tuple[PhysicalMatrix, ...]
+    vectors: tuple[PhysicalVector, ...]
+    name: str
+    observatory: str
+    notes: str

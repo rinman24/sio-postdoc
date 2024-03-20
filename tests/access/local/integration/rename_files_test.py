@@ -6,12 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from sio_postdoc.access._local.service import LocalAccess
+from sio_postdoc.access.local.service import LocalAccess
 
 FILE_NAMES: tuple[str, ...] = ("mmcr.txt", "dabul.txt")
-TEMP_DIRECTORY: Path = Path(
-    os.getcwd() + "/tests/access/_local/integration/temp_files/"
-)
+TEMP_DIRECTORY: Path = Path(os.getcwd() + "/tests/access/local/integration/temp_files/")
 
 
 @pytest.fixture(scope="module")

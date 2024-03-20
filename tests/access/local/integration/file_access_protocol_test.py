@@ -5,13 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from sio_postdoc.access._local.service import LocalAccess
+from sio_postdoc.access.local.service import LocalAccess
 
 # pylint: disable=redefined-outer-name
 
-DATA_DIRECTORY: Path = Path(
-    os.getcwd() + "/tests/access/_local/integration/test_files/"
-)
+DATA_DIRECTORY: Path = Path(os.getcwd() + "/tests/access/local/integration/test_files/")
 
 
 FILES: dict[str, tuple[Path, ...]] = {

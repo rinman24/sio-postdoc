@@ -27,7 +27,7 @@ FILE_NAMES: tuple[Path, ...] = (
 def service() -> Generator[InstrumentAccess, None, None]:
     """Module level service for testing."""
     # Setup
-    load_dotenv(find_dotenv())
+    load_dotenv(override=True)
     _service: InstrumentAccess = InstrumentAccess()
     # Empty container
     _service.create_container(EMPTY_CONTAINTER)

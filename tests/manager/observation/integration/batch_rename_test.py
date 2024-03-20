@@ -7,7 +7,7 @@ from typing import Generator
 import pytest
 
 from sio_postdoc.engine.formatting.strategies import YYYYMMDDdothhmmss
-from sio_postdoc.manager_.observation.service import ObservationManager
+from sio_postdoc.manager.observation.service import ObservationManager
 
 Content = tuple[str, ...]
 
@@ -19,7 +19,7 @@ class _TestData:
 
 
 TEMP_DIRECTORY: Path = Path(
-    os.getcwd() + "/tests/manager_/observation/integration/temp_files/"
+    os.getcwd() + "/tests/manager/observation/integration/temp_files/"
 )
 
 SUFFIX: str = ".txt"

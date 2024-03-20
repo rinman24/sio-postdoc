@@ -2,8 +2,9 @@
 
 from pathlib import Path
 
-from sio_postdoc.access._local.service import LocalAccess
 from sio_postdoc.access.instrument.service import InstrumentAccess
+from sio_postdoc.access.local.service import LocalAccess
+from sio_postdoc.engine.filtering.service import FilteringEngine
 from sio_postdoc.engine.formatting.service import FormattingContext
 from sio_postdoc.engine.formatting.strategies import AbstractDateStrategy, MMDDhhmm
 
@@ -15,8 +16,9 @@ class ObservationManager:
     def __init__(self) -> None:
         self._instrument_access: InstrumentAccess = InstrumentAccess()
         self._local_access: LocalAccess = LocalAccess()
-        self._strategy: AbstractDateStrategy = MMDDhhmm()
-        self._formatting_context: FormattingContext = FormattingContext(self._strategy)
+        self._filtering_engine: FilteringEngine = FilteringEngine()
+        # self._formatting_strategy: AbstractDateStrategy = MMDDhhmm()
+        self._formatting_context: FormattingContext = FormattingContext(MMDDhhmm())
 
     @property
     def instrument_access(self) -> InstrumentAccess:
@@ -25,6 +27,10 @@ class ObservationManager:
     @property
     def local_access(self) -> LocalAccess:
         return self._local_access
+
+    @property
+    def filtering_engine(self) -> FilteringEngine:
+        return self._filtering_engine
 
     @property
     def formatting_context(self) -> FormattingContext:

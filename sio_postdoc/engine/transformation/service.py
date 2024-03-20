@@ -1,7 +1,30 @@
+# pylint: disable=missing-function-docstring, missing-module-docstring, missing-class-docstring
+
 import pandas as pd
 from pydantic import BaseModel
 
 from sio_postdoc.access.instrument.contracts import DateRange, TimeHeightData
+from sio_postdoc.engine.transformation.strategies import AbstractUnpackingStrategy
+
+
+class UnpackingContext:
+
+    def __init__(self, strategy: AbstractUnpackingStrategy) -> None:
+        self._strategy: AbstractUnpackingStrategy = strategy
+
+    @property
+    def strategy(self) -> AbstractUnpackingStrategy:
+        return self._strategy
+
+    @strategy.setter
+    def strategy(self, strategy: AbstractUnpackingStrategy) -> None:
+        self._strategy = strategy
+
+    def unpack(self) -> None:
+        return self.strategy.unpack()
+
+
+# TODO: Remove all of this stuff.
 
 
 def _to_df(data: TimeHeightData) -> pd.DataFrame:

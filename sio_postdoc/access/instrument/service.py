@@ -10,25 +10,40 @@ from pathlib import Path
 from typing import Protocol, Union
 
 import netCDF4 as ncdf
+import netCDF4 as nc
 from azure.core.exceptions import (
     HttpResponseError,
     ResourceExistsError,
     ResourceNotFoundError,
 )
 from azure.storage.blob import BlobServiceClient
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 
+import sio_postdoc.utility.service as utility
 from sio_postdoc.access.instrument.constants import DATADIR, MONTH_DIRECTORIES
+from sio_postdoc.access.instrument.context import DataContext, NcdfContext
 from sio_postdoc.access.instrument.contracts import (
     DateRange,
     DayRange,
     FilterRequest,
+    InstrumentData,
     LidarData,
     MonthRange,
+    PhysicalMatrix,
+    PhysicalVector,
     RawDataRequest,
     RawDataResponse,
     RawTimeHeightData,
+    TemporalVector,
     TimeHeightData,
+)
+from sio_postdoc.access.instrument.strategies import (
+    AbstractDataStrategy,
+    AbstractInstrumentStrategy,
+    AbstractLocationStrategy,
+    DabulInstrumentStrategy,
+    Default,
+    MobileLocationStrategy,
 )
 
 
@@ -39,6 +54,8 @@ class BlobAccess(Protocol):
     def create_container(self, name: str) -> str: ...
     def add_blob(self, name: str, path: Path) -> None: ...
     def list_blobs(self, name: str) -> tuple[str, ...]: ...
+    def download_blobs(self, container: str, names: tuple[str, ...]) -> None: ...
+    def get_datasets(self, container: str, names: tuple[nc.Dataset, ...]) -> None: ...
 
 
 @dataclasses.dataclass
@@ -62,7 +79,7 @@ class InstrumentAccess(BlobAccess):
 
     def __init__(self) -> None:
         # Use environment variables for secrets
-        load_dotenv(find_dotenv())
+        load_dotenv(override=True)
         self._account: Account = Account(
             name=os.environ["STORAGE_ACCOUNT_NAME"],
             key=os.environ["STORAGE_ACCOUNT_KEY"],
@@ -74,6 +91,13 @@ class InstrumentAccess(BlobAccess):
 
         self._blob_service: BlobServiceClient = (
             BlobServiceClient.from_connection_string(conn_str=self.connection_string)
+        )
+
+        self._data_context: DataContext = DataContext(Default())
+
+        self._ncdf_context: NcdfContext = NcdfContext(
+            location=MobileLocationStrategy(),
+            instrument=DabulInstrumentStrategy(),
         )
 
     @property
@@ -90,6 +114,14 @@ class InstrumentAccess(BlobAccess):
     def blob_service(self) -> BlobServiceClient:
         """Return instance of Azure BlobServiceClient."""
         return self._blob_service
+
+    @property
+    def data_context(self) -> DataContext:
+        return self._data_context
+
+    @property
+    def ncdf_context(self) -> NcdfContext:
+        return self._ncdf_context
 
     def create_container(self, name: str) -> None:
         """Create a new blob container."""
@@ -122,6 +154,45 @@ class InstrumentAccess(BlobAccess):
                 f"Specified container not found: '{name}'"
             ) from exc
         return blobs
+
+    def _download_blob(self, container: str, name: str) -> None:
+        with self.blob_service.get_blob_client(
+            container=container, blob=name
+        ) as blob_client:
+            with open(name, mode="wb") as blob:
+                download_stream = blob_client.download_blob()
+                blob.write(download_stream.readall())
+
+    def get_data(self, container: str, names: tuple) -> tuple[InstrumentData, ...]:
+        results: list[InstrumentData] = []
+        for name in names:
+            self._download_blob(container, name)
+            results.append(self.data_context.extract(name))
+            os.remove(name)
+        return tuple(results)
+
+    def push(self, data: InstrumentData, container: str) -> None:
+        # TODO: I think what you want to do is use strategies here
+        # Things like Mobile for the Observatory Strategy
+        # Things like Lidar or Radar for the Instrument Strategy
+        # These are not specific to the site, per say, but are
+        # access strategies for returning information.
+        # I also think that InstrumentData will need scalar info.
+        # Start with the strategies.
+        # So, I have the instrument data, but I need to create a
+        # netcdf file to store it.
+        # 1) Conver to net cdf
+        # So now we are here and we need to convert back into a nc file.
+        # Pick up here when you get back.
+        # First, you need the filename
+        # it will look like Dyyyy-dd-mm-Txx-xx-xx.notes.nc
+        # So, build the filename.
+        filename: str = self.ncdf_context.create_file(data)
+        # I think we got all of the data written to a file now
+        # So now, I need to push the blob up
+        path: Path = Path(f"./{filename}")
+        self.add_blob(name="testing-remote", path=path)
+        # 2) push the file to the container
 
 
 def _identify_years(range: DateRange) -> list[int]:
