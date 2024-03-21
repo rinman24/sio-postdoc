@@ -74,8 +74,8 @@ class NcdfContext:
             offsets = rootgrp.createVariable("offsets", "f4", ("record",))
             offsets[:] = list(data.time.offsets)
             if data.axis:
-                range_ = rootgrp.createVariable("range_", "f4", ("level",))
-                range_[:] = list(data.axis[0].values)
+                range = rootgrp.createVariable("range", "f4", ("level",))
+                range[:] = list(data.axis[0].values)
             rootgrp = self.location.write_data(data, rootgrp)
             rootgrp = self.instrument.write_data(data, rootgrp)
         return filename

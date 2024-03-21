@@ -3,6 +3,7 @@ from pathlib import Path
 
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies import (
+    DabulData,
     DabulInstrumentStrategy,
     MobileLocationStrategy,
     ShebaDabulRaw,
@@ -11,13 +12,12 @@ from sio_postdoc.engine.filtering.strategies import IndicesByDate, NamesByDate
 from sio_postdoc.manager.observation.service import ObservationManager
 
 
-def test_troubleshoot():
+def test_this_troubleshoot():
     service: ObservationManager = ObservationManager()
     # Get a tiple of all the blobs in the container
     target: date = date(1998, 1, 5)
     container: str = "sheba-dabul-raw-1998"
     blobs: tuple[str, ...] = service.instrument_access.list_blobs(container)
-
     # Use the NamesByDate strategy to find names of blobs as strings
     service.filtering_engine.date_context.strategy = NamesByDate()
     filtered: tuple[str, ...] = service.filtering_engine.apply(
@@ -27,7 +27,6 @@ def test_troubleshoot():
     # Use the site and instrument specific strategy to get a tuple of InstrumentData
     service.instrument_access.data_context.strategy = ShebaDabulRaw()
     datasets = service.instrument_access.get_data(container=container, names=filtered)
-
     # Use the IndicesByDate strategy to get a tuple of indices that correspont to a given day
     service.filtering_engine.date_context.strategy = IndicesByDate()
     data: InstrumentData = service.filtering_engine.apply(
@@ -47,8 +46,20 @@ def test_troubleshoot():
     path: Path = Path(f"./{filename}")
     # This line seems to be timing out on my computer.
     service.instrument_access.add_blob(name="testing-remote", path=path)
-    assert False
-    # But the filter needs to return a single set of instrument data
-    # That has only timestamps for that day.
-    assert isinstance(data, InstrumentData)
-    print(datasets)
+    # That should have written the data, let's see if it actually worked and what else we need to do to the data.
+
+
+def test_this_second_troubleshoot():
+    service: ObservationManager = ObservationManager()
+    # Get a tiple of all the blobs in the container
+    target: date = date(1998, 1, 5)
+    container: str = "testing-remote"
+    blobs: tuple[str, ...] = service.instrument_access.list_blobs(container)
+    service.filtering_engine.date_context.strategy = NamesByDate()
+    filtered: tuple[str, ...] = service.filtering_engine.apply(
+        target=target,
+        content=blobs,
+    )
+    service.instrument_access.data_context.strategy = DabulData()
+    datasets = service.instrument_access.get_data(container=container, names=filtered)
+    x = 1

@@ -108,7 +108,7 @@ class RawTimeHeightData(BaseModel):
 
 class TimeHeightData(BaseModel):
     datetimes: list[datetime]
-    elevations: list[float]  # km
+    elevations: list[float]
     values: list[list[float]]
 
 
@@ -153,6 +153,7 @@ class PhysicalMatrix(RICHBASE):
 class InstrumentData(BaseModel):
     time: TemporalVector
     axis: tuple[PhysicalVector, ...]
+    # NOTE: Rather than tuples, these should be dictionaries
     matrices: tuple[PhysicalMatrix, ...]
     vectors: tuple[PhysicalVector, ...]
     name: str

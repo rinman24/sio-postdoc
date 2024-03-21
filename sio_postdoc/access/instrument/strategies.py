@@ -75,7 +75,117 @@ class ShebaDabulRaw(AbstractDataStrategy):
             flag=-999,
         )
         axis: PhysicalVector = PhysicalVector(
-            values=(float(i) for i in dataset["range"]),
+            values=tuple(float(i) for i in dataset["range"]),
+            units="meters",
+            name="range",
+            scale=1,
+            flag=-999,
+        )
+        vectors: list[PhysicalVector] = []
+        for variable in (
+            "latitude",
+            "longitude",
+            "altitude",
+            "elevation",
+            "azimuth",
+            "scanmode",
+        ):
+            name: str = variable
+            value_type: type = float
+            flag: int = -999
+            scale: int = 1
+            match variable:
+                case "latitude":
+                    units = "degrees north"
+                case "longitude":
+                    units = "degrees east"
+                case "altitude":
+                    units = "meters"
+                case "elevation":
+                    units = "degrees"
+                    name = "beam elevation angle"
+                case "azimuth":
+                    units = "degrees"
+                    name = "beam azimuth angle"
+                case "scanmode":
+                    units = "none"
+                    name = "scan mode"
+                    value_type = int
+            values: tuple[int | float, ...] = tuple(
+                value_type(i) for i in dataset[variable]
+            )
+            vector: PhysicalVector = PhysicalVector(
+                values=values,
+                units=units,
+                name=name,
+                scale=scale,
+                flag=flag,
+            )
+            vectors.append(vector)
+
+        matrices: list[PhysicalMatrix] = []
+        for variable in ("depolarization", "far_parallel"):
+            name: str = variable
+            values: list[list[float]] = []
+            for row in dataset[variable]:
+                values.append(tuple(float(i) for i in row))
+            flag: int = -999
+            scale: int = 1
+            match variable:
+                case "depolarization":
+                    name = "depolarization ratio"
+                    units = "none"
+                case "far_parallel":
+                    name = "far parallel"
+                    units = "unknown"
+            matrix: PhysicalMatrix = PhysicalMatrix(
+                values=tuple(values),
+                units=units,
+                name=name,
+                scale=scale,
+                flag=flag,
+            )
+            matrices.append(matrix)
+
+        result: InstrumentData = InstrumentData(
+            time=time,
+            axis=(axis,),
+            matrices=tuple(matrices),
+            vectors=tuple(vectors),
+            name="dabul",
+            observatory="SHEBA",
+            notes=notes,
+        )
+
+        return result
+
+
+class DabulData(AbstractDataStrategy):
+
+    def extract(self, name: str) -> InstrumentData:
+        dataset = nc.Dataset(name)
+        initial_datetime: datetime = utility.extract_datetime(name)
+        prefix: str = utility.extract_prefix(name)
+        suffix: str = utility.extract_suffix(name)
+        notes: str = ""
+        if prefix and suffix:
+            notes = f"{prefix}.{suffix}"
+        elif not prefix:
+            notes = f"{suffix}"
+        elif not suffix:
+            notes = f"{prefix}"
+        offsets: list[float] = [float(i) for i in dataset["offsets"]]
+        # seconds: tuple[int, ...] = self.monotonic_times(offsets, units="hours")
+        time: TemporalVector = TemporalVector(
+            initial=initial_datetime,
+            offsets=offsets,
+            units="seconds",
+            name="seconds since initial time",
+            scale=1,
+            flag=-999,
+        )
+        axis: PhysicalVector = PhysicalVector(
+            values=tuple(float(i) for i in dataset["range"]),
             units="meters",
             name="range",
             scale=1,
@@ -173,7 +283,7 @@ class MobileLocationStrategy(AbstractLocationStrategy):
         """TODO: Implement"""
         dimension: tuple[str] = ("record",)
         latitude = rootgrp.createVariable("latitude", "f4", dimension)
-        longitude = rootgrp.createVariable("longitute", "f4", dimension)
+        longitude = rootgrp.createVariable("longitude", "f4", dimension)
         altitude = rootgrp.createVariable("altitude", "f4", dimension)
         # TODO: you need to make all of the flagged data -999 at some point.
         for vector in data.vectors:
@@ -209,7 +319,7 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
         # Vectors
         elevation = rootgrp.createVariable("elevation", "f4", dimension)
         azimuth = rootgrp.createVariable("azimuth", "f4", dimension)
-        scan_mode = rootgrp.createVariable("scan_mode", "f4", dimension)
+        scanmode = rootgrp.createVariable("scanmode", "f4", dimension)
         # TODO: you need to make all of the flagged data -999 at some point.
         for vector in data.vectors:
             match vector.name:
@@ -218,16 +328,16 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
                 case "beam azimuth angle":
                     azimuth[:] = list(vector.values)
                 case "scan mode":
-                    scan_mode[:] = list(vector.values)
+                    scanmode[:] = list(vector.values)
         # Matrices
         depolarization = rootgrp.createVariable("depolarization", "f4", dimensions)
-        parallel = rootgrp.createVariable("parallel", "f4", dimensions)
+        far_parallel = rootgrp.createVariable("far_parallel", "f4", dimensions)
         for matrix in data.matrices:
             match matrix.name:
                 case "depolarization ratio":
                     depolarization[:] = matrix.values
                 case "far parallel":
-                    parallel[:] = matrix.values
+                    far_parallel[:] = matrix.values
         return rootgrp
 
 

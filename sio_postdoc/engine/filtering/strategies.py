@@ -117,7 +117,7 @@ class IndicesByDate(AbstractDateStrategy):
                 flag=vector.flag,
             )
             vectors.append(item)
-        time: TemporalVector = TemporalVector(
+        time_: TemporalVector = TemporalVector(
             initial=datetime.combine(target, time()),
             offsets=offsets,
             units=prototype.time.units,
@@ -127,7 +127,7 @@ class IndicesByDate(AbstractDateStrategy):
         )
         # Construct the result
         result: InstrumentData = InstrumentData(
-            time=time,
+            time=time_,
             axis=prototype.axis,
             matrices=matrices,
             vectors=vectors,
