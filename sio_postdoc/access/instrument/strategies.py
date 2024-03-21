@@ -53,7 +53,9 @@ class Default(AbstractDataStrategy):
 class ShebaDabulRaw(AbstractDataStrategy):
 
     def extract(self, name: str) -> InstrumentData:
+        # Open the nc file
         dataset = nc.Dataset(name)
+        # Extract initial timestamp and notes for the filename.
         initial_datetime: datetime = utility.extract_datetime(name)
         prefix: str = utility.extract_prefix(name)
         suffix: str = utility.extract_suffix(name)
@@ -64,6 +66,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
             notes = f"{suffix}"
         elif not suffix:
             notes = f"{prefix}"
+        # Construct the Temporal Vector
         offsets: list[float] = [float(i) for i in dataset["time"]]
         seconds: tuple[int, ...] = self.monotonic_times(offsets, units="hours")
         time: TemporalVector = TemporalVector(
@@ -280,20 +283,30 @@ class AbstractLocationStrategy(ABC):
 class MobileLocationStrategy(AbstractLocationStrategy):
 
     def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
-        """TODO: Implement"""
         dimension: tuple[str] = ("record",)
         latitude = rootgrp.createVariable("latitude", "f4", dimension)
         longitude = rootgrp.createVariable("longitude", "f4", dimension)
         altitude = rootgrp.createVariable("altitude", "f4", dimension)
-        # TODO: you need to make all of the flagged data -999 at some point.
         for vector in data.vectors:
             match vector.name:
                 case "latitude":
                     latitude[:] = list(vector.values)
+                    latitude.units = vector.units
+                    latitude.name = vector.name
+                    latitude.scale = vector.scale
+                    latitude.flag = vector.flag
                 case "longitude":
                     longitude[:] = list(vector.values)
+                    longitude.units = vector.units
+                    longitude.name = vector.name
+                    longitude.scale = vector.scale
+                    longitude.flag = vector.flag
                 case "altitude":
                     altitude[:] = list(vector.values)
+                    altitude.units = vector.units
+                    altitude.name = vector.name
+                    altitude.scale = vector.scale
+                    altitude.flag = vector.flag
         return rootgrp
 
 
@@ -304,7 +317,6 @@ class StationaryLocationStrategy(AbstractLocationStrategy):
 
 
 class AbstractInstrumentStrategy(ABC):
-
     @abstractmethod
     def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset: ...
 
@@ -312,23 +324,33 @@ class AbstractInstrumentStrategy(ABC):
 class DabulInstrumentStrategy(AbstractInstrumentStrategy):
 
     def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
-        """TODO: Implement"""
         # One and two dimensions
         dimension: tuple[str] = ("record",)
         dimensions: tuple[str, str] = ("record", "level")
         # Vectors
         elevation = rootgrp.createVariable("elevation", "f4", dimension)
         azimuth = rootgrp.createVariable("azimuth", "f4", dimension)
-        scanmode = rootgrp.createVariable("scanmode", "f4", dimension)
-        # TODO: you need to make all of the flagged data -999 at some point.
+        scanmode = rootgrp.createVariable("scanmode", "i2", dimension)
         for vector in data.vectors:
             match vector.name:
                 case "beam elevation angle":
                     elevation[:] = list(vector.values)
+                    elevation.units = vector.units
+                    elevation.name = vector.name
+                    elevation.scale = vector.scale
+                    elevation.flag = vector.flag
                 case "beam azimuth angle":
                     azimuth[:] = list(vector.values)
+                    azimuth.units = vector.units
+                    azimuth.name = vector.name
+                    azimuth.scale = vector.scale
+                    azimuth.flag = vector.flag
                 case "scan mode":
                     scanmode[:] = list(vector.values)
+                    scanmode.units = vector.units
+                    scanmode.name = vector.name
+                    scanmode.scale = vector.scale
+                    scanmode.flag = vector.flag
         # Matrices
         depolarization = rootgrp.createVariable("depolarization", "f4", dimensions)
         far_parallel = rootgrp.createVariable("far_parallel", "f4", dimensions)
@@ -336,8 +358,17 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
             match matrix.name:
                 case "depolarization ratio":
                     depolarization[:] = matrix.values
+                    depolarization.units = matrix.units
+                    depolarization.name = matrix.name
+                    depolarization.scale = matrix.scale
+                    depolarization.flag = matrix.flag
                 case "far parallel":
                     far_parallel[:] = matrix.values
+                    far_parallel.units = matrix.units
+                    far_parallel.name = matrix.name
+                    far_parallel.scale = matrix.scale
+                    far_parallel.flag = matrix.flag
+
         return rootgrp
 
 
