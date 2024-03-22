@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from sio_postdoc.access.instrument.contracts import InstrumentData
@@ -63,3 +63,29 @@ def test_this_second_troubleshoot():
     service.instrument_access.data_context.strategy = DabulData()
     datasets = service.instrument_access.get_data(container=container, names=filtered)
     x = 1
+
+
+def test_this_third_troubleshoot():
+    service: ObservationManager = ObservationManager()
+    target: date = date(year=1998, month=5, day=18)
+    container: str = "sheba-dabul-raw-1998"
+    blobs: tuple[str, ...] = service.instrument_access.list_blobs(container)
+    service.filtering_engine.date_context.strategy = NamesByDate()
+    filtered: tuple[str, ...] = service.filtering_engine.apply(
+        target=target,
+        content=blobs,
+    )
+    service.instrument_access.data_context.strategy = ShebaDabulRaw()
+    datasets = service.instrument_access.get_data(container=container, names=filtered)
+    service.filtering_engine.date_context.strategy = IndicesByDate()
+    data: InstrumentData = service.filtering_engine.apply(
+        target=target,
+        content=datasets,
+    )
+    new_container: str = "sheba-dabul-daily-1998"
+    service.instrument_access.ncdf_context.instrument = DabulInstrumentStrategy()
+    service.instrument_access.ncdf_context.location = MobileLocationStrategy()
+    filename: str = service.instrument_access.ncdf_context.create_file(data)
+    path: Path = Path(f"./{filename}")
+    service.instrument_access.add_blob(name=new_container, path=path)
+

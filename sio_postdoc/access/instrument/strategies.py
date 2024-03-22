@@ -339,6 +339,7 @@ class DabulData(AbstractDataStrategy):
             name="seconds since initial time",
             scale=1,
             flag=-999,
+            dtype="TODO",
         )
         axis: PhysicalVector = PhysicalVector(
             values=tuple(float(i) for i in dataset["range"]),
@@ -346,15 +347,16 @@ class DabulData(AbstractDataStrategy):
             name="range",
             scale=1,
             flag=-999,
+            dtype="TODO",
         )
         vectors: list[PhysicalVector] = []
         for variable in (
-            "latitude",
-            "longitude",
-            "altitude",
-            "elevation",
-            "azimuth",
-            "scanmode",
+            # "latitude",
+            # "longitude",
+            # "altitude",
+            # "elevation",
+            # "azimuth",
+            # "scanmode",
         ):
             name: str = variable
             value_type: type = float
@@ -386,6 +388,7 @@ class DabulData(AbstractDataStrategy):
                 name=name,
                 scale=scale,
                 flag=flag,
+                dtype="TODO",
             )
             vectors.append(vector)
 
@@ -399,10 +402,10 @@ class DabulData(AbstractDataStrategy):
             scale: int = 1
             match variable:
                 case "depolarization":
-                    name = "depolarization ratio"
+                    name = "depolarization"
                     units = "none"
                 case "far_parallel":
-                    name = "far parallel"
+                    name = "far_parallel"
                     units = "unknown"
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
@@ -410,6 +413,7 @@ class DabulData(AbstractDataStrategy):
                 name=name,
                 scale=scale,
                 flag=flag,
+                dtype="TODO",
             )
             matrices.append(matrix)
 
@@ -486,19 +490,19 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
         scanmode = rootgrp.createVariable("scanmode", "i2", dimension)
         for vector in data.vectors:
             match vector.name:
-                case "beam elevation angle":
+                case "elevation":
                     elevation[:] = list(vector.values)
                     elevation.units = vector.units
                     elevation.name_ = vector.name
                     elevation.scale_ = vector.scale
                     elevation.flag = vector.flag
-                case "beam azimuth angle":
+                case "azimuth":
                     azimuth[:] = list(vector.values)
                     azimuth.units = vector.units
                     azimuth.name_ = vector.name
                     azimuth.scale_ = vector.scale
                     azimuth.flag = vector.flag
-                case "scan mode":
+                case "scanmode":
                     scanmode[:] = list(vector.values)
                     scanmode.units = vector.units
                     scanmode.name_ = vector.name
@@ -509,13 +513,13 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
         far_parallel = rootgrp.createVariable("far_parallel", "f4", dimensions)
         for matrix in data.matrices:
             match matrix.name:
-                case "depolarization ratio":
+                case "depolarization":
                     depolarization[:] = matrix.values
                     depolarization.units = matrix.units
                     depolarization.name_ = matrix.name
                     depolarization.scale_ = matrix.scale
                     depolarization.flag = matrix.flag
-                case "far parallel":
+                case "far_parallel":
                     far_parallel[:] = matrix.values
                     far_parallel.units = matrix.units
                     far_parallel.name_ = matrix.name

@@ -168,7 +168,7 @@ class InstrumentAccess(BlobAccess):
         for name in names:
             self._download_blob(container, name)
             results.append(self.data_context.extract(name))
-            os.remove(name)
+            # os.remove(name)
         return tuple(results)
 
     def push(self, data: InstrumentData, container: str) -> None:
