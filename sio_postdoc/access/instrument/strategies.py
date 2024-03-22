@@ -1,7 +1,8 @@
 import dataclasses
 import re
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Callable
 
 import netCDF4 as nc
 
@@ -14,7 +15,18 @@ from sio_postdoc.access.instrument.contracts import (
 )
 
 FLAG: float = float(-999)
+REF_DATE: datetime = datetime(1970, 1, 1, 0, 0)
 SECONDS_PER_DAY: int = 86400
+FLAGS: dict[str, int] = {
+    "S1": 0,
+    "i2": int(-(2**16) / 2),
+    "f4": -999,
+}
+METHODS: dict[str, Callable] = {
+    "S1": int.from_bytes,
+    "i2": int,
+    "f4": float,
+}
 
 
 class AbstractDataStrategy(ABC):
@@ -30,6 +42,8 @@ class AbstractDataStrategy(ABC):
         match units:
             case "hours":
                 scale = 3600
+            case "seconds":
+                scale = 1
         seconds = [round(i * scale) for i in times]
 
         # Convert to monotonic seconds
@@ -43,20 +57,8 @@ class AbstractDataStrategy(ABC):
             previous = item
         return tuple(monotonic_seconds)
 
-
-class Default(AbstractDataStrategy):
-
-    def extract(self, name: str) -> InstrumentData:
-        """TODO: Implement."""
-
-
-class ShebaDabulRaw(AbstractDataStrategy):
-
-    def extract(self, name: str) -> InstrumentData:
-        # Open the nc file
-        dataset = nc.Dataset(name)
-        # Extract initial timestamp and notes for the filename.
-        initial_datetime: datetime = utility.extract_datetime(name)
+    @staticmethod
+    def _get_notes(name: str) -> str:
         prefix: str = utility.extract_prefix(name)
         suffix: str = utility.extract_suffix(name)
         notes: str = ""
@@ -66,87 +68,127 @@ class ShebaDabulRaw(AbstractDataStrategy):
             notes = f"{suffix}"
         elif not suffix:
             notes = f"{prefix}"
+        return notes
+
+
+class Default(AbstractDataStrategy):
+
+    def extract(self, name: str) -> InstrumentData:
+        """TODO: Implement."""
+
+
+class ShebaDabulRaw(AbstractDataStrategy):
+    variable_names: tuple[str] = (
+        "range",
+        "time",
+        "latitude",
+        "longitude",
+        "altitude",
+        "elevation",
+        "azimuth",
+        "scanmode",
+    )
+    matrix_names: tuple[str] = (
+        "depolarization",
+        "far_parallel",
+    )
+
+    def extract(self, name: str) -> InstrumentData:
+        # Open the nc file
+        dataset = nc.Dataset(name)
+        # Extract initial timestamp and notes for the filename.
+        initial_datetime: datetime = utility.extract_datetime(name)
+        notes: str = self._get_notes(name)
         # Construct the Temporal Vector
         offsets: list[float] = [float(i) for i in dataset["time"]]
-        seconds: tuple[int, ...] = self.monotonic_times(offsets, units="hours")
         time: TemporalVector = TemporalVector(
             initial=initial_datetime,
-            offsets=seconds,
+            offsets=self.monotonic_times(offsets, units="hours"),
             units="seconds",
             name="seconds since initial time",
             scale=1,
-            flag=-999,
+            flag=FLAGS["i2"],
+            dtype="i2",
         )
         axis: PhysicalVector = PhysicalVector(
             values=tuple(float(i) for i in dataset["range"]),
             units="meters",
             name="range",
             scale=1,
-            flag=-999,
+            flag=FLAGS["i2"],
+            dtype="i2",
         )
+        # Vectors
         vectors: list[PhysicalVector] = []
-        for variable in (
-            "latitude",
-            "longitude",
-            "altitude",
-            "elevation",
-            "azimuth",
-            "scanmode",
-        ):
-            name: str = variable
-            value_type: type = float
-            flag: int = -999
-            scale: int = 1
+        for variable in self.variable_names:
+            units: str
+            dtype: str
+            scale: int
+            scale: int
             match variable:
                 case "latitude":
                     units = "degrees north"
+                    dtype = "f4"
+                    scale = 1
                 case "longitude":
                     units = "degrees east"
+                    dtype = "f4"
+                    scale = 1
                 case "altitude":
                     units = "meters"
+                    dtype = "f4"
+                    scale = 1
                 case "elevation":
                     units = "degrees"
-                    name = "beam elevation angle"
+                    dtype = "f4"
+                    scale = 1
                 case "azimuth":
                     units = "degrees"
-                    name = "beam azimuth angle"
+                    dtype = "f4"
+                    scale = 1
                 case "scanmode":
                     units = "none"
-                    name = "scan mode"
-                    value_type = int
+                    dtype = "i2"
+                    scale = 1
             values: tuple[int | float, ...] = tuple(
-                value_type(i) for i in dataset[variable]
+                METHODS[dtype](i) for i in dataset[variable]
             )
             vector: PhysicalVector = PhysicalVector(
                 values=values,
                 units=units,
-                name=name,
+                name=variable,
                 scale=scale,
-                flag=flag,
+                flag=FLAGS["f4"],
+                dtype=dtype,
             )
             vectors.append(vector)
 
         matrices: list[PhysicalMatrix] = []
-        for variable in ("depolarization", "far_parallel"):
-            name: str = variable
-            values: list[list[float]] = []
-            for row in dataset[variable]:
-                values.append(tuple(float(i) for i in row))
-            flag: int = -999
-            scale: int = 1
+        for variable in self.matrix_names:
+            scale: int
+            units: str
+            dtype: str
+            scale: int
             match variable:
                 case "depolarization":
-                    name = "depolarization ratio"
                     units = "none"
+                    dtype = "f4"
+                    scale = 1
                 case "far_parallel":
-                    name = "far parallel"
                     units = "unknown"
+                    dtype = "f4"
+                    scale = 1
+            values: list[list[int | float]] = []
+            for row in dataset[variable]:
+                values.append(tuple(METHODS[dtype](i) for i in row))
+
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
                 units=units,
-                name=name,
+                name=variable,
                 scale=scale,
-                flag=flag,
+                flag=FLAGS[dtype],
+                dtype=dtype,
             )
             matrices.append(matrix)
 
@@ -155,7 +197,120 @@ class ShebaDabulRaw(AbstractDataStrategy):
             axis=(axis,),
             matrices=tuple(matrices),
             vectors=tuple(vectors),
-            name="dabul",
+            name="DABUL",
+            observatory="SHEBA",
+            notes=notes,
+        )
+
+        return result
+
+
+class ShebaMmcrRaw(AbstractDataStrategy):
+    matrix_names: tuple[str] = (
+        "Qc",
+        "Reflectivity",
+        "MeanDopplerVelocity",
+        "SpectralWidth",
+        "ModeId",
+        "SignaltoNoiseRatio",
+    )
+    matrix_map: dict[str, str] = dict(
+        Qc="qc",
+        Reflectivity="reflectivity",
+        MeanDopplerVelocity="mean_doppler_velocity",
+        SpectralWidth="spectral_width",
+        ModeId="mode_id",
+        SignaltoNoiseRatio="signal_to_noise_ratio",
+    )
+
+    def extract(self, name: str) -> InstrumentData:
+        # Open the nc file
+        dataset = nc.Dataset(name)
+        # Extract initial timestamp and notes for the filename.
+        base_time: int = int(dataset["base_time"][0])
+        initial_datetime: datetime = REF_DATE + timedelta(seconds=base_time)
+        notes: str = self._get_notes(name)
+        # Construct the Temporal Vector
+        offsets: list[float] = [float(i) for i in dataset["time_offset"]]
+        time: TemporalVector = TemporalVector(
+            initial=initial_datetime,
+            offsets=self.monotonic_times(offsets, units="seconds"),
+            units="seconds",
+            name="seconds since initial time",
+            scale=1,
+            flag=FLAGS["i2"],
+            dtype="i2",
+        )
+        axis: PhysicalVector = PhysicalVector(
+            values=tuple(int(i) for i in dataset["Heights"]),
+            units="meters",
+            name="range",
+            # long_name="Height of Measured Value; agl"
+            scale=1,
+            flag=FLAGS["i2"],
+            dtype="i2",
+        )
+        # Vectors
+        # Matrices
+        matrices: list[PhysicalMatrix] = []
+        for variable in self.matrix_names:
+            scale: int
+            units: str
+            dtype: str
+            scale: int
+            match variable:
+                case "Qc":
+                    units = "none"
+                    # notes = (
+                    #     "Quality Control Flags: 0 - No Data, "
+                    #     "1 - Good Data, "
+                    #     "2 - Second Trip Echo Problems, "
+                    #     "3 - Coherent Integration Problems, "
+                    #     "4 - Second Trip Echo and Coherent Integration Problems"
+                    # )
+                    dtype = "S1"
+                    scale = 1
+                case "Reflectivity":
+                    units = "dBZ"
+                    dtype = "i2"
+                    scale = 100
+                case "MeanDopplerVelocity":
+                    units = "m/s"
+                    dtype = "i2"
+                    scale = 1000
+                case "SpectralWidth":
+                    units = "m/s"
+                    dtype = "i2"
+                    scale = 1000
+                case "ModeId":
+                    units = "none"
+                    dtype = "S1"
+                    scale = 1
+                case "SignaltoNoiseRatio":
+                    units = "dB"
+                    dtype = "i2"
+                    scale = 100
+
+            values: list[list[int | float]] = []
+            for row in dataset[variable]:
+                values.append(tuple(METHODS[dtype](i) for i in row))
+
+            matrix: PhysicalMatrix = PhysicalMatrix(
+                values=tuple(values),
+                units=units,
+                name=self.matrix_map[variable],
+                scale=scale,
+                flag=FLAGS[dtype],
+                dtype=dtype,
+            )
+            matrices.append(matrix)
+
+        result: InstrumentData = InstrumentData(
+            time=time,
+            axis=(axis,),
+            matrices=tuple(matrices),
+            vectors=tuple(),  # No Vectors
+            name="MMCR",
             observatory="SHEBA",
             notes=notes,
         )

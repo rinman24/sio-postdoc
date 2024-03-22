@@ -134,6 +134,7 @@ class RICHBASE(BaseModel):
     name: str
     scale: float
     flag: float
+    dtype: str
 
 
 class PhysicalVector(RICHBASE):
