@@ -79,8 +79,6 @@ class Default(AbstractDataStrategy):
 
 class ShebaDabulRaw(AbstractDataStrategy):
     variable_names: tuple[str] = (
-        "range",
-        "time",
         "latitude",
         "longitude",
         "altitude",
@@ -447,20 +445,20 @@ class MobileLocationStrategy(AbstractLocationStrategy):
                 case "latitude":
                     latitude[:] = list(vector.values)
                     latitude.units = vector.units
-                    latitude.name = vector.name
-                    latitude.scale = vector.scale
+                    latitude.name_ = vector.name
+                    latitude.scale_ = vector.scale
                     latitude.flag = vector.flag
                 case "longitude":
                     longitude[:] = list(vector.values)
                     longitude.units = vector.units
-                    longitude.name = vector.name
-                    longitude.scale = vector.scale
+                    longitude.name_ = vector.name
+                    longitude.scale_ = vector.scale
                     longitude.flag = vector.flag
                 case "altitude":
                     altitude[:] = list(vector.values)
                     altitude.units = vector.units
-                    altitude.name = vector.name
-                    altitude.scale = vector.scale
+                    altitude.name_ = vector.name
+                    altitude.scale_ = vector.scale
                     altitude.flag = vector.flag
         return rootgrp
 
@@ -491,20 +489,20 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
                 case "beam elevation angle":
                     elevation[:] = list(vector.values)
                     elevation.units = vector.units
-                    elevation.name = vector.name
-                    elevation.scale = vector.scale
+                    elevation.name_ = vector.name
+                    elevation.scale_ = vector.scale
                     elevation.flag = vector.flag
                 case "beam azimuth angle":
                     azimuth[:] = list(vector.values)
                     azimuth.units = vector.units
-                    azimuth.name = vector.name
-                    azimuth.scale = vector.scale
+                    azimuth.name_ = vector.name
+                    azimuth.scale_ = vector.scale
                     azimuth.flag = vector.flag
                 case "scan mode":
                     scanmode[:] = list(vector.values)
                     scanmode.units = vector.units
-                    scanmode.name = vector.name
-                    scanmode.scale = vector.scale
+                    scanmode.name_ = vector.name
+                    scanmode.scale_ = vector.scale
                     scanmode.flag = vector.flag
         # Matrices
         depolarization = rootgrp.createVariable("depolarization", "f4", dimensions)
@@ -514,14 +512,14 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
                 case "depolarization ratio":
                     depolarization[:] = matrix.values
                     depolarization.units = matrix.units
-                    depolarization.name = matrix.name
-                    depolarization.scale = matrix.scale
+                    depolarization.name_ = matrix.name
+                    depolarization.scale_ = matrix.scale
                     depolarization.flag = matrix.flag
                 case "far parallel":
                     far_parallel[:] = matrix.values
                     far_parallel.units = matrix.units
-                    far_parallel.name = matrix.name
-                    far_parallel.scale = matrix.scale
+                    far_parallel.name_ = matrix.name
+                    far_parallel.scale_ = matrix.scale
                     far_parallel.flag = matrix.flag
 
         return rootgrp

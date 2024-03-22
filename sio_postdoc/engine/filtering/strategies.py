@@ -106,6 +106,7 @@ class IndicesByDate(AbstractDateStrategy):
                 name=matrix.name,
                 scale=matrix.scale,
                 flag=matrix.flag,
+                dtype="TODO",
             )
             matrices.append(item)
         for vector in prototype.vectors:
@@ -115,6 +116,7 @@ class IndicesByDate(AbstractDateStrategy):
                 name=vector.name,
                 scale=vector.scale,
                 flag=vector.flag,
+                dtype="TODO",
             )
             vectors.append(item)
         time_: TemporalVector = TemporalVector(
@@ -124,6 +126,7 @@ class IndicesByDate(AbstractDateStrategy):
             name=prototype.time.name,
             scale=prototype.time.scale,
             flag=prototype.time.flag,
+            dtype="TODO",
         )
         # Construct the result
         result: InstrumentData = InstrumentData(
