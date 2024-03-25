@@ -46,5 +46,8 @@ jobs:
     - name: Test with pytest
       run: |
         poetry run pytest --cov=sio_postdoc tests/
-    - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v4
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4.0.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: rinman24/sio-postdoc
