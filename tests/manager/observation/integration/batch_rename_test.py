@@ -1,3 +1,5 @@
+"""TODO: Docstring."""
+
 import os
 import shutil
 from dataclasses import dataclass
@@ -57,6 +59,7 @@ def service() -> Generator[ObservationManager, None, None]:
     shutil.rmtree(TEMP_DIRECTORY)
 
 
+@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_format_directory(service):
     """Test that all files in a directory with a given extention are formatted."""
     service.format_dir(TEMP_DIRECTORY, SUFFIX, YEAR)
