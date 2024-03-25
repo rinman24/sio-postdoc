@@ -15,10 +15,6 @@ __queuestorage__
 # Pytest
 .pytest_cache
 
-# Pytest-cov reports
-htmlcov/
-.coverage
-
 # Python byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
