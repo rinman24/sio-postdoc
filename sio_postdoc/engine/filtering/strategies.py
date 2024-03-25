@@ -1,3 +1,5 @@
+"""TODO: Docstring."""
+
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
@@ -23,11 +25,18 @@ FLAG: int = -999
 
 
 class AbstractDateStrategy(ABC):
+    """TODO: Docstring."""
+
     @abstractmethod
-    def apply(self, target: date, content: Content) -> Content: ...
+    def apply(  # pylint: disable=missing-function-docstring
+        self,
+        target: date,
+        content: Content,
+    ) -> Content: ...
 
 
 class NamesByDate(AbstractDateStrategy):
+    """TODO: Docstring."""
 
     def apply(self, target: date, content: Content) -> Content:
         """TODO: Implement."""
@@ -61,10 +70,12 @@ class NamesByDate(AbstractDateStrategy):
 
 
 class IndicesByDate(AbstractDateStrategy):
+    """TODO: Docstring."""
 
     def apply(
         self, target: date, content: tuple[InstrumentData, ...]
     ) -> InstrumentData:
+        # TODO: Too many local variables. You need to break this up.
         masks: list[Mask] = []
         prototype: InstrumentData | None = None
         # Determine which times correspond with the target

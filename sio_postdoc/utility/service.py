@@ -1,3 +1,5 @@
+"""TODO: Docstring."""
+
 import re
 from datetime import datetime
 
@@ -21,6 +23,7 @@ def extract_datetime(raw: str) -> datetime:
 
 
 def extract_suffix(raw: str) -> str:
+    """TODO: Docstring."""
     match: re.Match = PATTERN.search(raw)
     tail: str = raw[match.end() :]
     suffix: str = "".join(tail.split(".")[:-1])
@@ -28,12 +31,14 @@ def extract_suffix(raw: str) -> str:
 
 
 def extract_prefix(raw: str) -> str:
+    """TODO: Docstring."""
     match: re.Match = PATTERN.search(raw)
     prefix: str = raw[: match.start()]
     return prefix
 
 
 def get_filename(data: InstrumentData) -> str:
+    """TODO: Docstring."""
     year: str = str(data.time.initial.year)
     month: str = str(data.time.initial.month).zfill(2)
     day: str = str(data.time.initial.day).zfill(2)

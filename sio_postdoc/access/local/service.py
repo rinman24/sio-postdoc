@@ -10,8 +10,18 @@ Contents = tuple[Path, ...]
 class DiskAccess(Protocol):
     """Define protocol for Local Disk Access."""
 
-    def list_files(self, directory: Path, extension: str) -> Contents: ...
-    def rename_files(self, current: Contents, new: Contents) -> None: ...
+    # pylint: disable=missing-function-docstring
+
+    def list_files(
+        self,
+        directory: Path,
+        extension: str,
+    ) -> Contents: ...
+    def rename_files(
+        self,
+        current: Contents,
+        new: Contents,
+    ) -> None: ...
 
 
 class LocalAccess(DiskAccess):
@@ -30,7 +40,6 @@ class LocalAccess(DiskAccess):
         except NotADirectoryError as exc:
             raise NotADirectoryError(f"Not a directory: '{directory}'") from exc
         except FileNotFoundError as exc:
-            # TODO: Write a test for this
             raise FileNotFoundError(
                 f"No such file or directory: '{directory}'"
             ) from exc

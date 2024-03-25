@@ -1,6 +1,8 @@
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+import pytest
+
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies import (
     DabulData,
@@ -12,6 +14,7 @@ from sio_postdoc.engine.filtering.strategies import IndicesByDate, NamesByDate
 from sio_postdoc.manager.observation.service import ObservationManager
 
 
+@pytest.mark.skip(reason="Troubleshooting")
 def test_this_troubleshoot():
     service: ObservationManager = ObservationManager()
     # Get a tiple of all the blobs in the container
@@ -49,6 +52,7 @@ def test_this_troubleshoot():
     # That should have written the data, let's see if it actually worked and what else we need to do to the data.
 
 
+@pytest.mark.skip(reason="Troubleshooting")
 def test_this_second_troubleshoot():
     service: ObservationManager = ObservationManager()
     # Get a tiple of all the blobs in the container
@@ -65,6 +69,7 @@ def test_this_second_troubleshoot():
     x = 1
 
 
+@pytest.mark.skip(reason="Troubleshooting")
 def test_this_third_troubleshoot():
     service: ObservationManager = ObservationManager()
     target: date = date(year=1998, month=5, day=18)
@@ -88,4 +93,3 @@ def test_this_third_troubleshoot():
     filename: str = service.instrument_access.ncdf_context.create_file(data)
     path: Path = Path(f"./{filename}")
     service.instrument_access.add_blob(name=new_container, path=path)
-

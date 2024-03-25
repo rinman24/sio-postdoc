@@ -14,12 +14,13 @@ class DateContext:
 
     @property
     def strategy(self) -> AbstractDateStrategy:
+        """TODO: Docstring."""
         return self._strategy
 
     @strategy.setter
     def strategy(self, strategy: AbstractDateStrategy) -> None:
         self._strategy = strategy
 
-    # TODO: Content is either tuple of str or InstrumentData
     def apply(self, target: date, content: Any) -> AbstractDateStrategy:
+        """TODO: Docstring."""
         return self.strategy.apply(target=target, content=content)

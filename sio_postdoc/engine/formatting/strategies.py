@@ -4,8 +4,6 @@ import dataclasses
 import re
 from abc import ABC, abstractmethod
 
-import netCDF4 as nc
-
 MONTH_MAP: dict[str, str] = dict(
     jan="01",
     feb="02",
@@ -164,18 +162,3 @@ class DDMMMYYYYdothhColonmmDashhhColonmm(AbstractDateStrategy):
         )
 
         return DateTime(date=date, time=time)
-
-
-class AbstractConcatStrategy(ABC):
-    """Abstract Base Class for stratigies to extended."""
-
-    def concat(self, datasets: tuple[nc.Dataset, ...]) -> nc.Dataset:
-        """TODO: Write this."""
-
-
-class ShebaRaw(AbstractConcatStrategy):
-    def concat(self, datasets: tuple[nc.Dataset, ...]) -> nc.Dataset:
-        # So, what do I want to do when I am concatinating the data sets?
-        # Well I first need to turn them into a dataframe
-        # So
-        pass

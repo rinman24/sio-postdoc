@@ -1,3 +1,5 @@
+"""TODO: Docstring."""
+
 from datetime import datetime
 
 import netCDF4 as nc
@@ -19,6 +21,7 @@ class DataContext:
 
     @property
     def strategy(self) -> AbstractDataStrategy:
+        """TODO: Docstring."""
         return self._strategy
 
     @strategy.setter
@@ -26,10 +29,12 @@ class DataContext:
         self._strategy = strategy
 
     def extract(self, name: str) -> InstrumentData:
+        """TODO: Docstring."""
         return self.strategy.extract(name)
 
 
 class NcdfContext:
+    """TODO: Docstring."""
 
     def __init__(
         self,
@@ -41,6 +46,7 @@ class NcdfContext:
 
     @property
     def location(self) -> AbstractLocationStrategy:
+        """TODO: Docstring."""
         return self._location
 
     @location.setter
@@ -49,6 +55,7 @@ class NcdfContext:
 
     @property
     def instrument(self) -> AbstractInstrumentStrategy:
+        """TODO: Docstring."""
         return self._instrument
 
     @instrument.setter
@@ -56,26 +63,51 @@ class NcdfContext:
         self._instrument = instrument
 
     def create_file(self, data: InstrumentData) -> str:
+        """TODO: Docstring."""
         # First create the file
         filename: str = utility.get_filename(data)
         # Then delegate portions to the strategies
-        with nc.Dataset(filename, "w", format="NETCDF4") as rootgrp:
+        with nc.Dataset(  # pylint: disable=no-member
+            filename,
+            "w",
+            format="NETCDF4",
+        ) as rootgrp:
             rootgrp.instrument = data.name
             rootgrp.observatory = data.observatory
             rootgrp.filename = filename
             rootgrp.created = str(datetime.now())
             # Dimensions
             records: int = len(data.time.offsets)
-            record = rootgrp.createDimension("record", records)
+            record = rootgrp.createDimension(  # pylint: disable=unused-variable
+                "record",
+                records,
+            )
             if data.axis:
                 levels: int = len(data.axis[0].values)
-                level = rootgrp.createDimension("level", levels)
+                level = rootgrp.createDimension(  # pylint: disable=unused-variable
+                    "level",
+                    levels,
+                )
             # Variables
-            offsets = rootgrp.createVariable("offsets", "f4", ("record",))
+            offsets = rootgrp.createVariable(
+                "offsets",
+                "f4",
+                ("record",),
+            )
             offsets[:] = list(data.time.offsets)
             if data.axis:
-                range = rootgrp.createVariable("range", "f4", ("level",))
+                range = rootgrp.createVariable(  # pylint: disable=redefined-builtin
+                    "range",
+                    "f4",
+                    ("level",),
+                )
                 range[:] = list(data.axis[0].values)
-            rootgrp = self.location.write_data(data, rootgrp)
-            rootgrp = self.instrument.write_data(data, rootgrp)
+            rootgrp = self.location.write_data(
+                data,
+                rootgrp,
+            )
+            rootgrp = self.instrument.write_data(
+                data,
+                rootgrp,
+            )
         return filename

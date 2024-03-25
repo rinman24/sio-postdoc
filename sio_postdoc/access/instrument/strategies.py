@@ -1,5 +1,5 @@
-import dataclasses
-import re
+"""TODO: Docstring."""
+
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Callable
@@ -33,10 +33,14 @@ class AbstractDataStrategy(ABC):
     """TODO: docstring."""
 
     @abstractmethod
-    def extract(self, name: str) -> InstrumentData: ...
+    def extract(  # pylint: disable=missing-function-docstring
+        self,
+        name: str,
+    ) -> InstrumentData: ...
 
     @staticmethod
     def monotonic_times(times: list[float], units: str):
+        """TODO: Docstring."""
         # Convert to seconds (potentially non-monotonic)
         scale: int
         match units:
@@ -72,12 +76,17 @@ class AbstractDataStrategy(ABC):
 
 
 class Default(AbstractDataStrategy):
+    """TODO: Docstring."""
 
-    def extract(self, name: str) -> InstrumentData:
-        """TODO: Implement."""
+    def extract(
+        self,
+        name: str,
+    ) -> InstrumentData: ...
 
 
 class ShebaDabulRaw(AbstractDataStrategy):
+    """TODO: Docstring."""
+
     variable_names: tuple[str] = (
         "latitude",
         "longitude",
@@ -92,8 +101,11 @@ class ShebaDabulRaw(AbstractDataStrategy):
     )
 
     def extract(self, name: str) -> InstrumentData:
+        """TODO: Docstring."""
         # Open the nc file
-        dataset = nc.Dataset(name)
+        dataset = nc.Dataset(  # pylint: disable=no-member
+            name
+        )  # TODO: Move all of these to a function where you can ignore the C warning.
         # Extract initial timestamp and notes for the filename.
         initial_datetime: datetime = utility.extract_datetime(name)
         notes: str = self._get_notes(name)
@@ -204,6 +216,8 @@ class ShebaDabulRaw(AbstractDataStrategy):
 
 
 class ShebaMmcrRaw(AbstractDataStrategy):
+    """TODO: Docstring."""
+
     matrix_names: tuple[str] = (
         "Qc",
         "Reflectivity",
@@ -223,7 +237,7 @@ class ShebaMmcrRaw(AbstractDataStrategy):
 
     def extract(self, name: str) -> InstrumentData:
         # Open the nc file
-        dataset = nc.Dataset(name)
+        dataset = nc.Dataset(name)  # pylint: disable=no-member
         # Extract initial timestamp and notes for the filename.
         base_time: int = int(dataset["base_time"][0])
         initial_datetime: datetime = REF_DATE + timedelta(seconds=base_time)
@@ -317,9 +331,11 @@ class ShebaMmcrRaw(AbstractDataStrategy):
 
 
 class DabulData(AbstractDataStrategy):
+    """TODO: Docstring."""
 
     def extract(self, name: str) -> InstrumentData:
-        dataset = nc.Dataset(name)
+        """TODO: Docstring."""
+        dataset = nc.Dataset(name)  # pylint: disable=no-member
         initial_datetime: datetime = utility.extract_datetime(name)
         prefix: str = utility.extract_prefix(name)
         suffix: str = utility.extract_suffix(name)
@@ -434,12 +450,21 @@ class AbstractLocationStrategy(ABC):
     """This class is responsible for handling the location specifics."""
 
     @abstractmethod
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset: ...
+    def write_data(  # pylint: disable=no-member, missing-function-docstring
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset: ...
 
 
 class MobileLocationStrategy(AbstractLocationStrategy):
+    """TODO: Docstring."""
 
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
+    def write_data(  # pylint: disable=no-member, missing-function-docstring
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset:
         dimension: tuple[str] = ("record",)
         latitude = rootgrp.createVariable("latitude", "f4", dimension)
         longitude = rootgrp.createVariable("longitude", "f4", dimension)
@@ -468,19 +493,35 @@ class MobileLocationStrategy(AbstractLocationStrategy):
 
 
 class StationaryLocationStrategy(AbstractLocationStrategy):
+    """TODO: Docstring."""
 
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
-        """TODO: Implement"""
+    @abstractmethod
+    def write_data(  # pylint: disable=no-member
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset: ...
 
 
 class AbstractInstrumentStrategy(ABC):
+    """TODO: Docstring."""
+
     @abstractmethod
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset: ...
+    def write_data(  # pylint: disable=no-member, missing-function-docstring
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset: ...
 
 
 class DabulInstrumentStrategy(AbstractInstrumentStrategy):
+    """TODO: Docstring."""
 
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
+    def write_data(  # pylint: disable=no-member
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset:
         # One and two dimensions
         dimension: tuple[str] = ("record",)
         dimensions: tuple[str, str] = ("record", "level")
@@ -530,6 +571,11 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
 
 
 class MmcrInstrumentStrategy(AbstractInstrumentStrategy):
+    """TODO: Docstring."""
 
-    def write_data(self, data: InstrumentData, rootgrp: nc.Dataset) -> nc.Dataset:
+    def write_data(  # pylint: disable=no-member
+        self,
+        data: InstrumentData,
+        rootgrp: nc.Dataset,
+    ) -> nc.Dataset:
         """TODO: Implement"""

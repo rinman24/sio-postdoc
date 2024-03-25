@@ -1,3 +1,5 @@
+"""TODO: Docstring."""
+
 from pathlib import Path
 
 MONTH_DIRECTORIES: dict[int, str] = {
@@ -15,7 +17,6 @@ MONTH_DIRECTORIES: dict[int, str] = {
     12: "12-december",
 }
 
-# TODO: Move this to config
 DATADIR: Path = Path("/Users/richardinman/Code/sio-postdoc/sio_postdoc/data")
 
 VALID_LOCATIONS: set[str] = set(
