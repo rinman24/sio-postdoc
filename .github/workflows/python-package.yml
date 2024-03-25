@@ -40,12 +40,12 @@ jobs:
     - name: Configure poetry
       run: |
         poetry config virtualenvs.in-project true
-    - name: Activate vitrual environment
-      run: |
-        poetry shell
     - name: Install dependencies
       run: |
         poetry install
+    - name: Activate vitrual environment
+      run: |
+        source $(poetry env info --path)/bin/activate
     - name: Test with pytest
       run: |
         pytest --cov=sio_postdoc tests/
