@@ -45,7 +45,8 @@ jobs:
         poetry install
     - name: Test with pytest
       run: |
-        poetry run pytest --cov=sio_postdoc tests/
+        source $(poetry env info --path)/bin/activate
+        coverage run pytest -m pytest tests/
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v4
       with:
