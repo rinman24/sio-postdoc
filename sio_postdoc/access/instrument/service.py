@@ -15,9 +15,9 @@ from azure.storage.blob import BlobServiceClient
 
 from sio_postdoc.access.instrument.context import DataContext, NcdfContext
 from sio_postdoc.access.instrument.contracts import InstrumentData
-from sio_postdoc.access.instrument.strategies import (
+from sio_postdoc.access.instrument.strategies.data import Default
+from sio_postdoc.access.instrument.strategies_ import (
     DabulInstrumentStrategy,
-    Default,
     MobileLocationStrategy,
 )
 

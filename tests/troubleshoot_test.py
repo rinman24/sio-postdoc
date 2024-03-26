@@ -1,14 +1,13 @@
-from datetime import date, datetime, timedelta
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from sio_postdoc.access.instrument.contracts import InstrumentData
-from sio_postdoc.access.instrument.strategies import (
-    DabulData,
+from sio_postdoc.access.instrument.strategies.data import DabulData, ShebaDabulRaw
+from sio_postdoc.access.instrument.strategies_ import (
     DabulInstrumentStrategy,
     MobileLocationStrategy,
-    ShebaDabulRaw,
 )
 from sio_postdoc.engine.filtering.strategies import IndicesByDate, NamesByDate
 from sio_postdoc.manager.observation.service import ObservationManager
