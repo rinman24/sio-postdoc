@@ -44,7 +44,6 @@ def service() -> Generator[InstrumentAccess, None, None]:
 
 def test_create_non_existing_container(service):
     """Test creation of a container that does not exist."""
-    print(f"This is the Connection String: {service.connection_string}")
     assert service.create_container("notexist") == "Success."
 
 

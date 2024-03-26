@@ -68,6 +68,8 @@ class InstrumentAccess(BlobAccess):
             blob=os.environ["BLOB_STORAGE_ENDPOINT"],
         )
 
+        print(f"This is the Connection String: {self.connection_string}")
+
         self._blob_service: BlobServiceClient = (
             BlobServiceClient.from_connection_string(conn_str=self.connection_string)
         )
