@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
-from dotenv import find_dotenv, load_dotenv
+from dotenv import load_dotenv
 
 from sio_postdoc.access.instrument.service import InstrumentAccess
 
@@ -42,7 +42,6 @@ def service() -> Generator[InstrumentAccess, None, None]:
         _service.blob_service.delete_container(container["name"])
 
 
-@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_create_non_existing_container(service):
     """Test creation of a container that does not exist."""
     assert service.create_container("notexist") == "Success."

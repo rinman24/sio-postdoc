@@ -23,6 +23,12 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    env:
+      STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
+      STORAGE_ACCOUNT_KEY: ${{ secrets.STORAGE_ACCOUNT_KEY }}
+      BLOB_STORAGE_ENDPOINT: https://${{ secrets.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net
+      DEFAULT_ENDPOINTS_PROTOCOL: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}
+
     strategy:
       fail-fast: false
       matrix:
