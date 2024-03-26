@@ -37,6 +37,14 @@ class PhysicalMatrix(Data):
 
     values: tuple[tuple[float, ...], ...]
 
+    def __repr__(self) -> str:
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.values)}, {len(self.values[0])})\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        return repr_
+
 
 class InstrumentData(BaseModel):
     """Container for data from an instrument."""
@@ -79,10 +87,3 @@ class InstrumentData(BaseModel):
             first = False
 
         return repr_
-
-    def __str__(self) -> str:
-        str_: str = ""
-        str_ += "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>\n"
-        str_ += f"    Data for '{self.name}' located at '{self.observatory}'\n"
-        str_ += f"    Initial time: {self.time.initial}"
-        return str_

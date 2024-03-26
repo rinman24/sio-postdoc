@@ -9,8 +9,6 @@ from sio_postdoc.access.instrument.contracts import (
     TemporalVector,
 )
 
-# pylint: disable=missing-function-docstring
-
 TIME: TemporalVector = TemporalVector(
     initial=datetime.now(),
     offsets=(10, 20, 30),
@@ -70,18 +68,34 @@ PHYSICAL_MATRICES: tuple[PhysicalMatrix, ...] = (
     ),
 )
 
+INSTRUMENT_DATA: InstrumentData = InstrumentData(
+    time=TIME,
+    axis=AXIS,
+    matrices=PHYSICAL_MATRICES,
+    vectors=PHYSICAL_VECTORS,
+    name="test_name",
+    observatory="test_observatory",
+    notes="test notes",
+)
+
+# pylint: disable=missing-function-docstring
+
+
+def test_physical_matrix_repr():
+    expected: tuple[str, ...] = (
+        "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>",
+        "    dimensions(sizes): (3, 2)",
+        "    units: dBZ",
+        "    units: unknown",
+        "    name: reflectivity",
+        "    name: far_parallel",
+    )
+    result: str = repr(PHYSICAL_MATRICES)
+    for substring in expected:
+        assert substring in result
+
 
 def test_instrument_data_repr():
-    # Arrange
-    data = InstrumentData(
-        time=TIME,
-        axis=AXIS,
-        matrices=PHYSICAL_MATRICES,
-        vectors=PHYSICAL_VECTORS,
-        name="test_name",
-        observatory="test_observatory",
-        notes="test notes",
-    )
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>",
         "    instrument name: test_name",
@@ -92,31 +106,6 @@ def test_instrument_data_repr():
         "    vectors(dimensions): latitude(time), longitude(time)",
         "    matrices(dimensions): reflectivity(time, range), far_parallel(time, range)",
     )
-    # Act
-    result: str = data.__repr__()
-    # Assert
-    for substring in expected:
-        assert substring in result
-
-
-def test_instrument_data_str():
-    # Arrange
-    data = InstrumentData(
-        time=TIME,
-        axis=AXIS,
-        matrices=PHYSICAL_MATRICES,
-        vectors=PHYSICAL_VECTORS,
-        name="test_name",
-        observatory="test_observatory",
-        notes="test notes",
-    )
-    expected: tuple[str, ...] = (
-        "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>",
-        "    Data for 'test_name' located at 'test_observatory'",
-        "    Initial time: ",
-    )
-    # Act
-    result: str = data.__str__()
-    # Assert
+    result: str = repr(INSTRUMENT_DATA)
     for substring in expected:
         assert substring in result
