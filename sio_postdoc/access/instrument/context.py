@@ -7,10 +7,8 @@ import netCDF4 as nc
 import sio_postdoc.utility.service as utility
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import AbstractDataStrategy
-from sio_postdoc.access.instrument.strategies_ import (
-    AbstractInstrumentStrategy,
-    AbstractLocationStrategy,
-)
+from sio_postdoc.access.instrument.strategies.location import AbstractLocationStrategy
+from sio_postdoc.access.instrument.strategies_ import AbstractInstrumentStrategy
 
 
 class DataContext:
