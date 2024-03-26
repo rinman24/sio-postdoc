@@ -15,7 +15,7 @@ name: Python package
 
 on:
   push:
-    branches: [ "main", "setup-blob-storage" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
