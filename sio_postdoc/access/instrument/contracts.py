@@ -1,4 +1,4 @@
-"""TODO: Docstring."""
+"""Instrument Access Contracts"""
 
 from datetime import datetime
 
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 
 class Data(BaseModel):
-    """TODO: Docstring."""
+    """Base data model for other contracts to extend."""
 
     units: str
     name: str
@@ -16,26 +16,30 @@ class Data(BaseModel):
 
 
 class PhysicalVector(Data):
-    """TODO: Docstring."""
+    """Container for one-dimensional data."""
 
     values: tuple[float, ...]
 
 
 class TemporalVector(Data):
-    """TODO: Docstring."""
+    """
+    Container for one-dimensional temporal data.
+
+    NOTE: `offsets` should always be in seconds.
+    """
 
     initial: datetime
     offsets: tuple[float, ...]
 
 
 class PhysicalMatrix(Data):
-    """TODO: Docstring."""
+    """Container for two-dimensional data."""
 
     values: tuple[tuple[float, ...], ...]
 
 
 class InstrumentData(BaseModel):
-    """TODO: Docstring."""
+    """Container for data from an instrument."""
 
     time: TemporalVector
     axis: tuple[PhysicalVector, ...]
