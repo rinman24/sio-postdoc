@@ -97,3 +97,26 @@ def test_instrument_data_repr():
     # Assert
     for substring in expected:
         assert substring in result
+
+
+def test_instrument_data_str():
+    # Arrange
+    data = InstrumentData(
+        time=TIME,
+        axis=AXIS,
+        matrices=PHYSICAL_MATRICES,
+        vectors=PHYSICAL_VECTORS,
+        name="test_name",
+        observatory="test_observatory",
+        notes="test notes",
+    )
+    expected: tuple[str, ...] = (
+        "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>",
+        "    Data for 'test_name' located at 'test_observatory'",
+        "    Initial time: ",
+    )
+    # Act
+    result: str = data.__str__()
+    # Assert
+    for substring in expected:
+        assert substring in result

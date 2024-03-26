@@ -79,3 +79,10 @@ class InstrumentData(BaseModel):
             first = False
 
         return repr_
+
+    def __str__(self) -> str:
+        str_: str = ""
+        str_ += "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>\n"
+        str_ += f"    Data for '{self.name}' located at '{self.observatory}'\n"
+        str_ += f"    Initial time: {self.time.initial}"
+        return str_
