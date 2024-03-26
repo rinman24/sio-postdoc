@@ -39,6 +39,15 @@ class TemporalVector(Data):
     initial: datetime
     offsets: tuple[float, ...]
 
+    def __repr__(self) -> str:
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.TemporalVector'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.offsets)},)\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        repr_ += f"    initial time: {self.initial}\n"
+        return repr_
+
 
 class PhysicalMatrix(Data):
     """Container for two-dimensional data."""

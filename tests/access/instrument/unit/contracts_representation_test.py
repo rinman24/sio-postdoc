@@ -81,6 +81,19 @@ INSTRUMENT_DATA: InstrumentData = InstrumentData(
 # pylint: disable=missing-function-docstring
 
 
+def test_temporal_vector_repr():
+    expected: tuple[str, ...] = (
+        "<class 'sio_postdoc.access.instrument.contracts.TemporalVector'>",
+        "    dimensions(sizes): (3,)",
+        "    units: seconds",
+        "    name: time",
+        "    initial time: ",
+    )
+    result: str = repr(TIME)
+    for substring in expected:
+        assert substring in result
+
+
 def test_physical_vector_repr():
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>",
