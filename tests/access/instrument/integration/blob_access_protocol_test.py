@@ -47,13 +47,11 @@ def test_create_non_existing_container(service):
     assert service.create_container("notexist") == "Success."
 
 
-@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_create_existing_container(service):
     """Test creation of a container that exists."""
     assert service.create_container(EMPTY_CONTAINTER) == "Container already exists."
 
 
-@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_create_invalid_characters_container(service):
     """Test creation of a container with invalid characters."""
     assert (
@@ -62,13 +60,11 @@ def test_create_invalid_characters_container(service):
     )
 
 
-@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_list_blobs(service):
     """Test that container contents are listed correctly."""
     assert service.list_blobs(PRE_POPULATED_CONTAINER) == FILE_NAMES
 
 
-@pytest.mark.skip(reason="Need to set up Azurite or equivalent in CI/CD build.")
 def test_add_blob(service):
     """Test that files are successfully uploaded to blob storage."""
     service.add_blob(EMPTY_CONTAINTER, DATA_DIRECTORY / FILE_NAMES[0])
