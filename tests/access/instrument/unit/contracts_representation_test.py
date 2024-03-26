@@ -81,6 +81,19 @@ INSTRUMENT_DATA: InstrumentData = InstrumentData(
 # pylint: disable=missing-function-docstring
 
 
+def test_physical_vector_repr():
+    expected: tuple[str, ...] = (
+        "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>",
+        "    dimensions(sizes): (3,)",
+        "    units: degrees",
+        "    name: latitude",
+        "    name: longitude",
+    )
+    result: str = repr(PHYSICAL_VECTORS)
+    for substring in expected:
+        assert substring in result
+
+
 def test_physical_matrix_repr():
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>",

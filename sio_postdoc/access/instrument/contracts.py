@@ -20,6 +20,14 @@ class PhysicalVector(Data):
 
     values: tuple[float, ...]
 
+    def __repr__(self) -> str:
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.values)},)\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        return repr_
+
 
 class TemporalVector(Data):
     """
