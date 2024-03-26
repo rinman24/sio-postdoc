@@ -91,9 +91,9 @@ class InstrumentAccess(BlobAccess):
     def connection_string(self) -> str:
         """Return the Connection String."""
         return (
-            f"AccountName={self._account.name};"
+            f"DefaultEndpointsProtocol={self._endpoint.protocol};"
+            + f"AccountName={self._account.name};"
             + f"AccountKey={self._account.key};"
-            + f"DefaultEndpointsProtocol={self._endpoint.protocol};"
             + f"BlobEndpoint={self._endpoint.blob};"
         )
 

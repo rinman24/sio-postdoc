@@ -27,7 +27,7 @@ jobs:
       STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
       STORAGE_ACCOUNT_KEY: ${{ secrets.STORAGE_ACCOUNT_KEY }}
       DEFAULT_ENDPOINTS_PROTOCOL: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}
-      BLOB_STORAGE_ENDPOINT: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}://${{ secrets.STORAGE_ACCOUNT_NAME }}.blob.core.windows.net
+      BLOB_STORAGE_ENDPOINT: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}://${{ vars.AZURITE_ADDRESS }}:${{ vars.BLOB_PORT }}/${{ secrets.STORAGE_ACCOUNT_NAME }}
     strategy:
       fail-fast: false
       matrix:
