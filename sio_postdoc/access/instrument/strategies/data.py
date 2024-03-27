@@ -147,9 +147,9 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     flag = int(360 * 1e5)
                 case "longitude":
                     units = "degrees east"
-                    dtype = "f4"
-                    scale = 1
-                    long_name = "xxx"
+                    dtype = "i4"
+                    scale = int(1e5)
+                    long_name = "platform longitude"
                     flag = int(360 * 1e5)
                 case "altitude":
                     units = "meters"

@@ -77,5 +77,16 @@ def test_latitude(result):
     assert vector.dtype == "i4"
 
 
+def test_longitude(result):
+    vector: PhysicalVector = result.vectors["longitude"]
+    assert vector.values == (-14410420, -14410421, -14410423)
+    assert vector.units == "degrees east"
+    assert vector.name == "longitude"
+    assert vector.long_name == "platform longitude"
+    assert vector.scale == 1e5
+    assert vector.flag == int(360 * 1e5)
+    assert vector.dtype == "i4"
+
+
 def test_notes(result):
     assert result.notes == str(DATA_DIRECTORY) + "/.BHAR"
