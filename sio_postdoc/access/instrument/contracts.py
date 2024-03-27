@@ -10,6 +10,7 @@ class Data(BaseModel):
 
     units: str
     name: str
+    long_name: str
     scale: float
     flag: float
     dtype: str

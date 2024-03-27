@@ -19,7 +19,9 @@ FLAG: float = float(-999)
 SECONDS_PER_DAY: int = 86400
 FLAGS: dict[str, int] = {
     "S1": 0,
+    "u2": 2**16 - 1,
     "i2": int(-(2**16) / 2),
+    "i4": -999,
     "f4": -999,
 }
 METHODS: dict[str, Callable] = {
@@ -103,9 +105,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
     def extract(self, name: str) -> InstrumentData:
         """TODO: Docstring."""
         # Open the nc file
-        dataset = nc.Dataset(  # pylint: disable=no-member
-            name
-        )  # TODO: Move all of these to a function where you can ignore the C warning.
+        dataset = nc.Dataset(name)  # pylint: disable=no-member
         # Extract initial timestamp and notes for the filename.
         initial_datetime: datetime = utility.extract_datetime(name)
         notes: str = self._get_notes(name)
@@ -115,18 +115,20 @@ class ShebaDabulRaw(AbstractDataStrategy):
             initial=initial_datetime,
             offsets=self.monotonic_times(offsets, units="hours"),
             units="seconds",
-            name="seconds since initial time",
+            name="offsets",
+            long_name="seconds since initial time",
             scale=1,
-            flag=FLAGS["i2"],
-            dtype="i2",
+            flag=FLAGS["i4"],
+            dtype="i4",
         )
         axis: PhysicalVector = PhysicalVector(
             values=tuple(float(i) for i in dataset["range"]),
             units="meters",
             name="range",
+            long_name="vertical range of measurement",
             scale=1,
-            flag=FLAGS["i2"],
-            dtype="i2",
+            flag=FLAGS["u2"],
+            dtype="u2",
         )
         # Vectors
         vectors: list[PhysicalVector] = []
@@ -167,6 +169,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 values=values,
                 units=units,
                 name=variable,
+                long_name="-999",
                 scale=scale,
                 flag=FLAGS["f4"],
                 dtype=dtype,
@@ -196,6 +199,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 values=tuple(values),
                 units=units,
                 name=variable,
+                long_name="-999",
                 scale=scale,
                 flag=FLAGS[dtype],
                 dtype=dtype,
