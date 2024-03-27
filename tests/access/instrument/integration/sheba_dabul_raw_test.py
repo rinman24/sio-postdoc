@@ -88,6 +88,17 @@ def test_azimuth(result):
     assert vector.dtype == "i4"
 
 
+def test_elevation(result):
+    vector: PhysicalVector = result.vectors["elevation"]
+    assert vector.values == (9546252, 9544544, 9544687)
+    assert vector.units == "degrees"
+    assert vector.name == "elevation"
+    assert vector.long_name == "beam elevation angle"
+    assert vector.scale == 1e5
+    assert vector.flag == 360 * 1e5
+    assert vector.dtype == "i4"
+
+
 def test_latitude(result):
     vector: PhysicalVector = result.vectors["latitude"]
     assert vector.values == (7595036, 7595037, 7595037)

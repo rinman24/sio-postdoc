@@ -151,6 +151,12 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     scale = 1e5
                     flag = 360 * 1e5
                     dtype = "i4"
+                case "elevation":
+                    units = "degrees"
+                    long_name = "beam elevation angle"
+                    scale = 1e5
+                    flag = 360 * 1e5
+                    dtype = "i4"
                 case "latitude":
                     units = "degrees north"
                     dtype = "i4"
@@ -162,12 +168,6 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     dtype = "i4"
                     scale = int(1e5)
                     long_name = "platform longitude"
-                    flag = int(360 * 1e5)
-                case "elevation":
-                    units = "degrees"
-                    dtype = "f4"
-                    scale = 1
-                    long_name = "xxx"
                     flag = int(360 * 1e5)
                 case "scanmode":
                     units = "none"
