@@ -27,6 +27,7 @@ FLAGS: dict[str, int] = {
 METHODS: dict[str, Callable] = {
     "S1": int.from_bytes,
     "i2": int,
+    "i4": int,
     "f4": float,
 }
 
@@ -41,7 +42,7 @@ class AbstractDataStrategy(ABC):
     ) -> InstrumentData: ...
 
     @staticmethod
-    def monotonic_times(times: list[float], units: str) -> tuple[float, ...]:
+    def monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
         """TODO: Docstring."""
         # Convert to seconds (potentially non-monotonic)
         scale: int
@@ -122,7 +123,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
             dtype="i4",
         )
         axis: PhysicalVector = PhysicalVector(
-            values=tuple(float(i) for i in dataset["range"]),
+            values=tuple(int(i) for i in dataset["range"]),
             units="meters",
             name="range",
             long_name="vertical range of measurement",
@@ -136,42 +137,54 @@ class ShebaDabulRaw(AbstractDataStrategy):
             units: str
             dtype: str
             scale: int
-            scale: int
+            long_name: str
             match variable:
                 case "latitude":
                     units = "degrees north"
-                    dtype = "f4"
-                    scale = 1
+                    dtype = "i4"
+                    scale = 1e5
+                    long_name = "platform latitude"
+                    flag = int(360 * 1e5)
                 case "longitude":
                     units = "degrees east"
                     dtype = "f4"
                     scale = 1
+                    long_name = "xxx"
+                    flag = int(360 * 1e5)
                 case "altitude":
                     units = "meters"
                     dtype = "f4"
                     scale = 1
+                    long_name = "xxx"
+                    flag = int(360 * 1e5)
                 case "elevation":
                     units = "degrees"
                     dtype = "f4"
                     scale = 1
+                    long_name = "xxx"
+                    flag = int(360 * 1e5)
                 case "azimuth":
                     units = "degrees"
                     dtype = "f4"
                     scale = 1
+                    long_name = "xxx"
+                    flag = int(360 * 1e5)
                 case "scanmode":
                     units = "none"
                     dtype = "i2"
                     scale = 1
-            values: tuple[int | float, ...] = tuple(
-                METHODS[dtype](i) for i in dataset[variable]
+                    long_name = "xxx"
+                    flag = int(360 * 1e5)
+            values: tuple[int, ...] = tuple(
+                int(i * scale) for i in dataset[variable][:]
             )
             vector: PhysicalVector = PhysicalVector(
                 values=values,
                 units=units,
                 name=variable,
-                long_name="-999",
+                long_name=long_name,
                 scale=scale,
-                flag=FLAGS["f4"],
+                flag=flag,
                 dtype=dtype,
             )
             vectors[variable] = vector
@@ -193,7 +206,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     scale = 1
             values: list[list[int | float]] = []
             for row in dataset[variable]:
-                values.append(tuple(METHODS[dtype](i) for i in row))
+                values.append(tuple(int(i) for i in row))
 
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),

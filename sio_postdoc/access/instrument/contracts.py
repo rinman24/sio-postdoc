@@ -12,15 +12,15 @@ class Data(BaseModel):
     units: str
     name: str
     long_name: str
-    scale: float
-    flag: float
+    scale: int
+    flag: int
     dtype: str
 
 
 class PhysicalVector(Data):
     """Container for one-dimensional data."""
 
-    values: tuple[float, ...]
+    values: tuple[int, ...]
 
     def __repr__(self) -> str:
         repr_: str = ""
@@ -39,7 +39,7 @@ class TemporalVector(Data):
     """
 
     initial: datetime
-    offsets: tuple[float, ...]
+    offsets: tuple[int, ...]
 
     def __repr__(self) -> str:
         repr_: str = ""
@@ -54,7 +54,7 @@ class TemporalVector(Data):
 class PhysicalMatrix(Data):
     """Container for two-dimensional data."""
 
-    values: tuple[tuple[float, ...], ...]
+    values: tuple[tuple[int, ...], ...]
 
     def __repr__(self) -> str:
         repr_: str = ""

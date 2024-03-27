@@ -26,28 +26,28 @@ AXIS: PhysicalVector = PhysicalVector(
     name="range",
     long_name="vertical range of data",
     scale=1,
-    flag=-999,
-    dtype="f4",
+    flag=(2**16 - 1),
+    dtype="u2",
 )
 
 PHYSICAL_VECTORS: dict[str, PhysicalVector] = {
     "latitude": PhysicalVector(
-        values=(32.88, 32.881, 32.8812),
+        values=(3288000, 3288100, 3288120),
         units="degrees",
         name="latitude",
         long_name="platform latitude",
-        scale=1,
-        flag=-999,
-        dtype="f4",
+        scale=int(1e5),
+        flag=int(360 * 1e5),
+        dtype="i4",
     ),
     "longitude": PhysicalVector(
-        values=(117.23, 117.234, 117.2344),
+        values=(11723000, 11723400, 11723440),
         units="degrees",
         name="longitude",
         long_name="platform longitude",
-        scale=1,
-        flag=-999,
-        dtype="f4",
+        scale=int(1e5),
+        flag=int(360 * 1e5),
+        dtype="i4",
     ),
 }
 

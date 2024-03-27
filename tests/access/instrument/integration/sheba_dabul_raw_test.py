@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sio_postdoc.access.instrument.contracts import InstrumentData
+from sio_postdoc.access.instrument.contracts import InstrumentData, PhysicalVector
 from sio_postdoc.access.instrument.strategies.data import ShebaDabulRaw
 
 DATA_DIRECTORY: Path = Path(
@@ -35,7 +35,7 @@ def test_time_units(result):
 
 
 def test_axis(result):
-    assert result.axis.values == (0.0, 30.0)
+    assert result.axis.values == (0, 30)
     assert result.axis.units == "meters"
     assert result.axis.name == "range"
     assert result.axis.long_name == "vertical range of measurement"
@@ -64,6 +64,17 @@ def test_matrices(result):
     ]
     assert len(result.matrices) == len(expected)
     assert sorted(result.matrices.keys()) == expected
+
+
+def test_latitude(result):
+    vector: PhysicalVector = result.vectors["latitude"]
+    assert vector.values == (7595036, 7595037, 7595037)
+    assert vector.units == "degrees north"
+    assert vector.name == "latitude"
+    assert vector.long_name == "platform latitude"
+    assert vector.scale == 1e5
+    assert vector.flag == int(360 * 1e5)
+    assert vector.dtype == "i4"
 
 
 def test_notes(result):
