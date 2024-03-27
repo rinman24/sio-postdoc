@@ -1,28 +1,13 @@
-"""TODO: Docstring."""
+"""Strategies to construct netCDF4.Datasets instrument data from InstrumentData"""
 
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Callable
 
 import netCDF4 as nc
 
 from sio_postdoc.access.instrument.contracts import InstrumentData
 
-REF_DATE: datetime = datetime(1970, 1, 1, 0, 0)
-SECONDS_PER_DAY: int = 86400
-FLAGS: dict[str, int] = {
-    "S1": 0,
-    "i2": int(-(2**16) / 2),
-    "f4": -999,
-}
-METHODS: dict[str, Callable] = {
-    "S1": int.from_bytes,
-    "i2": int,
-    "f4": float,
-}
 
-
-class AbstractInstrumentStrategy(ABC):
+class AbstractHardwareStrategy(ABC):
     """TODO: Docstring."""
 
     @abstractmethod
@@ -33,7 +18,7 @@ class AbstractInstrumentStrategy(ABC):
     ) -> nc.Dataset: ...
 
 
-class DabulInstrumentStrategy(AbstractInstrumentStrategy):
+class DabulHardware(AbstractHardwareStrategy):
     """TODO: Docstring."""
 
     def write_data(  # pylint: disable=no-member
@@ -89,7 +74,7 @@ class DabulInstrumentStrategy(AbstractInstrumentStrategy):
         return rootgrp
 
 
-class MmcrInstrumentStrategy(AbstractInstrumentStrategy):
+class MmcrHardware(AbstractHardwareStrategy):
     """TODO: Docstring."""
 
     def write_data(  # pylint: disable=no-member

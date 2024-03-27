@@ -7,8 +7,8 @@ import netCDF4 as nc
 import sio_postdoc.utility.service as utility
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import AbstractDataStrategy
+from sio_postdoc.access.instrument.strategies.hardware import AbstractHardwareStrategy
 from sio_postdoc.access.instrument.strategies.location import AbstractLocationStrategy
-from sio_postdoc.access.instrument.strategies_ import AbstractInstrumentStrategy
 
 
 class DataContext:
@@ -37,10 +37,10 @@ class NcdfContext:
     def __init__(
         self,
         location: AbstractLocationStrategy,
-        instrument: AbstractInstrumentStrategy,
+        instrument: AbstractHardwareStrategy,
     ) -> None:
         self._location: AbstractLocationStrategy = location
-        self._instrument: AbstractInstrumentStrategy = instrument
+        self._instrument: AbstractHardwareStrategy = instrument
 
     @property
     def location(self) -> AbstractLocationStrategy:
@@ -52,12 +52,12 @@ class NcdfContext:
         self._location = location
 
     @property
-    def instrument(self) -> AbstractInstrumentStrategy:
+    def instrument(self) -> AbstractHardwareStrategy:
         """TODO: Docstring."""
         return self._instrument
 
     @instrument.setter
-    def instrument(self, instrument: AbstractInstrumentStrategy) -> None:
+    def instrument(self, instrument: AbstractHardwareStrategy) -> None:
         self._instrument = instrument
 
     def create_file(self, data: InstrumentData) -> str:

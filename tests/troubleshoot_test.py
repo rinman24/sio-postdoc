@@ -5,8 +5,8 @@ import pytest
 
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import DabulData, ShebaDabulRaw
+from sio_postdoc.access.instrument.strategies.hardware import DabulHardware
 from sio_postdoc.access.instrument.strategies.location import MobileLocationStrategy
-from sio_postdoc.access.instrument.strategies_ import DabulInstrumentStrategy
 from sio_postdoc.engine.filtering.strategies import IndicesByDate, NamesByDate
 from sio_postdoc.manager.observation.service import ObservationManager
 
@@ -39,7 +39,7 @@ def test_this_troubleshoot():
     new_container: str = "testing-remote"
     # Use the Mobile and Dabul Strategies to create the file
     # You are here, access need the two other contexts as well.
-    service.instrument_access.ncdf_context.instrument = DabulInstrumentStrategy()
+    service.instrument_access.ncdf_context.instrument = DabulHardware()
     service.instrument_access.ncdf_context.location = MobileLocationStrategy()
     # service.instrument_access.push(data, new_container)
     filename: str = service.instrument_access.ncdf_context.create_file(data)
@@ -85,7 +85,7 @@ def test_this_third_troubleshoot():
         content=datasets,
     )
     new_container: str = "sheba-dabul-daily-1998"
-    service.instrument_access.ncdf_context.instrument = DabulInstrumentStrategy()
+    service.instrument_access.ncdf_context.instrument = DabulHardware()
     service.instrument_access.ncdf_context.location = MobileLocationStrategy()
     filename: str = service.instrument_access.ncdf_context.create_file(data)
     path: Path = Path(f"./{filename}")

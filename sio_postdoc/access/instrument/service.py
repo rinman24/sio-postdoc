@@ -16,8 +16,8 @@ from azure.storage.blob import BlobServiceClient
 from sio_postdoc.access.instrument.context import DataContext, NcdfContext
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import Default
+from sio_postdoc.access.instrument.strategies.hardware import DabulHardware
 from sio_postdoc.access.instrument.strategies.location import MobileLocationStrategy
-from sio_postdoc.access.instrument.strategies_ import DabulInstrumentStrategy
 
 
 class BlobAccess(Protocol):
@@ -82,7 +82,7 @@ class InstrumentAccess(BlobAccess):
 
         self._ncdf_context: NcdfContext = NcdfContext(
             location=MobileLocationStrategy(),
-            instrument=DabulInstrumentStrategy(),
+            instrument=DabulHardware(),
         )
 
     @property
