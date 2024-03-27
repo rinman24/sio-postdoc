@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Generator
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
 from dotenv import load_dotenv
 
 from sio_postdoc.access.instrument.service import InstrumentAccess
@@ -16,11 +17,12 @@ PRE_POPULATED_CONTAINER: str = "prepopulated"
 DATA_DIRECTORY: Path = Path(
     os.getcwd() + "/tests/access/instrument/integration/test_blobs/"
 )
-FILE_NAMES: tuple[Path, ...] = (
+FILE_NAMES: tuple[str, ...] = (
     "eureka.txt",
     "sheba.txt",
     "utqiagvik.txt",
 )
+IMAGINARY_CONTAINER: str = "imaginary"
 
 
 @pytest.fixture(scope="module")
@@ -63,6 +65,13 @@ def test_create_invalid_characters_container(service):
 def test_list_blobs(service):
     """Test that container contents are listed correctly."""
     assert service.list_blobs(PRE_POPULATED_CONTAINER) == FILE_NAMES
+
+
+def test_list_blobs_resource_not_found(service):
+    """Test that an empty tuple is returned if the container is not found."""
+    with pytest.raises(ResourceNotFoundError) as excinfo:
+        service.list_blobs(IMAGINARY_CONTAINER)
+    assert "Specified container not found: 'imaginary'" in str(excinfo.value)
 
 
 def test_add_blob(service):
