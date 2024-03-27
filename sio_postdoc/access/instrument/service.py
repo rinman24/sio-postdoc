@@ -55,8 +55,6 @@ class InstrumentAccess(BlobAccess):
     """Concrete implementation of Blob Access."""
 
     def __init__(self) -> None:
-        # Use environment variables for secrets
-        # load_dotenv(override=True)
         self._account: Account = Account(
             name=os.environ["STORAGE_ACCOUNT_NAME"],
             key=os.environ["STORAGE_ACCOUNT_KEY"],
@@ -99,16 +97,6 @@ class InstrumentAccess(BlobAccess):
     def blob_service(self) -> BlobServiceClient:
         """Return instance of Azure BlobServiceClient."""
         return self._blob_service
-
-    @property
-    def data_context(self) -> DataContext:
-        """TODO: Docstring."""
-        return self._data_context
-
-    @property
-    def ncdf_context(self) -> NcdfContext:
-        """TODO: Docstring."""
-        return self._ncdf_context
 
     def create_container(self, name: str) -> None:
         """Create a new blob container."""

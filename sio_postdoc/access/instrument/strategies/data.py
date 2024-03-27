@@ -39,7 +39,7 @@ class AbstractDataStrategy(ABC):
     ) -> InstrumentData: ...
 
     @staticmethod
-    def monotonic_times(times: list[float], units: str):
+    def monotonic_times(times: list[float], units: str) -> tuple[float, ...]:
         """TODO: Docstring."""
         # Convert to seconds (potentially non-monotonic)
         scale: int
