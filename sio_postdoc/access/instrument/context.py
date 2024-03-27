@@ -6,29 +6,8 @@ import netCDF4 as nc
 
 import sio_postdoc.utility.service as utility
 from sio_postdoc.access.instrument.contracts import InstrumentData
-from sio_postdoc.access.instrument.strategies.data import AbstractDataStrategy
 from sio_postdoc.access.instrument.strategies.hardware import AbstractHardwareStrategy
 from sio_postdoc.access.instrument.strategies.location import AbstractLocationStrategy
-
-
-class DataContext:
-    """TODO: docstring."""
-
-    def __init__(self, strategy: AbstractDataStrategy) -> None:
-        self._strategy: AbstractDataStrategy = strategy
-
-    @property
-    def strategy(self) -> AbstractDataStrategy:
-        """TODO: Docstring."""
-        return self._strategy
-
-    @strategy.setter
-    def strategy(self, strategy: AbstractDataStrategy) -> None:
-        self._strategy = strategy
-
-    def extract(self, name: str) -> InstrumentData:
-        """TODO: Docstring."""
-        return self.strategy.extract(name)
 
 
 class NcdfContext:
