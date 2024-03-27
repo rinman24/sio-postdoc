@@ -12,6 +12,11 @@ def units(request) -> str:
     return request.param
 
 
+@pytest.fixture(params=["prefix-only", "suffix-only", "both", "neither"])
+def notes(request) -> str:
+    return request.param
+
+
 def test_monotonic_times(units):
     # Arrange
     times: list[float]
@@ -30,3 +35,30 @@ def test_monotonic_times(units):
     )
     # Assert
     assert result == expected
+
+
+def test_get_notes(notes):
+    # Arrange
+    name: str
+    expected: str
+    prefix: str = "prefix.test1.test2"
+    date: str = "D2024-03-20T09-24-00"
+    suffix: str = "test.suffix"
+    extension: str = "ncdf"
+    match notes:
+        case "prefix-only":
+            name = f"{prefix}.{date}.{extension}"
+            expected = prefix
+        case "suffix-only":
+            name = f"{date}.{suffix}.{extension}"
+            expected = suffix
+        case "both":
+            name = f"{prefix}.{date}.{suffix}.{extension}"
+            expected = f"{prefix}.{suffix}"
+        case "neither":
+            name = f"{date}.{extension}"
+            expected = ""
+    # Act
+    notes: str = AbstractDataStrategy._get_notes(name)
+    # Assert
+    assert notes == expected

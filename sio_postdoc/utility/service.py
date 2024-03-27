@@ -26,14 +26,14 @@ def extract_suffix(raw: str) -> str:
     """TODO: Docstring."""
     match: re.Match = PATTERN.search(raw)
     tail: str = raw[match.end() :]
-    suffix: str = "".join(tail.split(".")[:-1])
+    suffix: str = ".".join(tail.lstrip(".").split(".")[:-1])
     return suffix
 
 
 def extract_prefix(raw: str) -> str:
     """TODO: Docstring."""
     match: re.Match = PATTERN.search(raw)
-    prefix: str = raw[: match.start()]
+    prefix: str = raw[: match.start()].rstrip(".")
     return prefix
 
 
