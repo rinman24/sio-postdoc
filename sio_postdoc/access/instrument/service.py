@@ -64,14 +64,6 @@ class InstrumentAccess(BlobAccess):
             blob=os.environ["BLOB_STORAGE_ENDPOINT"],
         )
 
-        print(f"This is the account name: {os.environ['STORAGE_ACCOUNT_NAME']}")
-        print(f"This is the account key: {os.environ['STORAGE_ACCOUNT_KEY']}")
-        print(
-            f"This is the endpoint protocol: {os.environ['DEFAULT_ENDPOINTS_PROTOCOL']}"
-        )
-        print(f"This is the blobl endpoint: {os.environ['BLOB_STORAGE_ENDPOINT']}")
-        print(f"This is the Connection String: {self.connection_string}")
-
         self._blob_service: BlobServiceClient = (
             BlobServiceClient.from_connection_string(conn_str=self.connection_string)
         )
