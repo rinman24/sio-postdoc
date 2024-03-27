@@ -66,6 +66,17 @@ def test_matrices(result):
     assert sorted(result.matrices.keys()) == expected
 
 
+def test_altitude(result):
+    vector: PhysicalVector = result.vectors["altitude"]
+    assert vector.values == (10, 10, 10)
+    assert vector.units == "meters"
+    assert vector.name == "altitude"
+    assert vector.long_name == "platform latitude"
+    assert vector.scale == 1
+    assert vector.flag == -999
+    assert vector.dtype == "i2"
+
+
 def test_latitude(result):
     vector: PhysicalVector = result.vectors["latitude"]
     assert vector.values == (7595036, 7595037, 7595037)

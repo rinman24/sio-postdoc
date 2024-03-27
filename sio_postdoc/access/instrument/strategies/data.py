@@ -91,11 +91,11 @@ class ShebaDabulRaw(AbstractDataStrategy):
     """TODO: Docstring."""
 
     variable_names: tuple[str] = (
+        "altitude",
+        "azimuth",
+        "elevation",
         "latitude",
         "longitude",
-        "altitude",
-        "elevation",
-        "azimuth",
         "scanmode",
     )
     matrix_names: tuple[str] = (
@@ -139,6 +139,12 @@ class ShebaDabulRaw(AbstractDataStrategy):
             scale: int
             long_name: str
             match variable:
+                case "altitude":
+                    units = "meters"
+                    long_name = "platform latitude"
+                    scale = 1
+                    flag = -999
+                    dtype = "i2"
                 case "latitude":
                     units = "degrees north"
                     dtype = "i4"
@@ -150,12 +156,6 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     dtype = "i4"
                     scale = int(1e5)
                     long_name = "platform longitude"
-                    flag = int(360 * 1e5)
-                case "altitude":
-                    units = "meters"
-                    dtype = "f4"
-                    scale = 1
-                    long_name = "xxx"
                     flag = int(360 * 1e5)
                 case "elevation":
                     units = "degrees"
