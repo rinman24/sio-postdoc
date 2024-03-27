@@ -170,11 +170,11 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     long_name = "platform longitude"
                     flag = int(360 * 1e5)
                 case "scanmode":
-                    units = "none"
-                    dtype = "i2"
+                    units = "unitless"
+                    long_name = "scan mode"
                     scale = 1
-                    long_name = "xxx"
-                    flag = int(360 * 1e5)
+                    flag = -999
+                    dtype = "i2"
             values: tuple[int, ...] = tuple(
                 int(i * scale) for i in dataset[variable][:]
             )

@@ -121,5 +121,16 @@ def test_longitude(result):
     assert vector.dtype == "i4"
 
 
+def test_scanmode(result):
+    vector: PhysicalVector = result.vectors["scanmode"]
+    assert vector.values == (-999, -999, -999)
+    assert vector.units == "unitless"
+    assert vector.name == "scanmode"
+    assert vector.long_name == "scan mode"
+    assert vector.scale == 1
+    assert vector.flag == -999
+    assert vector.dtype == "i2"
+
+
 def test_notes(result):
     assert result.notes == str(DATA_DIRECTORY) + "/.BHAR"
