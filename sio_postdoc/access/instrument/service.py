@@ -13,7 +13,7 @@ from azure.core.exceptions import (
 )
 from azure.storage.blob import BlobServiceClient
 
-from sio_postdoc.access.instrument.context import NcdfContext
+from sio_postdoc.access.instrument.contexts.binary import NcdfContext
 from sio_postdoc.access.instrument.contexts.data import DataContext
 from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import Default
