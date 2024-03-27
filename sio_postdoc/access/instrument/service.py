@@ -15,7 +15,6 @@ from azure.storage.blob import BlobServiceClient
 
 from sio_postdoc.access.instrument.contexts.binary import NcdfContext
 from sio_postdoc.access.instrument.contexts.data import DataContext
-from sio_postdoc.access.instrument.contracts import InstrumentData
 from sio_postdoc.access.instrument.strategies.data import Default
 from sio_postdoc.access.instrument.strategies.hardware import DabulHardware
 from sio_postdoc.access.instrument.strategies.location import MobileLocationStrategy
@@ -28,7 +27,7 @@ class BlobAccess(Protocol):
     def create_container(self, name: str) -> str: ...
     def add_blob(self, name: str, path: Path) -> None: ...
     def list_blobs(self, name: str) -> tuple[str, ...]: ...
-    def download_blobs(self, container: str, names: tuple[str, ...]) -> None: ...
+    def download_blob(self, container: str, name: str) -> None: ...
     def get_datasets(
         self,
         container: str,
@@ -143,19 +142,10 @@ class InstrumentAccess(BlobAccess):
             ) from exc
         return blobs
 
-    def _download_blob(self, container: str, name: str) -> None:
+    def download_blob(self, container: str, name: str) -> None:
         with self.blob_service.get_blob_client(
             container=container, blob=name
         ) as blob_client:
             with open(name, mode="wb") as blob:
                 download_stream = blob_client.download_blob()
                 blob.write(download_stream.readall())
-
-    def get_data(self, container: str, names: tuple) -> tuple[InstrumentData, ...]:
-        """TODO: Docstring."""
-        results: list[InstrumentData] = []
-        for name in names:
-            self._download_blob(container, name)
-            results.append(self.data_context.extract(name))
-            # os.remove(name)  # TODO: You need to address this.
-        return tuple(results)

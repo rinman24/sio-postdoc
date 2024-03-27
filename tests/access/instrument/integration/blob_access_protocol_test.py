@@ -12,6 +12,7 @@ from sio_postdoc.access.instrument.service import InstrumentAccess
 
 # pylint: disable=redefined-outer-name
 
+CWD: Path = Path(os.getcwd())
 EMPTY_CONTAINTER: str = "emptycontainer"
 PRE_POPULATED_CONTAINER: str = "prepopulated"
 DATA_DIRECTORY: Path = Path(
@@ -78,3 +79,15 @@ def test_add_blob(service):
     """Test that files are successfully uploaded to blob storage."""
     service.add_blob(EMPTY_CONTAINTER, DATA_DIRECTORY / FILE_NAMES[0])
     assert service.list_blobs(EMPTY_CONTAINTER) == (FILE_NAMES[0],)
+
+
+def test_download_blob(service):
+    """Test that a blob can be downloaded and saved."""
+
+    before: list[str] = set(CWD.iterdir())
+    service.download_blob(PRE_POPULATED_CONTAINER, FILE_NAMES[0])
+    after: list[str] = set(CWD.iterdir())
+    difference: set = after.difference(before)
+    new: Path = next(iter(difference))
+    os.remove(new)
+    assert new.name == FILE_NAMES[0]
