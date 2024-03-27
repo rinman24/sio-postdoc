@@ -20,20 +20,18 @@ TIME: TemporalVector = TemporalVector(
     dtype="f4",
 )
 
-AXIS: tuple[PhysicalVector, ...] = (
-    PhysicalVector(
-        values=(45, 90),
-        units="meters",
-        name="range",
-        long_name="vertical range of data",
-        scale=1,
-        flag=-999,
-        dtype="f4",
-    ),
+AXIS: PhysicalVector = PhysicalVector(
+    values=(45, 90),
+    units="meters",
+    name="range",
+    long_name="vertical range of data",
+    scale=1,
+    flag=-999,
+    dtype="f4",
 )
 
-PHYSICAL_VECTORS: tuple[PhysicalVector, ...] = (
-    PhysicalVector(
+PHYSICAL_VECTORS: dict[str, PhysicalVector] = {
+    "latitude": PhysicalVector(
         values=(32.88, 32.881, 32.8812),
         units="degrees",
         name="latitude",
@@ -42,7 +40,7 @@ PHYSICAL_VECTORS: tuple[PhysicalVector, ...] = (
         flag=-999,
         dtype="f4",
     ),
-    PhysicalVector(
+    "longitude": PhysicalVector(
         values=(117.23, 117.234, 117.2344),
         units="degrees",
         name="longitude",
@@ -51,10 +49,10 @@ PHYSICAL_VECTORS: tuple[PhysicalVector, ...] = (
         flag=-999,
         dtype="f4",
     ),
-)
+}
 
-PHYSICAL_MATRICES: tuple[PhysicalMatrix, ...] = (
-    PhysicalMatrix(
+PHYSICAL_MATRICES: dict[str, PhysicalMatrix] = {
+    "reflectivity": PhysicalMatrix(
         values=((-9, -24), (-1, -7), (-3, -20)),
         units="dBZ",
         name="reflectivity",
@@ -63,7 +61,7 @@ PHYSICAL_MATRICES: tuple[PhysicalMatrix, ...] = (
         flag=-999,
         dtype="f4",
     ),
-    PhysicalMatrix(
+    "far_parallel": PhysicalMatrix(
         values=((24, 84), (7, 89), (3, 87)),
         units="unknown",
         name="far_parallel",
@@ -72,7 +70,7 @@ PHYSICAL_MATRICES: tuple[PhysicalMatrix, ...] = (
         flag=-999,
         dtype="f4",
     ),
-)
+}
 
 INSTRUMENT_DATA: InstrumentData = InstrumentData(
     time=TIME,

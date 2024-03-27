@@ -1,6 +1,7 @@
 """Instrument Access Contracts"""
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -68,9 +69,9 @@ class InstrumentData(BaseModel):
     """Container for data from an instrument."""
 
     time: TemporalVector
-    axis: tuple[PhysicalVector, ...]
-    matrices: tuple[PhysicalMatrix, ...]
-    vectors: tuple[PhysicalVector, ...]
+    axis: Optional[PhysicalVector]
+    vectors: dict[str, PhysicalVector]
+    matrices: dict[str, PhysicalMatrix]
     name: str
     observatory: str
     notes: str
@@ -85,15 +86,15 @@ class InstrumentData(BaseModel):
         repr_ += f"    notes: {self.notes}\n"
         repr_ += f"    initial time: {self.time.initial}\n"
         repr_ += f"    dimensions(sizes): time({len(self.time.offsets)})"
-        for dimension in self.axis:
-            repr_ += f", {dimension.name}({len(dimension.values)})"
+        if self.axis:
+            repr_ += f", {self.axis.name}({len(self.axis.values)})"
         if self.vectors:
             repr_ += "\n    vectors(dimensions): "
         first = True
         for vector in self.vectors:
             if not first:
                 repr_ += ", "
-            repr_ += f"{vector.name}(time)"
+            repr_ += f"{vector}(time)"
             first = False
         if self.matrices:
             repr_ += "\n    matrices(dimensions): "
@@ -101,7 +102,7 @@ class InstrumentData(BaseModel):
         for matrix in self.matrices:
             if not first:
                 repr_ += ", "
-            repr_ += f"{matrix.name}(time, {self.axis[0].name})"
+            repr_ += f"{matrix}(time, {self.axis.name})"
             first = False
 
         return repr_

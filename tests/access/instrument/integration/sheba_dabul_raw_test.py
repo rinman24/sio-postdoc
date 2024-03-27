@@ -35,27 +35,26 @@ def test_time_units(result):
 
 
 def test_axis(result):
-    assert len(result.axis) == 1
-    assert result.axis[0].values == (0.0, 30.0)
-    assert result.axis[0].units == "meters"
-    assert result.axis[0].name == "range"
-    assert result.axis[0].long_name == "vertical range of measurement"
-    assert result.axis[0].scale == 1
-    assert result.axis[0].flag == 2**16 - 1
-    assert result.axis[0].dtype == "u2"
+    assert result.axis.values == (0.0, 30.0)
+    assert result.axis.units == "meters"
+    assert result.axis.name == "range"
+    assert result.axis.long_name == "vertical range of measurement"
+    assert result.axis.scale == 1
+    assert result.axis.flag == 2**16 - 1
+    assert result.axis.dtype == "u2"
 
 
 def test_vectors(result):
     expected: list[str] = [
+        "altitude",
+        "azimuth",
+        "elevation",
         "latitude",
         "longitude",
-        "altitude",
-        "elevation",
-        "azimuth",
         "scanmode",
     ]
     assert len(result.vectors) == len(expected)
-    assert [vec.name for vec in result.vectors] == expected
+    assert sorted(result.vectors.keys()) == expected
 
 
 def test_matrices(result):
@@ -64,7 +63,7 @@ def test_matrices(result):
         "far_parallel",
     ]
     assert len(result.matrices) == len(expected)
-    assert [mat.name for mat in result.matrices] == expected
+    assert sorted(result.matrices.keys()) == expected
 
 
 def test_notes(result):

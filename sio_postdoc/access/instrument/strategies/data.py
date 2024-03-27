@@ -131,7 +131,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
             dtype="u2",
         )
         # Vectors
-        vectors: list[PhysicalVector] = []
+        vectors: dict[str, PhysicalVector] = {}
         for variable in self.variable_names:
             units: str
             dtype: str
@@ -174,9 +174,9 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 flag=FLAGS["f4"],
                 dtype=dtype,
             )
-            vectors.append(vector)
+            vectors[variable] = vector
 
-        matrices: list[PhysicalMatrix] = []
+        matrices: dict[str, PhysicalMatrix] = {}
         for variable in self.matrix_names:
             scale: int
             units: str
@@ -204,13 +204,13 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 flag=FLAGS[dtype],
                 dtype=dtype,
             )
-            matrices.append(matrix)
+            matrices[variable] = matrix
 
         result: InstrumentData = InstrumentData(
             time=time,
-            axis=(axis,),
-            matrices=tuple(matrices),
-            vectors=tuple(vectors),
+            axis=axis,
+            matrices=matrices,
+            vectors=vectors,
             name="DABUL",
             observatory="SHEBA",
             notes=notes,
