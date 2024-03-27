@@ -71,10 +71,21 @@ def test_altitude(result):
     assert vector.values == (10, 10, 10)
     assert vector.units == "meters"
     assert vector.name == "altitude"
-    assert vector.long_name == "platform latitude"
+    assert vector.long_name == "platform altitude"
     assert vector.scale == 1
     assert vector.flag == -999
     assert vector.dtype == "i2"
+
+
+def test_azimuth(result):
+    vector: PhysicalVector = result.vectors["azimuth"]
+    assert vector.values == (34001232, 34001235, 34001242)
+    assert vector.units == "degrees"
+    assert vector.name == "azimuth"
+    assert vector.long_name == "beam azimuth angle"
+    assert vector.scale == 1e5
+    assert vector.flag == 360 * 1e5
+    assert vector.dtype == "i4"
 
 
 def test_latitude(result):
@@ -84,7 +95,7 @@ def test_latitude(result):
     assert vector.name == "latitude"
     assert vector.long_name == "platform latitude"
     assert vector.scale == 1e5
-    assert vector.flag == int(360 * 1e5)
+    assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
 
 
@@ -95,7 +106,7 @@ def test_longitude(result):
     assert vector.name == "longitude"
     assert vector.long_name == "platform longitude"
     assert vector.scale == 1e5
-    assert vector.flag == int(360 * 1e5)
+    assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
 
 
