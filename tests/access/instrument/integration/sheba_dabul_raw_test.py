@@ -147,5 +147,20 @@ def test_depolarization(result):
     assert matrix.dtype == "i2"
 
 
+def test_far_parallel(result):
+    matrix: PhysicalVector = result.matrices["far_parallel"]
+    assert matrix.values == (
+        (-999, 63688),
+        (-999, 64665),
+        (-999, 63777),
+    )
+    assert matrix.units == "unknown"
+    assert matrix.name == "far_parallel"
+    assert matrix.long_name == "far parallel reflected power"
+    assert matrix.scale == 1000
+    assert matrix.flag == -999
+    assert matrix.dtype == "i4"
+
+
 def test_notes(result):
     assert result.notes == str(DATA_DIRECTORY) + "/.BHAR"

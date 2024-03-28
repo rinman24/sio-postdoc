@@ -110,6 +110,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
         scale: int
         flag: int
         dtype: str
+        valid_range: list[int]
         # Open the nc file
         dataset = nc.Dataset(name)  # pylint: disable=no-member
         # Extract initial timestamp and notes for the filename.
@@ -144,40 +145,51 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     units = "meters"
                     long_name = "platform altitude"
                     scale = 1
-                    flag = -999
                     dtype = "i2"
+                    valid_range = [-750, 20000]
+                    flag = -999
                 case "azimuth":
                     units = "degrees"
                     long_name = "beam azimuth angle"
                     scale = 1e5
-                    flag = 360 * 1e5
                     dtype = "i4"
+                    valid_range = [0, int(359.99999e5)]
+                    flag = 360 * 1e5
                 case "elevation":
                     units = "degrees"
                     long_name = "beam elevation angle"
                     scale = 1e5
-                    flag = 360 * 1e5
                     dtype = "i4"
+                    valid_range = [0, int(180e5)]
+                    flag = 360 * 1e5
                 case "latitude":
                     units = "degrees north"
                     long_name = "platform latitude"
                     scale = 1e5
-                    flag = 360 * 1e5
                     dtype = "i4"
+                    valid_range = [int(-90e5), int(90e5)]
+                    flag = 360 * 1e5
                 case "longitude":
                     units = "degrees east"
                     long_name = "platform longitude"
                     scale = 1e5
-                    flag = 360 * 1e5
                     dtype = "i4"
+                    valid_range = [int(-180e5), int(180e5)]
+                    flag = 360 * 1e5
                 case "scanmode":
                     units = "unitless"
                     long_name = "scan mode"
                     scale = 1
-                    flag = -999
                     dtype = "i2"
+                    valid_range = [0, 10]
+                    flag = -999
             values: tuple[int, ...] = tuple(
-                int(i * scale) for i in dataset[variable][:]
+                (
+                    int(element * scale)
+                    if valid_range[0] <= element * scale <= valid_range[1]
+                    else flag
+                )
+                for element in dataset[variable][:]
             )
             vector: PhysicalVector = PhysicalVector(
                 values=values,
@@ -204,8 +216,9 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     units = "unknown"
                     long_name = "far parallel reflected power"
                     scale = 1000
-                    flag = -999
                     dtype = "i4"
+                    valid_range = [0, int(2**32 / 2) - 1]
+                    flag = -999
             values: list[list[int]] = []
             for row in dataset[variable][:]:
                 values.append(
