@@ -34,7 +34,7 @@ def test_time(result):  # noqa: D103
     assert result.time.offsets == (1910, 1920, 1930)
     assert result.time.units == "seconds"
     assert result.time.name == "offsets"
-    assert result.time.long_name == "seconds since initial time"
+    assert result.time.long_name == "Seconds Since Initial Time"
     assert result.time.scale == 1
     assert result.time.flag == NINES
     assert result.time.dtype == "i4"
@@ -77,7 +77,7 @@ def test_altitude(result):  # noqa: D103
     assert vector.values == (10, 10, 10)
     assert vector.units == "meters"
     assert vector.name == "altitude"
-    assert vector.long_name == "platform altitude"
+    assert vector.long_name == "Platform Altitude"
     assert vector.scale == 1
     assert vector.flag == NINES
     assert vector.dtype == "i2"
@@ -88,7 +88,7 @@ def test_azimuth(result):  # noqa: D103
     assert vector.values == (34001232, 34001235, 34001242)
     assert vector.units == "degrees"
     assert vector.name == "azimuth"
-    assert vector.long_name == "beam azimuth angle"
+    assert vector.long_name == "Beam Azimuth Angle"
     assert vector.scale == ONE_HUNDRED_THOUSAND
     assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
@@ -99,7 +99,7 @@ def test_elevation(result):  # noqa: D103
     assert vector.values == (9546252, 9544544, 9544687)
     assert vector.units == "degrees"
     assert vector.name == "elevation"
-    assert vector.long_name == "beam elevation angle"
+    assert vector.long_name == "Beam Elevation Angle"
     assert vector.scale == ONE_HUNDRED_THOUSAND
     assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
@@ -110,7 +110,7 @@ def test_latitude(result):  # noqa: D103
     assert vector.values == (7595036, 7595037, 7595037)
     assert vector.units == "degrees north"
     assert vector.name == "latitude"
-    assert vector.long_name == "platform latitude"
+    assert vector.long_name == "Platform Latitude"
     assert vector.scale == ONE_HUNDRED_THOUSAND
     assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
@@ -121,7 +121,7 @@ def test_longitude(result):  # noqa: D103
     assert vector.values == (-14410420, -14410421, -14410423)
     assert vector.units == "degrees east"
     assert vector.name == "longitude"
-    assert vector.long_name == "platform longitude"
+    assert vector.long_name == "Platform Longitude"
     assert vector.scale == ONE_HUNDRED_THOUSAND
     assert vector.flag == 360 * 1e5
     assert vector.dtype == "i4"
@@ -132,7 +132,7 @@ def test_scanmode(result):  # noqa: D103
     assert vector.values == (-999, -999, -999)
     assert vector.units == "unitless"
     assert vector.name == "scanmode"
-    assert vector.long_name == "scan mode"
+    assert vector.long_name == "Scan Mode"
     assert vector.scale == 1
     assert vector.flag == NINES
     assert vector.dtype == "i2"
@@ -147,7 +147,7 @@ def test_depolarization(result):  # noqa: D103
     )
     assert matrix.units == "unitless"
     assert matrix.name == "depolarization"
-    assert matrix.long_name == "depolarization ratio"
+    assert matrix.long_name == "Depolarization Ratio"
     assert matrix.scale == ONE_THOUSAND
     assert matrix.flag == NINES
     assert matrix.dtype == "i2"
@@ -162,7 +162,7 @@ def test_far_parallel(result):  # noqa: D103
     )
     assert matrix.units == "unknown"
     assert matrix.name == "far_parallel"
-    assert matrix.long_name == "far parallel reflected power"
+    assert matrix.long_name == "Far Parallel Returned Power"
     assert matrix.scale == ONE_THOUSAND
     assert matrix.flag == NINES
     assert matrix.dtype == "i4"

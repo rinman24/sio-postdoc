@@ -15,6 +15,8 @@ DATA_DIRECTORY: Path = Path(
 PATH: str = str(DATA_DIRECTORY / "D1997-10-30T12-00-00.mrg.corrected.nc")
 BASE_TIME: int = 878212870
 TIME_FLAG: int = -999
+ONE_HUNDRED: int = 100
+ONE_THOUSAND: int = 1000
 
 
 @pytest.fixture(scope="module")
@@ -28,7 +30,7 @@ def test_time(result):  # noqa: D103
     assert result.time.offsets == (0, 10, 20)
     assert result.time.units == "seconds"
     assert result.time.name == "offsets"
-    assert result.time.long_name == "seconds since initial time"
+    assert result.time.long_name == "Seconds Since Initial Time"
     assert result.time.scale == 1
     assert result.time.flag == TIME_FLAG
     assert result.time.dtype == "i4"
@@ -73,7 +75,7 @@ def test_mean_doppler_velocity(result):  # noqa: D103
     assert matrix.units == "m/s"
     assert matrix.name == "mean_doppler_velocity"
     assert matrix.long_name == "Mean Doppler Velocity"
-    assert matrix.scale == 1000
+    assert matrix.scale == ONE_THOUSAND
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
 
@@ -118,7 +120,7 @@ def test_reflectivity(result):  # noqa: D103
     assert matrix.units == "dBZ"
     assert matrix.name == "reflectivity"
     assert matrix.long_name == "Reflectivity"
-    assert matrix.scale == 100
+    assert matrix.scale == ONE_HUNDRED
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
 
@@ -133,7 +135,7 @@ def test_signal_to_noise(result):  # noqa: D103
     assert matrix.units == "dB"
     assert matrix.name == "signal_to_noise"
     assert matrix.long_name == "Signal-to-Noise Ratio"
-    assert matrix.scale == 100
+    assert matrix.scale == ONE_HUNDRED
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
 
@@ -148,7 +150,7 @@ def test_spectral_width(result):  # noqa: D103
     assert matrix.units == "m/s"
     assert matrix.name == "spectral_width"
     assert matrix.long_name == "Spectral Width"
-    assert matrix.scale == 1000
+    assert matrix.scale == ONE_THOUSAND
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
 

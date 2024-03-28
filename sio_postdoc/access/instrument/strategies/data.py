@@ -94,7 +94,7 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
             offsets=_monotonic_times(offsets, units="hours"),
             units="seconds",
             name="offsets",
-            long_name="seconds since initial time",
+            long_name="Seconds Since Initial Time",
             scale=1,
             flag=FLAGS["i4"],
             dtype="i4",
@@ -131,42 +131,42 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
             match variable:
                 case "altitude":
                     units = "meters"
-                    long_name = "platform altitude"
+                    long_name = "Platform Altitude"
                     scale = 1
                     dtype = "i2"
                     valid_range = [-750, 20000]
                     flag = -999
                 case "azimuth":
                     units = "degrees"
-                    long_name = "beam azimuth angle"
+                    long_name = "Beam Azimuth Angle"
                     scale = 1e5
                     dtype = "i4"
                     valid_range = [0, int(359.99999e5)]
                     flag = 360 * 1e5
                 case "elevation":
                     units = "degrees"
-                    long_name = "beam elevation angle"
+                    long_name = "Beam Elevation Angle"
                     scale = 1e5
                     dtype = "i4"
                     valid_range = [0, int(180e5)]
                     flag = 360 * 1e5
                 case "latitude":
                     units = "degrees north"
-                    long_name = "platform latitude"
+                    long_name = "Platform Latitude"
                     scale = 1e5
                     dtype = "i4"
                     valid_range = [int(-90e5), int(90e5)]
                     flag = 360 * 1e5
                 case "longitude":
                     units = "degrees east"
-                    long_name = "platform longitude"
+                    long_name = "Platform Longitude"
                     scale = 1e5
                     dtype = "i4"
                     valid_range = [int(-180e5), int(180e5)]
                     flag = 360 * 1e5
                 case "scanmode":
                     units = "unitless"
-                    long_name = "scan mode"
+                    long_name = "Scan Mode"
                     scale = 1
                     dtype = "i2"
                     valid_range = [0, 10]
@@ -202,14 +202,14 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
             match variable:
                 case "depolarization":
                     units = "unitless"
-                    long_name = "depolarization ratio"
+                    long_name = "Depolarization Ratio"
                     scale = 1000
                     dtype = "i2"
                     valid_range = [0, 1000]
                     flag = -999
                 case "far_parallel":
                     units = "unknown"
-                    long_name = "far parallel reflected power"
+                    long_name = "Far Parallel Returned Power"
                     scale = 1000
                     dtype = "i4"
                     valid_range = [0, int(2**32 / 2) - 1]
@@ -270,7 +270,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
             offsets=_monotonic_times(offsets, units="seconds"),
             units="seconds",
             name="offsets",
-            long_name="seconds since initial time",
+            long_name="Seconds Since Initial Time",
             scale=1,
             flag=-999,
             dtype="i4",
@@ -318,7 +318,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
                 case "ModeId":
                     units = "unitless"
                     name = "mode_id"
-                    long_name = "Mode I.D. for Merged Time-Height Moments Data"  # TODO: Capitalize long_name format everywhere
+                    long_name = "Mode I.D. for Merged Time-Height Moments Data"
                     scale = 1
                     dtype = "S1"
                     valid_range = [1, 4]
