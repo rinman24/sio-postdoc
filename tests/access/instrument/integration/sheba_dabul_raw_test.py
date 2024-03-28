@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from sio_postdoc.access.instrument.contracts import InstrumentData, PhysicalVector
+from sio_postdoc.access.instrument.contracts import (
+    InstrumentData,
+    PhysicalMatrix,
+    PhysicalVector,
+)
 from sio_postdoc.access.instrument.strategies.data import ShebaDabulRaw
 
 DATA_DIRECTORY: Path = Path(
@@ -133,7 +137,7 @@ def test_scanmode(result):
 
 
 def test_depolarization(result):
-    matrix: PhysicalVector = result.matrices["depolarization"]
+    matrix: PhysicalMatrix = result.matrices["depolarization"]
     assert matrix.values == (
         (-999, 591),
         (-999, 587),
@@ -148,7 +152,7 @@ def test_depolarization(result):
 
 
 def test_far_parallel(result):
-    matrix: PhysicalVector = result.matrices["far_parallel"]
+    matrix: PhysicalMatrix = result.matrices["far_parallel"]
     assert matrix.values == (
         (-999, 63688),
         (-999, 64665),
