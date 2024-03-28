@@ -1,112 +1,121 @@
-from datetime import datetime
-from pathlib import Path
+"""Instrument Access Contracts."""
 
-from pydantic import BaseModel, field_validator, model_validator
+from datetime import datetime, timedelta
+from typing import Optional
 
-from sio_postdoc.access.instrument.constants import VALID_LOCATIONS, VALID_NAMES  # noqa
+from pydantic import BaseModel
 
-
-class DateRange(BaseModel):
-    start: datetime
-    end: datetime
-
-    @model_validator(mode="after")
-    def end_must_be_at_least_one_minute_after_start(self) -> "DateRange":
-        if self.end < self.start:
-            raise ValueError("start cannot be before end")
-        elif self.start == self.end:
-            raise ValueError("start and end cannot be equal")
-        return self
+from sio_postdoc.access.instrument.constants import REFERENCE_TIME
 
 
-class Instrument(BaseModel):
-    location: str
+class Data(BaseModel):
+    """Base data model for other contracts to extend."""
+
+    units: str
     name: str
-
-    @field_validator("location")
-    @classmethod
-    def location_must_be_valid(cls, location: str) -> str:
-        if location not in VALID_LOCATIONS:
-            message: str
-            message = f"'{location}' not a valid location; "
-            message += f"valid locations include {VALID_LOCATIONS}"
-            raise ValueError(message)
-        return location
-
-    @field_validator("name")
-    @classmethod
-    def name_must_be_valid(cls, name: str) -> str:
-        if name not in VALID_NAMES:
-            message: str
-            message = f"'{name}' not a valid name; "
-            message += f"valid names include {VALID_NAMES}"
-            raise ValueError(message)
-        return name
-
-    # TODO: Add a model validator for valid location and name
-    # combinations once you have more locations in that may not
-    # have all the equipment
+    long_name: str
+    scale: int
+    flag: int
+    dtype: str
 
 
-class RawDataRequest(BaseModel):
-    daterange: DateRange
-    instrument: Instrument
+class PhysicalVector(Data):
+    """Container for one-dimensional data."""
+
+    values: tuple[int, ...]
+
+    def __repr__(self) -> str:  # noqa: D105
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.values)},)\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        return repr_
+
+
+class TemporalVector(Data):
+    """I encapsulate temporal data.
+
+    Parameters
+    ----------
+    base_time : int
+        Seconds since 1970-01-01 00:00:00 00:00.
+    offsets : tuple of int
+        Seconds since `initial`.
+
+    """
+
+    base_time: int
+    offsets: tuple[int, ...]
+
+    def __repr__(self) -> str:  # noqa: D105
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.TemporalVector'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.offsets)},)\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        repr_ += f"    base_time: {self.base_time}\n"
+        repr_ += f"    initial: {self.initial}"
+        return repr_
 
     @property
-    def start(self) -> datetime:
-        return self.daterange.start
-
-    @property
-    def end(self) -> datetime:
-        return self.daterange.end
-
-    @property
-    def location(self) -> str:
-        return self.instrument.location
-
-    @property
-    def instr_name(self) -> str:
-        return self.instrument.name
+    def initial(self) -> datetime:
+        """Calculate the initial datetime."""
+        return REFERENCE_TIME + timedelta(seconds=self.base_time)
 
 
-class MonthRange(BaseModel):
-    years: list[int]
-    months: dict[int, list[int]]  # keys are years: values are months
+class PhysicalMatrix(Data):
+    """Container for two-dimensional data."""
+
+    values: tuple[tuple[int, ...], ...]
+
+    def __repr__(self) -> str:  # noqa: D105
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>\n"
+        repr_ += f"    dimensions(sizes): ({len(self.values)}, {len(self.values[0])})\n"
+        repr_ += f"    units: {self.units}\n"
+        repr_ += f"    name: {self.name}\n"
+        return repr_
 
 
-class DayRange(BaseModel):
-    years: list[int]
-    months: dict[int, list[int]]  # keys are years: values are months
-    days: dict[str, set[int]]  # keys are 'year-month': values are days
+class InstrumentData(BaseModel):
+    """Container for data from an instrument."""
 
+    time: TemporalVector
+    axis: Optional[PhysicalVector]
+    vectors: dict[str, PhysicalVector]
+    matrices: dict[str, PhysicalMatrix]
+    name: str
+    observatory: str
+    notes: str
 
-class RawDataResponse(BaseModel):
-    paths: list[Path]
-    datetimes: list[datetime]
+    def __repr__(self) -> str:  # noqa: D105
+        first: bool
 
+        repr_: str = ""
+        repr_ += "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>\n"
+        repr_ += f"    instrument name: {self.name}\n"
+        repr_ += f"    observatory name: {self.observatory}\n"
+        repr_ += f"    notes: {self.notes}\n"
+        repr_ += f"    initial time: {self.time.initial}\n"
+        repr_ += f"    dimensions(sizes): time({len(self.time.offsets)})"
+        if self.axis:
+            repr_ += f", {self.axis.name}({len(self.axis.values)})"
+        if self.vectors:
+            repr_ += "\n    vectors(dimensions): "
+        first = True
+        for vector in self.vectors:
+            if not first:
+                repr_ += ", "
+            repr_ += f"{vector}(time)"
+            first = False
+        if self.matrices:
+            repr_ += "\n    matrices(dimensions): "
+        first = True
+        for matrix in self.matrices:
+            if not first:
+                repr_ += ", "
+            repr_ += f"{matrix}(time, {self.axis.name})"
+            first = False
 
-class FilterRequest(BaseModel):
-    start: datetime
-    end: datetime
-    path: Path
-    valid_days: list[int]
-    year: int
-    response: RawDataResponse
-
-
-class RawTimeHeightData(BaseModel):
-    datetimes: list[datetime]  # This is the first index (rows)
-    elevations: list[float]  # This is the second index (column)
-    # The inner list is at constant time (elevation varies)
-    values: list[list[float]]
-
-
-class TimeHeightData(BaseModel):
-    datetimes: list[datetime]
-    elevations: list[float]  # km
-    values: list[list[float]]
-
-
-class LidarData(BaseModel):
-    far_parallel: TimeHeightData
-    depolarization: TimeHeightData
+        return repr_

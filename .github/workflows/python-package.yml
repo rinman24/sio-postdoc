@@ -1,0 +1,62 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
+
+# if [ -f poetry.lock ]; then poetry install; fi
+    # - name: Set up Azurite
+    #   check this site: https://github.com/Azure/Azurite
+    # - name: Lint with flake8
+    #   run: |
+    #     # stop the build if there are Python syntax errors or undefined names
+    #     flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    #     # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+    #     flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+name: Python package
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    environment: development
+    runs-on: ubuntu-latest
+    env:
+      STORAGE_ACCOUNT_NAME: ${{ secrets.STORAGE_ACCOUNT_NAME }}
+      STORAGE_ACCOUNT_KEY: ${{ secrets.STORAGE_ACCOUNT_KEY }}
+      DEFAULT_ENDPOINTS_PROTOCOL: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}
+      BLOB_STORAGE_ENDPOINT: ${{ vars.DEFAULT_ENDPOINTS_PROTOCOL }}://${{ vars.AZURITE_ADDRESS }}:${{ vars.BLOB_PORT }}/${{ secrets.STORAGE_ACCOUNT_NAME }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ "3.11" ]
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Azurite
+      run: npx --yes --loglevel info azurite --version
+    - name: Start Azurite as background process
+      run: npx --yes azurite --silent --inMemoryPersistence &
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+    - name: Configure poetry
+      run: |
+        poetry config virtualenvs.in-project true
+    - name: Install dependencies
+      run: |
+        poetry install
+    - name: Test with pytest
+      run: |
+        poetry run pytest -vvsx --cov=sio_postdoc --cov-report=xml
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        slug: rinman24/sio-postdoc

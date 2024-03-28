@@ -1,3 +1,11 @@
+# Azureite
+__azurite_db*
+__blobstorage__
+__queuestorage__
+
+# dotenv
+.env
+
 # Jupyter Notebooks
 .ipynb_checkpoints
 
@@ -10,6 +18,7 @@
 # Pytest-cov reports
 htmlcov/
 .coverage
+coverage.xml
 
 # Python byte-compiled / optimized / DLL files
 __pycache__/
