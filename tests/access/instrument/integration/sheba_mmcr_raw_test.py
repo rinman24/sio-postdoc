@@ -42,3 +42,9 @@ def test_axis(result):
     assert result.axis.scale == 1
     assert result.axis.flag == 2**16 - 1
     assert result.axis.dtype == "u2"
+
+
+def test_vectors(result):
+    expected: list[str] = []
+    assert len(result.vectors) == len(expected)
+    assert sorted(result.vectors.keys()) == expected
