@@ -1,9 +1,11 @@
-"""Instrument Access Contracts"""
+"""Instrument Access Contracts."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from pydantic import BaseModel
+
+from sio_postdoc.access.instrument.constants import REFERENCE_TIME
 
 
 class Data(BaseModel):
@@ -22,7 +24,7 @@ class PhysicalVector(Data):
 
     values: tuple[int, ...]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         repr_: str = ""
         repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>\n"
         repr_ += f"    dimensions(sizes): ({len(self.values)},)\n"
@@ -32,23 +34,34 @@ class PhysicalVector(Data):
 
 
 class TemporalVector(Data):
-    """
-    Container for one-dimensional temporal data.
+    """I encapsulate temporal data.
 
-    NOTE: `offsets` should always be in seconds.
+    Parameters
+    ----------
+    base_time : int
+        Seconds since 1970-01-01 00:00:00 00:00.
+    offsets : tuple of int
+        Seconds since `initial`.
+
     """
 
-    initial: datetime
+    base_time: int
     offsets: tuple[int, ...]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         repr_: str = ""
         repr_ += "<class 'sio_postdoc.access.instrument.contracts.TemporalVector'>\n"
         repr_ += f"    dimensions(sizes): ({len(self.offsets)},)\n"
         repr_ += f"    units: {self.units}\n"
         repr_ += f"    name: {self.name}\n"
-        repr_ += f"    initial time: {self.initial}\n"
+        repr_ += f"    base_time: {self.base_time}\n"
+        repr_ += f"    initial: {self.initial}"
         return repr_
+
+    @property
+    def initial(self) -> datetime:
+        """Calculate the initial datetime."""
+        return REFERENCE_TIME + timedelta(seconds=self.base_time)
 
 
 class PhysicalMatrix(Data):
@@ -56,7 +69,7 @@ class PhysicalMatrix(Data):
 
     values: tuple[tuple[int, ...], ...]
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         repr_: str = ""
         repr_ += "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>\n"
         repr_ += f"    dimensions(sizes): ({len(self.values)}, {len(self.values[0])})\n"
@@ -76,7 +89,7 @@ class InstrumentData(BaseModel):
     observatory: str
     notes: str
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         first: bool
 
         repr_: str = ""

@@ -1,11 +1,12 @@
 """Strategies to construct InstrumentData from netCDF4.Datasets."""
 
-from datetime import datetime, timedelta
-from typing import Callable, Protocol
+from datetime import datetime
+from typing import Protocol
 
 import netCDF4 as nc
 
 import sio_postdoc.utility.service as utility
+from sio_postdoc.access.instrument.constants import REFERENCE_TIME
 from sio_postdoc.access.instrument.contracts import (
     InstrumentData,
     PhysicalMatrix,
@@ -14,7 +15,7 @@ from sio_postdoc.access.instrument.contracts import (
 )
 
 Dataset = nc.Dataset  # pylint: disable=no-member
-REF_DATE: datetime = datetime(1970, 1, 1, 0, 0)
+
 FLAG: float = float(-999)
 SECONDS_PER_DAY: int = 86400
 FLAGS: dict[str, int] = {
@@ -24,12 +25,7 @@ FLAGS: dict[str, int] = {
     "i4": -999,
     "f4": -999,
 }
-METHODS: dict[str, Callable] = {
-    "S1": int.from_bytes,
-    "i2": int,
-    "i4": int,
-    "f4": float,
-}
+
 
 # pylint: disable=protected-access
 
@@ -82,8 +78,7 @@ def _convert_bytes(value: bytes | float) -> int:
 class InstrumentDataStrategy(Protocol):
     """Define protocol for constructing InstrumentData."""
 
-    # pylint: disable=missing-function-docstring
-    def extract(self, name: str) -> InstrumentData: ...
+    def extract(self, name: str) -> InstrumentData: ...  # noqa: D102
 
 
 class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-methods
@@ -92,9 +87,10 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
     @staticmethod
     def _construct_time(name: str, dataset: Dataset) -> TemporalVector:
         initial_datetime: datetime = utility.extract_datetime(name)
+        base_time: int = int((initial_datetime - REFERENCE_TIME).total_seconds())
         offsets: list[float] = [float(i) for i in dataset["time"]]
         time: TemporalVector = TemporalVector(
-            initial=initial_datetime,
+            base_time=base_time,
             offsets=_monotonic_times(offsets, units="hours"),
             units="seconds",
             name="offsets",
@@ -268,11 +264,9 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
     @staticmethod
     def _construct_time(dataset: Dataset) -> TemporalVector:
         base_time: int = int(dataset["base_time"][0])
-        initial_datetime: datetime = REF_DATE + timedelta(seconds=base_time)
-        # Construct the Temporal Vector
         offsets: list[float] = [float(i) for i in dataset["time_offset"]]
         time: TemporalVector = TemporalVector(
-            initial=initial_datetime,
+            base_time=base_time,
             offsets=_monotonic_times(offsets, units="seconds"),
             units="seconds",
             name="offsets",
@@ -324,7 +318,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
                 case "ModeId":
                     units = "unitless"
                     name = "mode_id"
-                    long_name = "Mode I.D. for Merged Time-Height Moments Data" # TODO: Capitalize long_name format everywhere
+                    long_name = "Mode I.D. for Merged Time-Height Moments Data"  # TODO: Capitalize long_name format everywhere
                     scale = 1
                     dtype = "S1"
                     valid_range = [1, 4]
@@ -403,119 +397,4 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
             observatory="SHEBA",
             notes=notes,
         )
-        return result
-
-
-class DabulData:
-    """TODO: Docstring."""
-
-    def extract(self, name: str) -> InstrumentData:
-        """TODO: Docstring."""
-        dataset = Dataset(name)
-        initial_datetime: datetime = utility.extract_datetime(name)
-        prefix: str = utility.extract_prefix(name)
-        suffix: str = utility.extract_suffix(name)
-        notes: str = ""
-        if prefix and suffix:
-            notes = f"{prefix}.{suffix}"
-        elif not prefix:
-            notes = f"{suffix}"
-        elif not suffix:
-            notes = f"{prefix}"
-        offsets: list[float] = [float(i) for i in dataset["offsets"]]
-        time: TemporalVector = TemporalVector(
-            initial=initial_datetime,
-            offsets=offsets,
-            units="seconds",
-            name="seconds since initial time",
-            scale=1,
-            flag=-999,
-            dtype="TODO",
-        )
-        axis: PhysicalVector = PhysicalVector(
-            values=tuple(float(i) for i in dataset["range"]),
-            units="meters",
-            name="range",
-            scale=1,
-            flag=-999,
-            dtype="TODO",
-        )
-        vectors: list[PhysicalVector] = []
-        for variable in (
-            # "latitude",
-            # "longitude",
-            # "altitude",
-            # "elevation",
-            # "azimuth",
-            # "scanmode",
-        ):
-            name: str = variable
-            value_type: type = float
-            flag: int = -999
-            scale: int = 1
-            match variable:
-                case "latitude":
-                    units = "degrees north"
-                case "longitude":
-                    units = "degrees east"
-                case "altitude":
-                    units = "meters"
-                case "elevation":
-                    units = "degrees"
-                    name = "beam elevation angle"
-                case "azimuth":
-                    units = "degrees"
-                    name = "beam azimuth angle"
-                case "scanmode":
-                    units = "none"
-                    name = "scan mode"
-                    value_type = int
-            values: tuple[int | float, ...] = tuple(
-                value_type(i) for i in dataset[variable]
-            )
-            vector: PhysicalVector = PhysicalVector(
-                values=values,
-                units=units,
-                name=name,
-                scale=scale,
-                flag=flag,
-                dtype="TODO",
-            )
-            vectors.append(vector)
-
-        matrices: list[PhysicalMatrix] = []
-        for variable in ("depolarization", "far_parallel"):
-            name: str = variable
-            values: list[list[float]] = []
-            for row in dataset[variable]:
-                values.append(tuple(float(i) for i in row))
-            flag: int = -999
-            scale: int = 1
-            match variable:
-                case "depolarization":
-                    name = "depolarization"
-                    units = "none"
-                case "far_parallel":
-                    name = "far_parallel"
-                    units = "unknown"
-            matrix: PhysicalMatrix = PhysicalMatrix(
-                values=tuple(values),
-                units=units,
-                name=name,
-                scale=scale,
-                flag=flag,
-                dtype="TODO",
-            )
-            matrices.append(matrix)
-
-        result: InstrumentData = InstrumentData(
-            time=time,
-            axis=(axis,),
-            matrices=tuple(matrices),
-            vectors=tuple(vectors),
-            name="dabul",
-            observatory="SHEBA",
-            notes=notes,
-        )
-
         return result

@@ -1,4 +1,4 @@
-"""Test ShebaMmchRaw implementation of AbstractDataStrategy"""
+"""Test ShebaMmchRaw implementation of AbstractDataStrategy."""
 
 import os
 from datetime import datetime
@@ -13,28 +13,28 @@ DATA_DIRECTORY: Path = Path(
     os.getcwd() + "/tests/access/instrument/integration/netCDF4_files/"
 )
 PATH: str = str(DATA_DIRECTORY / "D1997-10-30T12-00-00.mrg.corrected.nc")
-
-
-# pylint: disable=missing-function-docstring, redefined-outer-name
+BASE_TIME: int = 878212870
+TIME_FLAG: int = -999
 
 
 @pytest.fixture(scope="module")
-def result() -> InstrumentData:
+def result() -> InstrumentData:  # noqa: D103
     return ShebaMmcrRaw().extract(PATH)
 
 
-def test_time(result):
+def test_time(result):  # noqa: D103
+    assert result.time.base_time == BASE_TIME
     assert result.time.initial == datetime(1997, 10, 30, 12, 1, 10)
     assert result.time.offsets == (0, 10, 20)
     assert result.time.units == "seconds"
     assert result.time.name == "offsets"
     assert result.time.long_name == "seconds since initial time"
     assert result.time.scale == 1
-    assert result.time.flag == -999
+    assert result.time.flag == TIME_FLAG
     assert result.time.dtype == "i4"
 
 
-def test_axis(result):
+def test_axis(result):  # noqa: D103
     assert result.axis.values == (105, 150)
     assert result.axis.units == "meters"
     assert result.axis.name == "range"
@@ -44,13 +44,13 @@ def test_axis(result):
     assert result.axis.dtype == "u2"
 
 
-def test_vectors(result):
+def test_vectors(result):  # noqa: D103
     expected: list[str] = []
     assert len(result.vectors) == len(expected)
     assert sorted(result.vectors.keys()) == expected
 
 
-def test_matrices(result):
+def test_matrices(result):  # noqa: D103
     expected: list[str] = [
         "mean_doppler_velocity",
         "mode_id",
@@ -63,7 +63,7 @@ def test_matrices(result):
     assert sorted(result.matrices.keys()) == expected
 
 
-def test_mean_doppler_velocity(result):
+def test_mean_doppler_velocity(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["mean_doppler_velocity"]
     assert matrix.values == (
         (590, 586),
@@ -78,7 +78,7 @@ def test_mean_doppler_velocity(result):
     assert matrix.dtype == "i2"
 
 
-def test_mode_id(result):
+def test_mode_id(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["mode_id"]
     assert matrix.values == (
         (3, 3),
@@ -93,7 +93,7 @@ def test_mode_id(result):
     assert matrix.dtype == "S1"
 
 
-def test_qc(result):
+def test_qc(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["qc"]
     assert matrix.values == (
         (1, 1),
@@ -108,7 +108,7 @@ def test_qc(result):
     assert matrix.dtype == "S1"
 
 
-def test_reflectivity(result):
+def test_reflectivity(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["reflectivity"]
     assert matrix.values == (
         (-5410, -980),
@@ -123,7 +123,7 @@ def test_reflectivity(result):
     assert matrix.dtype == "i2"
 
 
-def test_signal_to_noise(result):
+def test_signal_to_noise(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["signal_to_noise"]
     assert matrix.values == (
         (808, 3377),
@@ -138,7 +138,7 @@ def test_signal_to_noise(result):
     assert matrix.dtype == "i2"
 
 
-def test_spectral_width(result):
+def test_spectral_width(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["spectral_width"]
     assert matrix.values == (
         (345, 343),
@@ -151,3 +151,7 @@ def test_spectral_width(result):
     assert matrix.scale == 1000
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
+
+
+def test_notes(result):  # noqa: D103
+    assert result.notes == str(DATA_DIRECTORY) + "/.mrg.corrected"

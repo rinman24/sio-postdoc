@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from sio_postdoc.access.instrument.constants import REFERENCE_TIME
 from sio_postdoc.access.instrument.contracts import (
     InstrumentData,
     PhysicalMatrix,
@@ -9,8 +10,12 @@ from sio_postdoc.access.instrument.contracts import (
     TemporalVector,
 )
 
+CURRENT: datetime = datetime.now()
+BASE_TIME: int = int((CURRENT - REFERENCE_TIME).total_seconds())
+
 TIME: TemporalVector = TemporalVector(
-    initial=datetime.now(),
+    base_time=BASE_TIME,
+    initial=CURRENT,
     offsets=(10, 20, 30),
     units="seconds",
     name="time",
@@ -85,20 +90,21 @@ INSTRUMENT_DATA: InstrumentData = InstrumentData(
 # pylint: disable=missing-function-docstring
 
 
-def test_temporal_vector_repr():
+def test_temporal_vector_repr():  # noqa: D103
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.TemporalVector'>",
         "    dimensions(sizes): (3,)",
         "    units: seconds",
         "    name: time",
-        "    initial time: ",
+        "    base_time: ",
+        "    initial: ",
     )
     result: str = repr(TIME)
     for substring in expected:
         assert substring in result
 
 
-def test_physical_vector_repr():
+def test_physical_vector_repr():  # noqa: D103
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.PhysicalVector'>",
         "    dimensions(sizes): (3,)",
@@ -111,7 +117,7 @@ def test_physical_vector_repr():
         assert substring in result
 
 
-def test_physical_matrix_repr():
+def test_physical_matrix_repr():  # noqa: D103
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.PhysicalMatrix'>",
         "    dimensions(sizes): (3, 2)",
@@ -125,7 +131,7 @@ def test_physical_matrix_repr():
         assert substring in result
 
 
-def test_instrument_data_repr():
+def test_instrument_data_repr():  # noqa: D103
     expected: tuple[str, ...] = (
         "<class 'sio_postdoc.access.instrument.contracts.InstrumentData'>",
         "    instrument name: test_name",
