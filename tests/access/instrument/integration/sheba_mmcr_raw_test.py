@@ -138,6 +138,16 @@ def test_signal_to_noise(result):
     assert matrix.dtype == "i2"
 
 
-@pytest.mark.skip(reason="Not Implemented")
 def test_spectral_width(result):
-    pass
+    matrix: PhysicalMatrix = result.matrices["spectral_width"]
+    assert matrix.values == (
+        (345, 343),
+        (345, 343),
+        (496, 423),
+    )
+    assert matrix.units == "m/s"
+    assert matrix.name == "spectral_width"
+    assert matrix.long_name == "Spectral Width"
+    assert matrix.scale == 1000
+    assert matrix.flag == -int(2**16 / 2)
+    assert matrix.dtype == "i2"
