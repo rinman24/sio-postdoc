@@ -31,6 +31,8 @@ METHODS: dict[str, Callable] = {
     "f4": float,
 }
 
+# pylint: disable=protected-access
+
 
 def _get_notes(name: str) -> str:
     prefix: str = utility.extract_prefix(name)
@@ -68,6 +70,15 @@ def _monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
     return tuple(monotonic_seconds)
 
 
+def _convert_bytes(value: bytes | float) -> int:
+    result: int
+    try:
+        result = int.from_bytes(value)
+    except TypeError:
+        result = 0
+    return result
+
+
 class InstrumentDataStrategy(Protocol):
     """Define protocol for constructing InstrumentData."""
 
@@ -75,8 +86,38 @@ class InstrumentDataStrategy(Protocol):
     def extract(self, name: str) -> InstrumentData: ...
 
 
-class ShebaDabulRaw(InstrumentDataStrategy):
+class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-methods
     """TODO: Docstring."""
+
+    @staticmethod
+    def _construct_time(name: str, dataset: Dataset) -> TemporalVector:
+        initial_datetime: datetime = utility.extract_datetime(name)
+        offsets: list[float] = [float(i) for i in dataset["time"]]
+        time: TemporalVector = TemporalVector(
+            initial=initial_datetime,
+            offsets=_monotonic_times(offsets, units="hours"),
+            units="seconds",
+            name="offsets",
+            long_name="seconds since initial time",
+            scale=1,
+            flag=FLAGS["i4"],
+            dtype="i4",
+        )
+        return time
+
+    @staticmethod
+    def _construct_axis(dataset: Dataset) -> TemporalVector:
+        # Axis
+        axis: PhysicalVector = PhysicalVector(
+            values=tuple(int(i) for i in dataset["range"]),
+            units="meters",
+            name="range",
+            long_name="vertical range of measurement",
+            scale=1,
+            flag=FLAGS["u2"],
+            dtype="u2",
+        )
+        return axis
 
     @staticmethod
     def _construct_vectors(dataset: Dataset) -> dict[str, PhysicalVector]:
@@ -156,11 +197,11 @@ class ShebaDabulRaw(InstrumentDataStrategy):
 
     @staticmethod
     def _construct_matrices(dataset: Dataset) -> dict[str, PhysicalMatrix]:
+        matrices: dict[str, PhysicalMatrix] = {}
         variable_names: list[str] = [
             "depolarization",
             "far_parallel",
         ]
-        matrices: dict[str, PhysicalMatrix] = {}
         for variable in variable_names:
             match variable:
                 case "depolarization":
@@ -203,38 +244,12 @@ class ShebaDabulRaw(InstrumentDataStrategy):
 
     def extract(self, name: str) -> InstrumentData:
         """Extract raw SHEBA DABUL data."""
-        # Open the nc file
         dataset: Dataset = Dataset(name)
-        # Extract initial timestamp and notes for the filename.
-        initial_datetime: datetime = utility.extract_datetime(name)
         notes: str = _get_notes(name)
-        # TemporalVector
-        offsets: list[float] = [float(i) for i in dataset["time"]]
-        time: TemporalVector = TemporalVector(
-            initial=initial_datetime,
-            offsets=_monotonic_times(offsets, units="hours"),
-            units="seconds",
-            name="offsets",
-            long_name="seconds since initial time",
-            scale=1,
-            flag=FLAGS["i4"],
-            dtype="i4",
-        )
-        # Axis
-        axis: PhysicalVector = PhysicalVector(
-            values=tuple(int(i) for i in dataset["range"]),
-            units="meters",
-            name="range",
-            long_name="vertical range of measurement",
-            scale=1,
-            flag=FLAGS["u2"],
-            dtype="u2",
-        )
-        # Vectors
+        time: TemporalVector = self._construct_time(name, dataset)
+        axis: PhysicalVector = self._construct_axis(dataset)
         vectors: dict[str, PhysicalVector] = self._construct_vectors(dataset)
-        # Matrices
         matrices: dict[str, PhysicalMatrix] = self._construct_matrices(dataset)
-        # InstrumentData
         result: InstrumentData = InstrumentData(
             time=time,
             axis=axis,
@@ -244,123 +259,150 @@ class ShebaDabulRaw(InstrumentDataStrategy):
             observatory="SHEBA",
             notes=notes,
         )
-
         return result
 
 
-class ShebaMmcrRaw:
+class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
     """TODO: Docstring."""
 
-    matrix_names: tuple[str] = (
-        "Qc",
-        "Reflectivity",
-        "MeanDopplerVelocity",
-        "SpectralWidth",
-        "ModeId",
-        "SignaltoNoiseRatio",
-    )
-    matrix_map: dict[str, str] = dict(
-        Qc="qc",
-        Reflectivity="reflectivity",
-        MeanDopplerVelocity="mean_doppler_velocity",
-        SpectralWidth="spectral_width",
-        ModeId="mode_id",
-        SignaltoNoiseRatio="signal_to_noise_ratio",
-    )
-
-    def extract(self, name: str) -> InstrumentData:
-        """Extract raw SHEBA MMCR data."""
-        # Open the nc file
-        dataset = Dataset(name)
-        # Extract initial timestamp and notes for the filename.
+    @staticmethod
+    def _construct_time(dataset: Dataset) -> TemporalVector:
         base_time: int = int(dataset["base_time"][0])
         initial_datetime: datetime = REF_DATE + timedelta(seconds=base_time)
-        notes: str = _get_notes(name)
         # Construct the Temporal Vector
         offsets: list[float] = [float(i) for i in dataset["time_offset"]]
         time: TemporalVector = TemporalVector(
             initial=initial_datetime,
             offsets=_monotonic_times(offsets, units="seconds"),
             units="seconds",
-            name="seconds since initial time",
+            name="offsets",
+            long_name="seconds since initial time",
             scale=1,
-            flag=FLAGS["i2"],
-            dtype="i2",
+            flag=-999,
+            dtype="i4",
         )
+        return time
+
+    @staticmethod
+    def _construct_axis(dataset: Dataset) -> TemporalVector:
         axis: PhysicalVector = PhysicalVector(
             values=tuple(int(i) for i in dataset["Heights"]),
             units="meters",
             name="range",
-            # long_name="Height of Measured Value; agl"
+            long_name="Height of Measured Value; agl",
             scale=1,
             flag=FLAGS["i2"],
             dtype="i2",
         )
-        # Vectors
-        # Matrices
-        matrices: list[PhysicalMatrix] = []
-        for variable in self.matrix_names:
-            scale: int
-            units: str
-            dtype: str
-            scale: int
+        return axis
+
+    @staticmethod
+    def _construct_matrices(dataset: Dataset) -> dict[str, PhysicalMatrix]:
+        # TODO: too many statements (break this up, you may need ABC again).
+        matrices: dict[str, PhysicalMatrix] = {}
+        variable_names: list[str] = [
+            "MeanDopplerVelocity",
+            "ModeId",
+            "Qc",
+            "Reflectivity",
+            "SignaltoNoiseRatio",
+            "SpectralWidth",
+        ]
+        for variable in variable_names:
             match variable:
-                case "Qc":
-                    units = "none"
-                    # notes = (
-                    #     "Quality Control Flags: 0 - No Data, "
-                    #     "1 - Good Data, "
-                    #     "2 - Second Trip Echo Problems, "
-                    #     "3 - Coherent Integration Problems, "
-                    #     "4 - Second Trip Echo and Coherent Integration Problems"
-                    # )
-                    dtype = "S1"
-                    scale = 1
-                case "Reflectivity":
-                    units = "dBZ"
-                    dtype = "i2"
-                    scale = 100
+                # TODO: What you could do is return a dataclass
+                # that holds these things and move all of this to another method
                 case "MeanDopplerVelocity":
                     units = "m/s"
-                    dtype = "i2"
+                    name = "mean_doppler_velocity"
+                    long_name = "Mean Doppler Velocity"
                     scale = 1000
-                case "SpectralWidth":
-                    units = "m/s"
                     dtype = "i2"
-                    scale = 1000
+                    valid_range = [-int(15e3), int(15e3)]
+                    flag = -int(2**16 / 2)
+                    strategy = int
                 case "ModeId":
-                    units = "none"
-                    dtype = "S1"
+                    units = "unitless"
+                    name = "mode_id"
+                    long_name = "Mode I.D. for Merged Time-Height Moments Data"
                     scale = 1
+                    dtype = "S1"
+                    valid_range = [1, 4]
+                    flag = 0
+                    strategy = _convert_bytes
+                case "Qc":
+                    units = "unitless"
+                    name = "qc"
+                    long_name = "Quality Control Flags"
+                    scale = 1
+                    dtype = "S1"
+                    valid_range = [1, 4]
+                    flag = 0
+                    strategy = _convert_bytes
+                case "Reflectivity":
+                    units = "dBZ"
+                    name = "Reflectivity"
+                    long_name = "Reflectivity"
+                    scale = 100
+                    dtype = "i2"
+                    valid_range = [int(-10e3), 0]
+                    flag = -int(2**16 / 2)
+                    strategy = int
                 case "SignaltoNoiseRatio":
                     units = "dB"
-                    dtype = "i2"
+                    name = "signal_to_noise"
+                    long_name = "Signal-to-Noise Ratio"
                     scale = 100
-
-            values: list[list[int | float]] = []
-            for row in dataset[variable]:
-                values.append(tuple(METHODS[dtype](i) for i in row))
-
+                    dtype = "i2"
+                    valid_range = [-int(10e3), int(10e3)]
+                    flag = -int(2**16 / 2)
+                    strategy = int
+                case "SpectralWidth":
+                    units = "m/s"
+                    name = "spectral_width"
+                    long_name = "Spectral Width"
+                    scale = 1000
+                    dtype = "i2"
+                    valid_range = [0, int(10e3)]
+                    flag = -int(2**16 / 2)
+                    strategy = int
+            values: list[list[int]] = []
+            for row in dataset[variable][:]:
+                row_values: list[int] = []
+                for element in row[:]:
+                    value: int = strategy(element)
+                    row_values.append(
+                        value if valid_range[0] <= value <= valid_range[1] else flag
+                    )
+                values.append(tuple(row_values))
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
                 units=units,
-                name=self.matrix_map[variable],
+                name=name,
+                long_name=long_name,
                 scale=scale,
-                flag=FLAGS[dtype],
+                flag=flag,
                 dtype=dtype,
             )
-            matrices.append(matrix)
+            matrices[name] = matrix
+        return matrices
 
+    def extract(self, name: str) -> InstrumentData:
+        """Extract raw SHEBA MMCR data."""
+        dataset = Dataset(name)
+        notes: str = _get_notes(name)
+        time: TemporalVector = self._construct_time(dataset)
+        axis: PhysicalVector = self._construct_axis(dataset)
+        matrices: list[PhysicalMatrix] = self._construct_matrices(dataset)
         result: InstrumentData = InstrumentData(
             time=time,
-            axis=(axis,),
-            matrices=tuple(matrices),
-            vectors=tuple(),  # No Vectors
+            axis=axis,
+            matrices=matrices,
+            vectors={},  # No Vectors
             name="MMCR",
             observatory="SHEBA",
             notes=notes,
         )
-
         return result
 
 
