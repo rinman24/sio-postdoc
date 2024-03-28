@@ -1,10 +1,10 @@
-"""Test methods in AbstractDataStrategy."""
+"""Test methods used for InstrumentDataStrategy."""
 
 import pytest
 
-from sio_postdoc.access.instrument.strategies.data import AbstractDataStrategy
+import sio_postdoc.access.instrument.strategies.data as service
 
-# pylint: disable=missing-function-docstring, redefined-outer-name
+# pylint: disable=missing-function-docstring, redefined-outer-name, protected-access
 
 
 @pytest.fixture(params=["hours", "seconds"])
@@ -29,7 +29,7 @@ def test_monotonic_times(units):
             times = [86380, 86390, 0, 10, 20]
             expected = (86380, 86390, 86400, 86410, 86420)
     # Act
-    result: tuple[float, ...] = AbstractDataStrategy.monotonic_times(
+    result: tuple[float, ...] = service._monotonic_times(
         times=times,
         units=units,
     )
@@ -59,6 +59,6 @@ def test_get_notes(notes):
             name = f"{date}.{extension}"
             expected = ""
     # Act
-    notes: str = AbstractDataStrategy._get_notes(name)
+    notes: str = service._get_notes(name)
     # Assert
     assert notes == expected

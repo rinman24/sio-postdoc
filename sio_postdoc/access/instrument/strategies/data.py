@@ -1,8 +1,7 @@
 """Strategies to construct InstrumentData from netCDF4.Datasets."""
 
-from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Callable
+from typing import Callable, Protocol
 
 import netCDF4 as nc
 
@@ -14,6 +13,7 @@ from sio_postdoc.access.instrument.contracts import (
     TemporalVector,
 )
 
+Dataset = nc.Dataset  # pylint: disable=no-member
 REF_DATE: datetime = datetime(1970, 1, 1, 0, 0)
 FLAG: float = float(-999)
 SECONDS_PER_DAY: int = 86400
@@ -32,114 +32,65 @@ METHODS: dict[str, Callable] = {
 }
 
 
-class AbstractDataStrategy(ABC):
-    """TODO: docstring."""
-
-    @abstractmethod
-    def extract(  # pylint: disable=missing-function-docstring
-        self,
-        name: str,
-    ) -> InstrumentData: ...
-
-    @staticmethod
-    def monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
-        """TODO: Docstring."""
-        # Convert to seconds (potentially non-monotonic)
-        scale: int
-        match units:
-            case "hours":
-                scale = 3600
-            case "seconds":
-                scale = 1
-        seconds = [round(i * scale) for i in times]
-
-        # Convert to monotonic seconds
-        previous: float = float(FLAG)  # Large negative number
-        datum: int = 0  # Initially on same day
-        monotonic_seconds: list[float] = []
-        for item in seconds:
-            if item < previous:
-                datum += SECONDS_PER_DAY
-            monotonic_seconds.append(int(datum + item))
-            previous = item
-        return tuple(monotonic_seconds)
-
-    @staticmethod
-    def _get_notes(name: str) -> str:
-        prefix: str = utility.extract_prefix(name)
-        suffix: str = utility.extract_suffix(name)
-        notes: str = ""
-        if prefix and suffix:
-            notes = f"{prefix}.{suffix}"
-        elif not prefix:
-            notes = f"{suffix}"
-        elif not suffix:
-            notes = f"{prefix}"
-        return notes
+def _get_notes(name: str) -> str:
+    prefix: str = utility.extract_prefix(name)
+    suffix: str = utility.extract_suffix(name)
+    notes: str = ""
+    if prefix and suffix:
+        notes = f"{prefix}.{suffix}"
+    elif not prefix:
+        notes = f"{suffix}"
+    elif not suffix:
+        notes = f"{prefix}"
+    return notes
 
 
-class Default(AbstractDataStrategy):
+def _monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
+    """TODO: Docstring."""
+    # Convert to seconds (potentially non-monotonic)
+    scale: int
+    match units:
+        case "hours":
+            scale = 3600
+        case "seconds":
+            scale = 1
+    seconds = [round(i * scale) for i in times]
+
+    # Convert to monotonic seconds
+    previous: float = float(FLAG)  # Large negative number
+    datum: int = 0  # Initially on same day
+    monotonic_seconds: list[float] = []
+    for item in seconds:
+        if item < previous:
+            datum += SECONDS_PER_DAY
+        monotonic_seconds.append(int(datum + item))
+        previous = item
+    return tuple(monotonic_seconds)
+
+
+class InstrumentDataStrategy(Protocol):
+    """Define protocol for constructing InstrumentData."""
+
+    # pylint: disable=missing-function-docstring
+    def extract(self, name: str) -> InstrumentData: ...
+
+
+class ShebaDabulRaw(InstrumentDataStrategy):
     """TODO: Docstring."""
 
-    def extract(
-        self,
-        name: str,
-    ) -> InstrumentData: ...
-
-
-class ShebaDabulRaw(AbstractDataStrategy):
-    """TODO: Docstring."""
-
-    variable_names: tuple[str] = (
-        "altitude",
-        "azimuth",
-        "elevation",
-        "latitude",
-        "longitude",
-        "scanmode",
-    )
-    matrix_names: tuple[str] = (
-        "depolarization",
-        "far_parallel",
-    )
-
-    def extract(self, name: str) -> InstrumentData:
-        """TODO: Docstring."""
-        units: str
-        long_name: str
-        scale: int
-        flag: int
-        dtype: str
-        valid_range: list[int]
-        # Open the nc file
-        dataset = nc.Dataset(name)  # pylint: disable=no-member
-        # Extract initial timestamp and notes for the filename.
-        initial_datetime: datetime = utility.extract_datetime(name)
-        notes: str = self._get_notes(name)
-        # Construct the Temporal Vector
-        offsets: list[float] = [float(i) for i in dataset["time"]]
-        time: TemporalVector = TemporalVector(
-            initial=initial_datetime,
-            offsets=self.monotonic_times(offsets, units="hours"),
-            units="seconds",
-            name="offsets",
-            long_name="seconds since initial time",
-            scale=1,
-            flag=FLAGS["i4"],
-            dtype="i4",
-        )
-        axis: PhysicalVector = PhysicalVector(
-            values=tuple(int(i) for i in dataset["range"]),
-            units="meters",
-            name="range",
-            long_name="vertical range of measurement",
-            scale=1,
-            flag=FLAGS["u2"],
-            dtype="u2",
-        )
-        # Vectors
+    @staticmethod
+    def _construct_vectors(dataset: Dataset) -> dict[str, PhysicalVector]:
         vectors: dict[str, PhysicalVector] = {}
-        for variable in self.variable_names:
+        variable_names: list[str] = [
+            "altitude",
+            "azimuth",
+            "elevation",
+            "elevation",
+            "latitude",
+            "longitude",
+            "scanmode",
+        ]
+        for variable in variable_names:
             match variable:
                 case "altitude":
                     units = "meters"
@@ -201,9 +152,16 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 dtype=dtype,
             )
             vectors[variable] = vector
+        return vectors
 
+    @staticmethod
+    def _construct_matrices(dataset: Dataset) -> dict[str, PhysicalMatrix]:
+        variable_names: list[str] = [
+            "depolarization",
+            "far_parallel",
+        ]
         matrices: dict[str, PhysicalMatrix] = {}
-        for variable in self.matrix_names:
+        for variable in variable_names:
             match variable:
                 case "depolarization":
                     units = "unitless"
@@ -241,7 +199,42 @@ class ShebaDabulRaw(AbstractDataStrategy):
                 dtype=dtype,
             )
             matrices[variable] = matrix
+        return matrices
 
+    def extract(self, name: str) -> InstrumentData:
+        """Extract raw SHEBA DABUL data."""
+        # Open the nc file
+        dataset: Dataset = Dataset(name)
+        # Extract initial timestamp and notes for the filename.
+        initial_datetime: datetime = utility.extract_datetime(name)
+        notes: str = _get_notes(name)
+        # TemporalVector
+        offsets: list[float] = [float(i) for i in dataset["time"]]
+        time: TemporalVector = TemporalVector(
+            initial=initial_datetime,
+            offsets=_monotonic_times(offsets, units="hours"),
+            units="seconds",
+            name="offsets",
+            long_name="seconds since initial time",
+            scale=1,
+            flag=FLAGS["i4"],
+            dtype="i4",
+        )
+        # Axis
+        axis: PhysicalVector = PhysicalVector(
+            values=tuple(int(i) for i in dataset["range"]),
+            units="meters",
+            name="range",
+            long_name="vertical range of measurement",
+            scale=1,
+            flag=FLAGS["u2"],
+            dtype="u2",
+        )
+        # Vectors
+        vectors: dict[str, PhysicalVector] = self._construct_vectors(dataset)
+        # Matrices
+        matrices: dict[str, PhysicalMatrix] = self._construct_matrices(dataset)
+        # InstrumentData
         result: InstrumentData = InstrumentData(
             time=time,
             axis=axis,
@@ -255,7 +248,7 @@ class ShebaDabulRaw(AbstractDataStrategy):
         return result
 
 
-class ShebaMmcrRaw(AbstractDataStrategy):
+class ShebaMmcrRaw:
     """TODO: Docstring."""
 
     matrix_names: tuple[str] = (
@@ -276,17 +269,18 @@ class ShebaMmcrRaw(AbstractDataStrategy):
     )
 
     def extract(self, name: str) -> InstrumentData:
+        """Extract raw SHEBA MMCR data."""
         # Open the nc file
-        dataset = nc.Dataset(name)  # pylint: disable=no-member
+        dataset = Dataset(name)
         # Extract initial timestamp and notes for the filename.
         base_time: int = int(dataset["base_time"][0])
         initial_datetime: datetime = REF_DATE + timedelta(seconds=base_time)
-        notes: str = self._get_notes(name)
+        notes: str = _get_notes(name)
         # Construct the Temporal Vector
         offsets: list[float] = [float(i) for i in dataset["time_offset"]]
         time: TemporalVector = TemporalVector(
             initial=initial_datetime,
-            offsets=self.monotonic_times(offsets, units="seconds"),
+            offsets=_monotonic_times(offsets, units="seconds"),
             units="seconds",
             name="seconds since initial time",
             scale=1,
@@ -370,12 +364,12 @@ class ShebaMmcrRaw(AbstractDataStrategy):
         return result
 
 
-class DabulData(AbstractDataStrategy):
+class DabulData:
     """TODO: Docstring."""
 
     def extract(self, name: str) -> InstrumentData:
         """TODO: Docstring."""
-        dataset = nc.Dataset(name)  # pylint: disable=no-member
+        dataset = Dataset(name)
         initial_datetime: datetime = utility.extract_datetime(name)
         prefix: str = utility.extract_prefix(name)
         suffix: str = utility.extract_suffix(name)
@@ -387,7 +381,6 @@ class DabulData(AbstractDataStrategy):
         elif not suffix:
             notes = f"{prefix}"
         offsets: list[float] = [float(i) for i in dataset["offsets"]]
-        # seconds: tuple[int, ...] = self.monotonic_times(offsets, units="hours")
         time: TemporalVector = TemporalVector(
             initial=initial_datetime,
             offsets=offsets,

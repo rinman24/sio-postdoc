@@ -15,7 +15,7 @@ from azure.storage.blob import BlobServiceClient
 
 from sio_postdoc.access.instrument.contexts.binary import NcdfContext
 from sio_postdoc.access.instrument.contexts.data import DataContext
-from sio_postdoc.access.instrument.strategies.data import Default
+from sio_postdoc.access.instrument.strategies.data import ShebaDabulRaw
 from sio_postdoc.access.instrument.strategies.hardware import DabulHardware
 from sio_postdoc.access.instrument.strategies.location import MobileLocationStrategy
 
@@ -68,7 +68,7 @@ class InstrumentAccess(BlobAccess):
             BlobServiceClient.from_connection_string(conn_str=self.connection_string)
         )
 
-        self._data_context: DataContext = DataContext(Default())
+        self._data_context: DataContext = DataContext(ShebaDabulRaw())
 
         self._ncdf_context: NcdfContext = NcdfContext(
             location=MobileLocationStrategy(),
