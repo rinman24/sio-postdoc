@@ -93,9 +93,19 @@ def test_mode_id(result):
     assert matrix.dtype == "S1"
 
 
-@pytest.mark.skip(reason="Not Implemented")
 def test_qc(result):
-    pass
+    matrix: PhysicalMatrix = result.matrices["qc"]
+    assert matrix.values == (
+        (1, 1),
+        (1, 1),
+        (1, 1),
+    )
+    assert matrix.units == "unitless"
+    assert matrix.name == "qc"
+    assert matrix.long_name == "Quality Control Flags"
+    assert matrix.scale == 1
+    assert matrix.flag == 0
+    assert matrix.dtype == "S1"
 
 
 @pytest.mark.skip(reason="Not Implemented")
