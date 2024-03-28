@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from sio_postdoc.access.instrument.contracts import InstrumentData
+from sio_postdoc.access.instrument.contracts import InstrumentData, PhysicalMatrix
 from sio_postdoc.access.instrument.strategies.data import ShebaMmcrRaw
 
 DATA_DIRECTORY: Path = Path(
@@ -61,3 +61,18 @@ def test_matrices(result):
     ]
     assert len(result.matrices) == len(expected)
     assert sorted(result.matrices.keys()) == expected
+
+
+def test_mean_doppler_velocity(result):
+    matrix: PhysicalMatrix = result.matrices["mean_doppler_velocity"]
+    assert matrix.values == (
+        (590, 586),
+        (590, 586),
+        (504, 527),
+    )
+    assert matrix.units == "m/s"
+    assert matrix.name == "mean_doppler_velocity"
+    assert matrix.long_name == "Mean Doppler Velocity"
+    assert matrix.scale == 1000
+    assert matrix.flag == -int(2**16 / 2)
+    assert matrix.dtype == "i2"

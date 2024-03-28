@@ -313,7 +313,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
                 # TODO: What you could do is return a dataclass
                 # that holds these things and move all of this to another method
                 case "MeanDopplerVelocity":
-                    units = "m/s"
+                    units = "m/s"  # TODO: Change all units to single letters
                     name = "mean_doppler_velocity"
                     long_name = "Mean Doppler Velocity"
                     scale = 1000
