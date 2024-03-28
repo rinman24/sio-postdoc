@@ -108,9 +108,19 @@ def test_qc(result):
     assert matrix.dtype == "S1"
 
 
-@pytest.mark.skip(reason="Not Implemented")
 def test_reflectivity(result):
-    pass
+    matrix: PhysicalMatrix = result.matrices["reflectivity"]
+    assert matrix.values == (
+        (-5410, -980),
+        (-5410, -980),
+        (-5406, -1007),
+    )
+    assert matrix.units == "dBZ"
+    assert matrix.name == "reflectivity"
+    assert matrix.long_name == "Reflectivity"
+    assert matrix.scale == 100
+    assert matrix.flag == -int(2**16 / 2)
+    assert matrix.dtype == "i2"
 
 
 @pytest.mark.skip(reason="Not Implemented")
