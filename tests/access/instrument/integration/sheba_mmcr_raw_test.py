@@ -32,3 +32,13 @@ def test_time(result):
     assert result.time.scale == 1
     assert result.time.flag == -999
     assert result.time.dtype == "i4"
+
+
+def test_axis(result):
+    assert result.axis.values == (105, 150)
+    assert result.axis.units == "meters"
+    assert result.axis.name == "range"
+    assert result.axis.long_name == "Height of Measured Value; agl"
+    assert result.axis.scale == 1
+    assert result.axis.flag == 2**16 - 1
+    assert result.axis.dtype == "u2"

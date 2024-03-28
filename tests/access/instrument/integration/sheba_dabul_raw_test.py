@@ -42,7 +42,7 @@ def test_axis(result):
     assert result.axis.values == (0, 30)
     assert result.axis.units == "meters"
     assert result.axis.name == "range"
-    assert result.axis.long_name == "vertical range of measurement"
+    assert result.axis.long_name == "Height of Measured Value; agl"
     assert result.axis.scale == 1
     assert result.axis.flag == 2**16 - 1
     assert result.axis.dtype == "u2"

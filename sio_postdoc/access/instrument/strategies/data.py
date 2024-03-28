@@ -112,7 +112,7 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
             values=tuple(int(i) for i in dataset["range"]),
             units="meters",
             name="range",
-            long_name="vertical range of measurement",
+            long_name="Height of Measured Value; agl",
             scale=1,
             flag=FLAGS["u2"],
             dtype="u2",
@@ -291,8 +291,8 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
             name="range",
             long_name="Height of Measured Value; agl",
             scale=1,
-            flag=FLAGS["i2"],
-            dtype="i2",
+            flag=FLAGS["u2"],
+            dtype="u2",
         )
         return axis
 
