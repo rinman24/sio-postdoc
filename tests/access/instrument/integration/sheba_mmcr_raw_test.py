@@ -123,9 +123,19 @@ def test_reflectivity(result):
     assert matrix.dtype == "i2"
 
 
-@pytest.mark.skip(reason="Not Implemented")
 def test_signal_to_noise(result):
-    pass
+    matrix: PhysicalMatrix = result.matrices["signal_to_noise"]
+    assert matrix.values == (
+        (808, 3377),
+        (808, 3377),
+        (812, 3356),
+    )
+    assert matrix.units == "dB"
+    assert matrix.name == "signal_to_noise"
+    assert matrix.long_name == "Signal-to-Noise Ratio"
+    assert matrix.scale == 100
+    assert matrix.flag == -int(2**16 / 2)
+    assert matrix.dtype == "i2"
 
 
 @pytest.mark.skip(reason="Not Implemented")
