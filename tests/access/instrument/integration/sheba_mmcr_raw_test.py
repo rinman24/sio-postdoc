@@ -48,3 +48,16 @@ def test_vectors(result):
     expected: list[str] = []
     assert len(result.vectors) == len(expected)
     assert sorted(result.vectors.keys()) == expected
+
+
+def test_matrices(result):
+    expected: list[str] = [
+        "mean_doppler_velocity",
+        "mode_id",
+        "qc",
+        "reflectivity",
+        "signal_to_noise",
+        "spectral_width",
+    ]
+    assert len(result.matrices) == len(expected)
+    assert sorted(result.matrices.keys()) == expected

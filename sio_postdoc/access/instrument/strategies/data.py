@@ -341,7 +341,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
                     strategy = _convert_bytes
                 case "Reflectivity":
                     units = "dBZ"
-                    name = "Reflectivity"
+                    name = "reflectivity"
                     long_name = "Reflectivity"
                     scale = 100
                     dtype = "i2"
