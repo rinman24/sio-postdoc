@@ -76,3 +76,38 @@ def test_mean_doppler_velocity(result):
     assert matrix.scale == 1000
     assert matrix.flag == -int(2**16 / 2)
     assert matrix.dtype == "i2"
+
+
+def test_mode_id(result):
+    matrix: PhysicalMatrix = result.matrices["mode_id"]
+    assert matrix.values == (
+        (3, 3),
+        (3, 3),
+        (3, 3),
+    )
+    assert matrix.units == "unitless"
+    assert matrix.name == "mode_id"
+    assert matrix.long_name == "Mode I.D. for Merged Time-Height Moments Data"
+    assert matrix.scale == 1
+    assert matrix.flag == 0
+    assert matrix.dtype == "S1"
+
+
+@pytest.mark.skip(reason="Not Implemented")
+def test_qc(result):
+    pass
+
+
+@pytest.mark.skip(reason="Not Implemented")
+def test_reflectivity(result):
+    pass
+
+
+@pytest.mark.skip(reason="Not Implemented")
+def test_signal_to_noise(result):
+    pass
+
+
+@pytest.mark.skip(reason="Not Implemented")
+def test_spectral_width(result):
+    pass

@@ -324,7 +324,7 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
                 case "ModeId":
                     units = "unitless"
                     name = "mode_id"
-                    long_name = "Mode I.D. for Merged Time-Height Moments Data"
+                    long_name = "Mode I.D. for Merged Time-Height Moments Data" # TODO: Capitalize long_name format everywhere
                     scale = 1
                     dtype = "S1"
                     valid_range = [1, 4]
