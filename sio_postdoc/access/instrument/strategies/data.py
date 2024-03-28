@@ -13,8 +13,12 @@ from sio_postdoc.access.instrument.contracts import (
     PhysicalVector,
     TemporalVector,
 )
-
-Dataset = nc.Dataset  # pylint: disable=no-member
+from sio_postdoc.access.instrument.strategies.constants import (
+    ShebaDabulRawMatrixParams,
+    ShebaDabulRawVectorParams,
+    ShebaMmcrRawMatrixParams,
+)
+from sio_postdoc.access.instrument.strategies.contracts import RawDataParams
 
 FLAG: float = float(-999)
 SECONDS_PER_DAY: int = 86400
@@ -26,8 +30,7 @@ FLAGS: dict[str, int] = {
     "f4": -999,
 }
 
-
-# pylint: disable=protected-access
+Dataset = nc.Dataset
 
 
 def _get_notes(name: str) -> str:
@@ -66,23 +69,17 @@ def _monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
     return tuple(monotonic_seconds)
 
 
-def _convert_bytes(value: bytes | float) -> int:
-    result: int
-    try:
-        result = int.from_bytes(value)
-    except TypeError:
-        result = 0
-    return result
-
-
 class InstrumentDataStrategy(Protocol):
     """Define protocol for constructing InstrumentData."""
 
     def extract(self, name: str) -> InstrumentData: ...  # noqa: D102
 
 
-class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-methods
+class ShebaDabulRaw(InstrumentDataStrategy):
     """TODO: Docstring."""
+
+    vector_params: dict[str, RawDataParams] = ShebaDabulRawVectorParams
+    matrix_params: dict[str, RawDataParams] = ShebaDabulRawMatrixParams
 
     @staticmethod
     def _construct_time(name: str, dataset: Dataset) -> TemporalVector:
@@ -117,125 +114,62 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
 
     @staticmethod
     def _construct_vectors(dataset: Dataset) -> dict[str, PhysicalVector]:
+        params: RawDataParams
         vectors: dict[str, PhysicalVector] = {}
-        variable_names: list[str] = [
-            "altitude",
-            "azimuth",
-            "elevation",
-            "elevation",
-            "latitude",
-            "longitude",
-            "scanmode",
-        ]
-        for variable in variable_names:
-            match variable:
-                case "altitude":
-                    units = "meters"
-                    long_name = "Platform Altitude"
-                    scale = 1
-                    dtype = "i2"
-                    valid_range = [-750, 20000]
-                    flag = -999
-                case "azimuth":
-                    units = "degrees"
-                    long_name = "Beam Azimuth Angle"
-                    scale = 1e5
-                    dtype = "i4"
-                    valid_range = [0, int(359.99999e5)]
-                    flag = 360 * 1e5
-                case "elevation":
-                    units = "degrees"
-                    long_name = "Beam Elevation Angle"
-                    scale = 1e5
-                    dtype = "i4"
-                    valid_range = [0, int(180e5)]
-                    flag = 360 * 1e5
-                case "latitude":
-                    units = "degrees north"
-                    long_name = "Platform Latitude"
-                    scale = 1e5
-                    dtype = "i4"
-                    valid_range = [int(-90e5), int(90e5)]
-                    flag = 360 * 1e5
-                case "longitude":
-                    units = "degrees east"
-                    long_name = "Platform Longitude"
-                    scale = 1e5
-                    dtype = "i4"
-                    valid_range = [int(-180e5), int(180e5)]
-                    flag = 360 * 1e5
-                case "scanmode":
-                    units = "unitless"
-                    long_name = "Scan Mode"
-                    scale = 1
-                    dtype = "i2"
-                    valid_range = [0, 10]
-                    flag = -999
+        for variable in ShebaDabulRaw.vector_params.keys():
+            params = ShebaDabulRaw.vector_params[variable]
             values: tuple[int, ...] = tuple(
                 (
-                    int(element * scale)
-                    if valid_range[0] <= element * scale <= valid_range[1]
-                    else flag
+                    int(element * params.scale)
+                    if params.valid_range.min
+                    <= element * params.scale
+                    <= params.valid_range.max
+                    else params.flag
                 )
                 for element in dataset[variable][:]
             )
             vector: PhysicalVector = PhysicalVector(
                 values=values,
-                units=units,
-                name=variable,
-                long_name=long_name,
-                scale=scale,
-                flag=flag,
-                dtype=dtype,
+                units=params.units,
+                name=params.name,
+                long_name=params.long_name,
+                scale=params.scale,
+                flag=params.flag,
+                dtype=params.dtype,
             )
             vectors[variable] = vector
         return vectors
 
     @staticmethod
     def _construct_matrices(dataset: Dataset) -> dict[str, PhysicalMatrix]:
+        params: RawDataParams
         matrices: dict[str, PhysicalMatrix] = {}
-        variable_names: list[str] = [
-            "depolarization",
-            "far_parallel",
-        ]
-        for variable in variable_names:
-            match variable:
-                case "depolarization":
-                    units = "unitless"
-                    long_name = "Depolarization Ratio"
-                    scale = 1000
-                    dtype = "i2"
-                    valid_range = [0, 1000]
-                    flag = -999
-                case "far_parallel":
-                    units = "unknown"
-                    long_name = "Far Parallel Returned Power"
-                    scale = 1000
-                    dtype = "i4"
-                    valid_range = [0, int(2**32 / 2) - 1]
-                    flag = -999
+        for variable in ShebaDabulRaw.matrix_params.keys():
+            params = ShebaDabulRaw.matrix_params[variable]
             values: list[list[int]] = []
             for row in dataset[variable][:]:
                 values.append(
                     tuple(
                         (
-                            int(element * scale)
-                            if valid_range[0] <= element * scale <= valid_range[1]
-                            else flag
+                            int(element * params.scale)
+                            if params.valid_range.min
+                            <= element * params.scale
+                            <= params.valid_range.max
+                            else params.flag
                         )
                         for element in row[:]
                     )
                 )
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
-                units=units,
-                name=variable,
-                long_name=long_name,
-                scale=scale,
-                flag=flag,
-                dtype=dtype,
+                units=params.units,
+                name=params.name,
+                long_name=params.long_name,
+                scale=params.scale,
+                flag=params.flag,
+                dtype=params.dtype,
             )
-            matrices[variable] = matrix
+            matrices[params.name] = matrix
         return matrices
 
     def extract(self, name: str) -> InstrumentData:
@@ -258,8 +192,10 @@ class ShebaDabulRaw(InstrumentDataStrategy):  # pylint: disable=too-few-public-m
         return result
 
 
-class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
+class ShebaMmcrRaw:
     """TODO: Docstring."""
+
+    matrix_params: dict[str, RawDataParams] = ShebaMmcrRawMatrixParams
 
     @staticmethod
     def _construct_time(dataset: Dataset) -> TemporalVector:
@@ -292,93 +228,31 @@ class ShebaMmcrRaw:  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def _construct_matrices(dataset: Dataset) -> dict[str, PhysicalMatrix]:
-        # TODO: too many statements (break this up, you may need ABC again).
+        params: RawDataParams
         matrices: dict[str, PhysicalMatrix] = {}
-        variable_names: list[str] = [
-            "MeanDopplerVelocity",
-            "ModeId",
-            "Qc",
-            "Reflectivity",
-            "SignaltoNoiseRatio",
-            "SpectralWidth",
-        ]
-        for variable in variable_names:
-            match variable:
-                # TODO: What you could do is return a dataclass
-                # that holds these things and move all of this to another method
-                case "MeanDopplerVelocity":
-                    units = "m/s"  # TODO: Change all units to single letters
-                    name = "mean_doppler_velocity"
-                    long_name = "Mean Doppler Velocity"
-                    scale = 1000
-                    dtype = "i2"
-                    valid_range = [-int(15e3), int(15e3)]
-                    flag = -int(2**16 / 2)
-                    strategy = int
-                case "ModeId":
-                    units = "unitless"
-                    name = "mode_id"
-                    long_name = "Mode I.D. for Merged Time-Height Moments Data"
-                    scale = 1
-                    dtype = "S1"
-                    valid_range = [1, 4]
-                    flag = 0
-                    strategy = _convert_bytes
-                case "Qc":
-                    units = "unitless"
-                    name = "qc"
-                    long_name = "Quality Control Flags"
-                    scale = 1
-                    dtype = "S1"
-                    valid_range = [1, 4]
-                    flag = 0
-                    strategy = _convert_bytes
-                case "Reflectivity":
-                    units = "dBZ"
-                    name = "reflectivity"
-                    long_name = "Reflectivity"
-                    scale = 100
-                    dtype = "i2"
-                    valid_range = [int(-10e3), 0]
-                    flag = -int(2**16 / 2)
-                    strategy = int
-                case "SignaltoNoiseRatio":
-                    units = "dB"
-                    name = "signal_to_noise"
-                    long_name = "Signal-to-Noise Ratio"
-                    scale = 100
-                    dtype = "i2"
-                    valid_range = [-int(10e3), int(10e3)]
-                    flag = -int(2**16 / 2)
-                    strategy = int
-                case "SpectralWidth":
-                    units = "m/s"
-                    name = "spectral_width"
-                    long_name = "Spectral Width"
-                    scale = 1000
-                    dtype = "i2"
-                    valid_range = [0, int(10e3)]
-                    flag = -int(2**16 / 2)
-                    strategy = int
+        for variable in ShebaMmcrRaw.matrix_params.keys():
+            params = ShebaMmcrRaw.matrix_params[variable]
             values: list[list[int]] = []
             for row in dataset[variable][:]:
                 row_values: list[int] = []
                 for element in row[:]:
-                    value: int = strategy(element)
+                    value: int = params.strategy(element)
                     row_values.append(
-                        value if valid_range[0] <= value <= valid_range[1] else flag
+                        value
+                        if params.valid_range.min <= value <= params.valid_range.max
+                        else params.flag
                     )
                 values.append(tuple(row_values))
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
-                units=units,
-                name=name,
-                long_name=long_name,
-                scale=scale,
-                flag=flag,
-                dtype=dtype,
+                units=params.units,
+                name=params.name,
+                long_name=params.long_name,
+                scale=params.scale,
+                flag=params.flag,
+                dtype=params.dtype,
             )
-            matrices[name] = matrix
+            matrices[params.name] = matrix
         return matrices
 
     def extract(self, name: str) -> InstrumentData:
