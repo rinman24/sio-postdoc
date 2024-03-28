@@ -27,7 +27,7 @@ def result() -> InstrumentData:
     return ShebaDabulRaw().extract(PATH)
 
 
-def test_time_units(result):
+def test_time(result):
     assert result.time.initial == datetime(1997, 11, 4, 0, 31)
     assert result.time.offsets == (1910, 1920, 1930)
     assert result.time.units == "seconds"
