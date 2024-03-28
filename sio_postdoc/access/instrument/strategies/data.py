@@ -105,6 +105,11 @@ class ShebaDabulRaw(AbstractDataStrategy):
 
     def extract(self, name: str) -> InstrumentData:
         """TODO: Docstring."""
+        units: str
+        long_name: str
+        scale: int
+        flag: int
+        dtype: str
         # Open the nc file
         dataset = nc.Dataset(name)  # pylint: disable=no-member
         # Extract initial timestamp and notes for the filename.
@@ -134,10 +139,6 @@ class ShebaDabulRaw(AbstractDataStrategy):
         # Vectors
         vectors: dict[str, PhysicalVector] = {}
         for variable in self.variable_names:
-            units: str
-            dtype: str
-            scale: int
-            long_name: str
             match variable:
                 case "altitude":
                     units = "meters"
@@ -159,16 +160,16 @@ class ShebaDabulRaw(AbstractDataStrategy):
                     dtype = "i4"
                 case "latitude":
                     units = "degrees north"
-                    dtype = "i4"
-                    scale = 1e5
                     long_name = "platform latitude"
-                    flag = int(360 * 1e5)
+                    scale = 1e5
+                    flag = 360 * 1e5
+                    dtype = "i4"
                 case "longitude":
                     units = "degrees east"
-                    dtype = "i4"
-                    scale = int(1e5)
                     long_name = "platform longitude"
-                    flag = int(360 * 1e5)
+                    scale = 1e5
+                    flag = 360 * 1e5
+                    dtype = "i4"
                 case "scanmode":
                     units = "unitless"
                     long_name = "scan mode"
@@ -191,30 +192,39 @@ class ShebaDabulRaw(AbstractDataStrategy):
 
         matrices: dict[str, PhysicalMatrix] = {}
         for variable in self.matrix_names:
-            scale: int
-            units: str
-            dtype: str
-            scale: int
             match variable:
                 case "depolarization":
-                    units = "none"
-                    dtype = "f4"
-                    scale = 1
+                    units = "unitless"
+                    long_name = "depolarization ratio"
+                    scale = 1000
+                    dtype = "i2"
+                    valid_range = [0, 1000]
+                    flag = -999
                 case "far_parallel":
                     units = "unknown"
-                    dtype = "f4"
-                    scale = 1
-            values: list[list[int | float]] = []
-            for row in dataset[variable]:
-                values.append(tuple(int(i) for i in row))
-
+                    long_name = "far parallel reflected power"
+                    scale = 1000
+                    flag = -999
+                    dtype = "i4"
+            values: list[list[int]] = []
+            for row in dataset[variable][:]:
+                values.append(
+                    tuple(
+                        (
+                            int(element * scale)
+                            if valid_range[0] <= element * scale <= valid_range[1]
+                            else flag
+                        )
+                        for element in row[:]
+                    )
+                )
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
                 units=units,
                 name=variable,
-                long_name="-999",
+                long_name=long_name,
                 scale=scale,
-                flag=FLAGS[dtype],
+                flag=flag,
                 dtype=dtype,
             )
             matrices[variable] = matrix

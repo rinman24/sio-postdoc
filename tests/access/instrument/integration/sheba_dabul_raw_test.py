@@ -132,5 +132,20 @@ def test_scanmode(result):
     assert vector.dtype == "i2"
 
 
+def test_depolarization(result):
+    matrix: PhysicalVector = result.matrices["depolarization"]
+    assert matrix.values == (
+        (-999, 591),
+        (-999, 587),
+        (-999, 553),
+    )
+    assert matrix.units == "unitless"
+    assert matrix.name == "depolarization"
+    assert matrix.long_name == "depolarization ratio"
+    assert matrix.scale == 1000
+    assert matrix.flag == -999
+    assert matrix.dtype == "i2"
+
+
 def test_notes(result):
     assert result.notes == str(DATA_DIRECTORY) + "/.BHAR"
