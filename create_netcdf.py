@@ -7,7 +7,7 @@ from netCDF4 import Dataset
 filename: str = "raw.D2024-01-07T06-00-00.sheba_mmcr_example.nc"
 
 
-def main(observatory, instrument):
+def main(observatory, instrument):  # noqa: PLR0915
     """Create test netCDF files."""
     print("Creating NCDF file...")
 
@@ -29,9 +29,11 @@ def main(observatory, instrument):
             rootgrp.netcdf_file_creation = "030824"
             # Dimensions
             print("Creating dimensions...")
-            record = rootgrp.createDimension("record", 6)
-            level = rootgrp.createDimension("level", 3)
-            filename_size = rootgrp.createDimension("filename_size", len(filename))
+            record = rootgrp.createDimension("record", 6)  # noqa: F841
+            level = rootgrp.createDimension("level", 3)  # noqa: F841
+            filename_size = rootgrp.createDimension(  # noqa: F841
+                "filename_size", len(filename)
+            )  # noqa: F841
             # Variables
             print("Creating variables...")
             range = rootgrp.createVariable("range", "f4", ("level",))
@@ -136,7 +138,7 @@ def main(observatory, instrument):
                 [-6498, -2427, -2126],
             ]
             Reflectivity.long_name = "Reflectivity"
-            units: "dBZ (X100)"
+            Reflectivity.units = "dBZ (X100)"
 
             MeanDopplerVelocity = rootgrp.createVariable(
                 "MeanDopplerVelocity", "i2", ("time", "nheights")
@@ -191,6 +193,78 @@ def main(observatory, instrument):
             ]
             SignaltoNoiseRatio.long_name = "Signal-to-Noise Ratioo"
             SignaltoNoiseRatio.units = "dB (X100)"
+        elif observatory == "eureka" and instrument == "mmcr":
+            # Attributes
+            print("Creating attributes...")
+            rootgrp.Source = "20050803.000000"
+            rootgrp.Version = "***1.0***"
+            rootgrp.Input_Platforms = ""
+            rootgrp.Contact = "***ETL***"
+            rootgrp.commenta = "At each height and time, the MMCR reflectivity, velocity, spectral width and signal-to-noise ratio always come from the same mode. The mode in indicated by ModeId."
+            rootgrp.commentb = "Missing (i.e., does not exist) data for a particular time period are indicated by a value of 10 for the ModeId. The geophysical variables should contain a value of -32768 at these times."
+            rootgrp.commentc = "Note that -32768 is also used for the geophysical variables when there are no significant detections, in which case ModeId is 0."
+
+            # Dimensions
+            print("Creating dimensions...")
+            time = rootgrp.createDimension("time", 3)
+            nheights = rootgrp.createDimension("nheights", 2)  # noqa: F841
+            # Variables
+            print("Creating variables...")
+            base_time = rootgrp.createVariable("base_tiime", "f8")
+            base_time[:] = 1123027200.0
+            base_time.long_name = "Beginning Time of File"
+            base_time.units = "seconds since 1970-01-01 00:00 UTC"
+            base_time.calendar_date = "20050803_00:00:00"
+
+            time_offset = rootgrp.createVariable("time_offset", "f8", ("time",))
+            time_offset[:] = [0.0, 10.0, 20.0]
+            time_offset.long_name = "Time Offset from base_time"
+            time_offset.units = "seconds"
+            time_offset.comment = "none"
+
+            heights = rootgrp.createVariable("heights", "f4", ("nheights",))
+            heights[:] = [95, 140]
+            heights.long_name = "Height of Measured Value; agl"
+            heights.units = "m AGL"
+            heights.comment = "none"
+
+            Reflectivity = rootgrp.createVariable(
+                "Reflectivity", "i2", ("time", "nheights")
+            )
+            Reflectivity[:] = [
+                [-32768, -3852],
+                [-10350, -3854],
+                [-9549, -3855],
+            ]
+            Reflectivity.long_name = "MMCR Reflectivity"
+            Reflectivity.units = "dBZ(X100)"
+            Reflectivity.comment = "Divide Reflectivity by 100 to get dBZ"
+
+            MeanDopplerVelocity = rootgrp.createVariable(
+                "MeanDopplerVelocity", "i2", ("time", "nheights")
+            )
+            MeanDopplerVelocity[:] = [
+                [-32768, 13880],
+                [-1084, 13880],
+                [-772, 13880],
+            ]
+            MeanDopplerVelocity.long_name = "MMCR MeanDopplerVelocity"
+            MeanDopplerVelocity.units = "m/s(X1000)"
+            MeanDopplerVelocity.comment = (
+                "Divide MeanDopplerVelocity by 1000 to get m/s"
+            )
+
+            SpectralWidth = rootgrp.createVariable(
+                "SpectralWidth", "i2", ("time", "nheights")
+            )
+            SpectralWidth[:] = [
+                [-32768, 176],
+                [-415, 176],
+                [97, 176],
+            ]
+            SpectralWidth.long_name = "MMCR SpectralWidth"
+            SpectralWidth.units = "m/s(X1000)"
+            SpectralWidth.comment = "Divide SpectralWidth by 1000 to get m/s"
     print("Closing file...")
 
 
