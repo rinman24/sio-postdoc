@@ -4,14 +4,14 @@ import sys
 
 from netCDF4 import Dataset
 
-filename: str = "raw.D2024-01-07T06-00-00.sheba_mmcr_example.nc"
+filename: str = "TESTeurmmcrmerge.C1.c1.D2005-08-03T00-00-00.nc"
 
 
 def main(observatory, instrument):  # noqa: PLR0915
     """Create test netCDF files."""
     print("Creating NCDF file...")
 
-    if observatory not in ["sheba"]:
+    if observatory not in ["sheba", "eureka"]:
         print("invalid observatory...")
         return False
     if instrument not in ["dabul", "mmcr"]:
