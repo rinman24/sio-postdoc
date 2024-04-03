@@ -4,7 +4,7 @@ import sys
 
 from netCDF4 import Dataset
 
-filename: str = "TESTeurmmcrmerge.C1.c1.D2005-08-03T00-00-00.nc"
+filename: str = "TESTeurmmcrmerge.C1.c1.D2005-08-10T00-00-00.nc"
 
 
 def main(observatory, instrument):  # noqa: PLR0915
@@ -97,7 +97,7 @@ def main(observatory, instrument):  # noqa: PLR0915
             nheights = rootgrp.createDimension("nheights", 3)
             # Variables
             print("Creating variables...")
-            base_time = rootgrp.createVariable("base_tiime", "i4")
+            base_time = rootgrp.createVariable("base_time", "i4")
             base_time[:] = 883828870
             base_time.long_name = "Beginning Time of File"
             base_time.units = "seconds since 1770-01-01 00:00:00 00;00"
@@ -196,7 +196,7 @@ def main(observatory, instrument):  # noqa: PLR0915
         elif observatory == "eureka" and instrument == "mmcr":
             # Attributes
             print("Creating attributes...")
-            rootgrp.Source = "20050803.000000"
+            rootgrp.Source = "20050810.000000"
             rootgrp.Version = "***1.0***"
             rootgrp.Input_Platforms = ""
             rootgrp.Contact = "***ETL***"
@@ -208,13 +208,16 @@ def main(observatory, instrument):  # noqa: PLR0915
             print("Creating dimensions...")
             time = rootgrp.createDimension("time", 3)
             nheights = rootgrp.createDimension("nheights", 2)  # noqa: F841
+            numlayers = rootgrp.createDimension("numlayers", 4)  # noqa: F841
             # Variables
+
+            # base_time
             print("Creating variables...")
-            base_time = rootgrp.createVariable("base_tiime", "f8")
-            base_time[:] = 1123027200.0
+            base_time = rootgrp.createVariable("base_time", "f8")
+            base_time[:] = 1123632266.0
             base_time.long_name = "Beginning Time of File"
             base_time.units = "seconds since 1970-01-01 00:00 UTC"
-            base_time.calendar_date = "20050803_00:00:00"
+            base_time.calendar_date = "20050810_00:04:26"
 
             time_offset = rootgrp.createVariable("time_offset", "f8", ("time",))
             time_offset[:] = [0.0, 10.0, 20.0]
@@ -222,12 +225,14 @@ def main(observatory, instrument):  # noqa: PLR0915
             time_offset.units = "seconds"
             time_offset.comment = "none"
 
+            # heights
             heights = rootgrp.createVariable("heights", "f4", ("nheights",))
             heights[:] = [95, 140]
             heights.long_name = "Height of Measured Value; agl"
             heights.units = "m AGL"
             heights.comment = "none"
 
+            # Reflectivity
             Reflectivity = rootgrp.createVariable(
                 "Reflectivity", "i2", ("time", "nheights")
             )
@@ -240,6 +245,7 @@ def main(observatory, instrument):  # noqa: PLR0915
             Reflectivity.units = "dBZ(X100)"
             Reflectivity.comment = "Divide Reflectivity by 100 to get dBZ"
 
+            # MeanDopplerVelocity
             MeanDopplerVelocity = rootgrp.createVariable(
                 "MeanDopplerVelocity", "i2", ("time", "nheights")
             )
@@ -254,6 +260,7 @@ def main(observatory, instrument):  # noqa: PLR0915
                 "Divide MeanDopplerVelocity by 1000 to get m/s"
             )
 
+            # SpectralWidth
             SpectralWidth = rootgrp.createVariable(
                 "SpectralWidth", "i2", ("time", "nheights")
             )
@@ -265,6 +272,59 @@ def main(observatory, instrument):  # noqa: PLR0915
             SpectralWidth.long_name = "MMCR SpectralWidth"
             SpectralWidth.units = "m/s(X1000)"
             SpectralWidth.comment = "Divide SpectralWidth by 1000 to get m/s"
+
+            # SignalToNoiseRatio
+            SignalToNoiseRatio = rootgrp.createVariable(
+                "SignalToNoiseRatio", "i2", ("time", "nheights")
+            )
+            SignalToNoiseRatio[:] = [
+                [-32768, -32768],
+                [-32768, -32768],
+                [-32768, -32768],
+            ]
+            SignalToNoiseRatio.long_name = "MMCR Signal-To-Noise Ratio"
+            SignalToNoiseRatio.units = "dB(x100)"
+            SignalToNoiseRatio.comment = "Divide SignalToNoiseRatio by 100 to get dB"
+
+            # ModeId
+            ModeId = rootgrp.createVariable("ModeId", "i2", ("time", "nheights"))
+            ModeId[:] = [
+                [0, 0],
+                [0, 0],
+                [0, 0],
+            ]
+            ModeId.long_name = "MMCR ModeId"
+            ModeId.units = "unitless"
+            ModeId.comment = (
+                "0 No significant power return, 1-5 Valid modes, 10 Data do not exist"
+            )
+
+            # CloudLayerBottomHeight
+            CloudLayerBottomHeight = rootgrp.createVariable(
+                "CloudLayerBottomHeight", "f4", ("time", "numlayers")
+            )
+            CloudLayerBottomHeight[:] = [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ]
+            CloudLayerBottomHeight.long_name = "Bottom Height of Echo Layer"
+            CloudLayerBottomHeight.units = "m AGL"
+            CloudLayerBottomHeight.comment = "none"
+
+            # CloudLayerTopHeight
+            CloudLayerTopHeight = rootgrp.createVariable(
+                "CloudLayerTopHeight", "f4", ("time", "numlayers")
+            )
+            CloudLayerTopHeight[:] = [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ]
+            CloudLayerTopHeight.long_name = "Top Height of Echo Layer"
+            CloudLayerTopHeight.units = "m AGL"
+            CloudLayerTopHeight.comment = "none"
+
     print("Closing file...")
 
 
