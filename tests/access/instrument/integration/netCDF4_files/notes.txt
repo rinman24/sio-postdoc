@@ -1,4 +1,7 @@
 ahsrl_D2005-08-12T00-00-00_30s_30m.cdf -> Eureka AHSRL
 eurmmcrmerge.C1.c1.D2005-08-10T00-00-00.nc -> Eureka MMCR
+
 D1997-11-04T00-31-00.BHAR.ncdf -> SHEBA DABUL
 D1997-10-30T12-00-00.mrg.corrected.nc -> SHEBA MMCR
+
+nsaarscl1clothC1.c1.D1999-03-20T00-00-00.cdf -> Utqiagvik MMCR
