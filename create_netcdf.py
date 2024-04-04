@@ -4,8 +4,6 @@ import sys
 
 from netCDF4 import Dataset
 
-filename: str = "TESTeurmmcrmerge.C1.c1.D2005-08-10T00-00-00.nc"
-
 
 def main(observatory, instrument):  # noqa: PLR0915
     """Create test netCDF files."""
@@ -17,6 +15,14 @@ def main(observatory, instrument):  # noqa: PLR0915
     if instrument not in ["dabul", "mmcr"]:
         print("invalid instrument...")
         return False
+
+    filename: str
+    if observatory == "sheba" and instrument == "dabul":
+        filename = "D1997-11-04T00-31-00.BHAR.ncdf"
+    elif observatory == "sheba" and instrument == "mmcr":
+        filename = "D1997-10-30T12-00-00.mrg.corrected.nc"
+    elif observatory == "eureka" and instrument == "mmcr":
+        filename = "eurmmcrmerge.C1.c1.D2005-08-10T00-00-00.nc"
 
     with Dataset(filename, "w", format="NETCDF4") as rootgrp:
         if observatory == "sheba" and instrument == "dabul":
