@@ -187,3 +187,26 @@ class DDMMMYYYYdothhColonmmDashhhColonmm(AbstractDateStrategy):
         )
 
         return DateTime(date=date, time=time)
+
+
+class YYYYMMDDThhmm_YYYYMMDDThhmm(AbstractDateStrategy):
+    """YYYYMMDDThhmm_YYYYMMDDThhmm strategy."""
+
+    def __init__(self) -> None:
+        self.pattern = re.compile("[0-9]{8}T[0-9]{4}_[0-9]{8}T[0-9]{4}")
+
+    def extract_time(self, raw: str, _: str) -> DateTime:
+        """Concrete Implementation of date strategy."""
+        date: Date = Date(
+            year=raw[:4],
+            month=raw[4:6],
+            day=raw[6:8],
+        )
+
+        time: Time = Time(
+            hour=raw[9:11],
+            minute=raw[11:13],
+            second="00",
+        )
+
+        return DateTime(date=date, time=time)
