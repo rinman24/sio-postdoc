@@ -112,11 +112,12 @@ class InstrumentAccess(BlobAccess):
             message = "Container name contains invalid characters."
         return message
 
-    def add_blob(self, name: str, path: Path) -> None:
+    def add_blob(self, name: str, path: Path, directory: str = "") -> None:
         """Add a blob to the given container."""
+        remote_name: str = directory + path.name
         with self.blob_service.get_container_client(name) as container:
             with open(path, "rb") as data:
-                container.upload_blob(name=path.name, data=data)
+                container.upload_blob(name=remote_name, data=data)
 
     def list_blobs(self, name: str) -> tuple[str, ...]:
         """List the contents of the container."""

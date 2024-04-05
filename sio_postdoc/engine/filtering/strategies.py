@@ -63,7 +63,8 @@ class NamesByDate(AbstractDateStrategy):
             elif current == end:
                 break
             elif current > end:
-                results.append(entry)
+                if results:
+                    results.append(entry)
                 break
             else:
                 previous_entry = entry
