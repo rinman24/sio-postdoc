@@ -62,7 +62,9 @@ class DabulHardware(AbstractHardwareStrategy):
             match matrix.name:
                 case "depolarization":
                     dtype = matrix.dtype
-                    depolarization = rootgrp.createVariable("depolarization", dtype, dimensions)
+                    depolarization = rootgrp.createVariable(
+                        "depolarization", dtype, dimensions
+                    )
                     depolarization[:] = matrix.values
                     depolarization.units = matrix.units
                     depolarization.name_ = matrix.name
@@ -70,7 +72,9 @@ class DabulHardware(AbstractHardwareStrategy):
                     depolarization.flag = matrix.flag
                 case "far_parallel":
                     dtype = matrix.dtype
-                    far_parallel = rootgrp.createVariable("far_parallel", dtype, dimensions)
+                    far_parallel = rootgrp.createVariable(
+                        "far_parallel", dtype, dimensions
+                    )
                     far_parallel[:] = matrix.values
                     far_parallel.units = matrix.units
                     far_parallel.name_ = matrix.name
@@ -88,4 +92,43 @@ class MmcrHardware(AbstractHardwareStrategy):
         data: InstrumentData,
         rootgrp: nc.Dataset,
     ) -> nc.Dataset:
-        """TODO: Implement"""
+        """TODO: Implement."""
+        # One and two dimensions
+        # dimension: tuple[str] = ("record",)
+        dimensions: tuple[str, str] = ("record", "level")
+        dtype: str
+        # Matrices
+        for matrix in data.matrices.values():
+            match matrix.name:
+                case "mean_doppler_velocity":
+                    dtype = matrix.dtype
+                    mean_doppler_velocity = rootgrp.createVariable(
+                        "mean_doppler_velocity", dtype, dimensions
+                    )
+                    mean_doppler_velocity[:] = matrix.values
+                    mean_doppler_velocity.units = matrix.units
+                    mean_doppler_velocity.name_ = matrix.name
+                    mean_doppler_velocity.scale_ = matrix.scale
+                    mean_doppler_velocity.flag = matrix.flag
+                case "reflectivity":
+                    dtype = matrix.dtype
+                    reflectivity = rootgrp.createVariable(
+                        "reflectivity", dtype, dimensions
+                    )
+                    reflectivity[:] = matrix.values
+                    reflectivity.units = matrix.units
+                    reflectivity.name_ = matrix.name
+                    reflectivity.scale_ = matrix.scale
+                    reflectivity.flag = matrix.flag
+                case "spectral_width":
+                    dtype = matrix.dtype
+                    spectral_width = rootgrp.createVariable(
+                        "spectral_width", dtype, dimensions
+                    )
+                    spectral_width[:] = matrix.values
+                    spectral_width.units = matrix.units
+                    spectral_width.name_ = matrix.name
+                    spectral_width.scale_ = matrix.scale
+                    spectral_width.flag = matrix.flag
+
+        return rootgrp

@@ -192,7 +192,7 @@ class ShebaDabulRaw(InstrumentDataStrategy):
         return result
 
 
-class ShebaMmcrRaw:
+class ShebaMmcrRaw(InstrumentDataStrategy):
     """TODO: Docstring."""
 
     matrix_params: dict[str, RawDataParams] = ShebaMmcrRawMatrixParams
@@ -234,15 +234,16 @@ class ShebaMmcrRaw:
             params = ShebaMmcrRaw.matrix_params[variable]
             values: list[list[int]] = []
             for row in dataset[variable][:]:
-                row_values: list[int] = []
-                for element in row[:]:
-                    value: int = params.strategy(element)
-                    row_values.append(
-                        value
-                        if params.valid_range.min <= value <= params.valid_range.max
+                values.append(
+                    tuple(
+                        params.strategy(element) * params.scale
+                        if params.valid_range.min
+                        <= params.strategy(element) * params.scale
+                        <= params.valid_range.max
                         else params.flag
                     )
-                values.append(tuple(row_values))
+                    for element in row[:]
+                )
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
                 units=params.units,

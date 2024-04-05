@@ -26,6 +26,7 @@ class MobileLocationStrategy(AbstractLocationStrategy):
         data: InstrumentData,
         rootgrp: nc.Dataset,
     ) -> nc.Dataset:
+        """TODO: Docstring."""
         dimension: tuple[str] = ("record",)
         dtype: str
         for vector in data.vectors.values():
@@ -60,9 +61,10 @@ class MobileLocationStrategy(AbstractLocationStrategy):
 class StationaryLocationStrategy(AbstractLocationStrategy):
     """TODO: Docstring."""
 
-    @abstractmethod
     def write_data(  # pylint: disable=no-member
         self,
         data: InstrumentData,
         rootgrp: nc.Dataset,
-    ) -> nc.Dataset: ...
+    ) -> nc.Dataset:
+        """TODO: Docstring."""
+        return rootgrp
