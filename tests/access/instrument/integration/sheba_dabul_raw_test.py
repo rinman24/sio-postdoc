@@ -31,7 +31,7 @@ def result() -> InstrumentData:  # noqa: D103
 def test_time(result):  # noqa: D103
     assert result.time.base_time == BASE_TIME
     assert result.time.initial == datetime(1997, 11, 4, 0, 31)
-    assert result.time.offsets == (1910, 1920, 1930)
+    assert result.time.offsets == (0, 10, 20, 30, 40, 50)
     assert result.time.units == "seconds"
     assert result.time.name == "offsets"
     assert result.time.long_name == "Seconds Since Initial Time"
@@ -41,7 +41,7 @@ def test_time(result):  # noqa: D103
 
 
 def test_axis(result):  # noqa: D103
-    assert result.axis.values == (0, 30)
+    assert result.axis.values == (0, 30, 60)
     assert result.axis.units == "meters"
     assert result.axis.name == "range"
     assert result.axis.long_name == "Height of Measured Value; agl"
@@ -74,7 +74,7 @@ def test_matrices(result):  # noqa: D103
 
 def test_altitude(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["altitude"]
-    assert vector.values == (10, 10, 10)
+    assert vector.values == (10, 10, 10, 10, 10, 10)
     assert vector.units == "meters"
     assert vector.name == "altitude"
     assert vector.long_name == "Platform Altitude"
@@ -85,7 +85,7 @@ def test_altitude(result):  # noqa: D103
 
 def test_azimuth(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["azimuth"]
-    assert vector.values == (34001232, 34001235, 34001242)
+    assert vector.values == (34001232, 34001235, 34001242, 34001248, 34001257, 34001263)
     assert vector.units == "degrees"
     assert vector.name == "azimuth"
     assert vector.long_name == "Beam Azimuth Angle"
@@ -96,7 +96,7 @@ def test_azimuth(result):  # noqa: D103
 
 def test_elevation(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["elevation"]
-    assert vector.values == (9546252, 9544544, 9544687)
+    assert vector.values == (9546252, 9544544, 9544687, 9543486, 9544335, 9544931)
     assert vector.units == "degrees"
     assert vector.name == "elevation"
     assert vector.long_name == "Beam Elevation Angle"
@@ -107,7 +107,7 @@ def test_elevation(result):  # noqa: D103
 
 def test_latitude(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["latitude"]
-    assert vector.values == (7595036, 7595037, 7595037)
+    assert vector.values == (7595036, 7595037, 7595037, 7595037, 7595037, 7595037)
     assert vector.units == "degrees north"
     assert vector.name == "latitude"
     assert vector.long_name == "Platform Latitude"
@@ -118,7 +118,14 @@ def test_latitude(result):  # noqa: D103
 
 def test_longitude(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["longitude"]
-    assert vector.values == (-14410420, -14410421, -14410423)
+    assert vector.values == (
+        -14410420,
+        -14410421,
+        -14410423,
+        -14410424,
+        -14410427,
+        -14410429,
+    )
     assert vector.units == "degrees east"
     assert vector.name == "longitude"
     assert vector.long_name == "Platform Longitude"
@@ -129,7 +136,7 @@ def test_longitude(result):  # noqa: D103
 
 def test_scanmode(result):  # noqa: D103
     vector: PhysicalVector = result.vectors["scanmode"]
-    assert vector.values == (-999, -999, -999)
+    assert vector.values == (-999, -999, -999, -999, -999, -999)
     assert vector.units == "unitless"
     assert vector.name == "scanmode"
     assert vector.long_name == "Scan Mode"
@@ -141,9 +148,12 @@ def test_scanmode(result):  # noqa: D103
 def test_depolarization(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["depolarization"]
     assert matrix.values == (
-        (-999, 591),
-        (-999, 587),
-        (-999, 553),
+        (-999, 591, 163),
+        (-999, 587, 181),
+        (-999, 553, 173),
+        (-999, 521, 170),
+        (-999, 563, 171),
+        (-999, 501, 164),
     )
     assert matrix.units == "unitless"
     assert matrix.name == "depolarization"
@@ -156,9 +166,12 @@ def test_depolarization(result):  # noqa: D103
 def test_far_parallel(result):  # noqa: D103
     matrix: PhysicalMatrix = result.matrices["far_parallel"]
     assert matrix.values == (
-        (-999, 63688),
-        (-999, 64665),
-        (-999, 63777),
+        (-999, 63688, 71340),
+        (-999, 64665, 72079),
+        (-999, 63777, 71406),
+        (-999, 63974, 71410),
+        (-999, 64696, 72124),
+        (-999, 64077, 71432),
     )
     assert matrix.units == "unknown"
     assert matrix.name == "far_parallel"

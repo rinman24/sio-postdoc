@@ -48,52 +48,82 @@ def main(observatory, instrument):  # noqa: PLR0915
             # Variables
             print("Creating variables...")
             range = rootgrp.createVariable("range", "f4", ("level",))
+            range.long_name = "range"
+            range.units = "meter"
             range[:] = [0, 30, 60]
 
             time = rootgrp.createVariable("time", "f4", ("record",))
-            hours: list[int] = [0, 1, 2, 3, 4, 5]
-            time[:] = [i / 24 for i in hours]
+            time.long_name = "time"
+            time.units = "seconds since 1970-01-01 00:00 UTC"
+            seconds: list[int] = [0, 10, 20, 30, 40, 50]
+            time[:] = [i / 3600 for i in seconds]
 
             latitude = rootgrp.createVariable("latitude", "f4", ("record",))
-            latitude[:] = [75.1362] * 6
+            latitude.long_name = "platform latitude"
+            latitude.units = "degrees_north"
+            latitude[:] = [75.95036, 75.95037, 75.95037, 75.95037, 75.95037, 75.95038]
 
             longitude = rootgrp.createVariable("longitude", "f4", ("record",))
-            longitude[:] = [-159.5352] * 6
+            longitude.long_name = "platform longitude"
+            longitude.units = "degrees_east"
+            longitude[:] = [
+                -144.1042,
+                -144.10422,
+                -144.10423,
+                -144.10425,
+                -144.10428,
+                -144.1043,
+            ]
 
             altitude = rootgrp.createVariable("altitude", "f4", ("record",))
+            altitude.long_name = "platform altitude"
+            altitude.units = "meter"
             altitude[:] = [10] * 6
 
             elevation = rootgrp.createVariable("elevation", "f4", ("record",))
-            elevation[:] = [95.32979, 95.31653, 95.31126, 95.33647, 95.35614, 95.33156]
+            elevation.long_name = "beam elevation angle"
+            elevation.units = "degrees"
+            elevation[:] = [95.462524, 95.44545, 95.44688, 95.43487, 95.44336, 95.44932]
 
             azimuth = rootgrp.createVariable("azimuth", "f4", ("record",))
-            azimuth[:] = [80] * 6
+            azimuth.long_name = "beam azimuth angle"
+            azimuth.units = "degrees"
+            azimuth[:] = [
+                340.01233,
+                340.01236,
+                340.01242,
+                340.01248,
+                340.01257,
+                340.01263,
+            ]
 
             scanmode = rootgrp.createVariable("scanmode", "i2", ("record",))
+            azimuth.long_name = "scan mode"
             scanmode[:] = [-999] * 6
 
             depolarization = rootgrp.createVariable(
                 "depolarization", "f4", ("record", "level")
             )
+            depolarization.long_name = "far parallel channel"
             depolarization[:] = [
-                [-1.0809815, 0.14680599, 1.5720826],
-                [-1.5588512, 0.12633708, 1.381299],
-                [-1.802245, 0.17213729, 1.6474841],
-                [-1.7750552, 0.13646123, 1.8563595],
-                [-1.6844584, 0.12883691, 2.23747],
-                [-1.3537484, 0.13436721, 1.6837305],
+                [-3.1782603, 0.59104323, 0.16376397],
+                [-1.9807447, 0.5877477, 0.1819636],
+                [-2.3432922, 0.5531897, 0.17386511],
+                [-2.5102968, 0.52127177, 0.1705016],
+                [-2.3535676, 0.5630987, 0.17166744],
+                [-2.5491872, 0.50121266, 0.16443518],
             ]
 
             far_parallel = rootgrp.createVariable(
                 "far_parallel", "f4", ("record", "level")
             )
             far_parallel[:] = [
-                [-999, 61.718746, -999],
-                [-999, 61.790615, -999],
-                [-999, 61.599712, -999],
-                [-999, 61.9116, -999],
-                [-999, 61.465282, -999],
-                [-999, 61.77173, -999],
+                [-999.0, 63.688297, 71.3408],
+                [-999.0, 64.66597, 72.079185],
+                [-999.0, 63.778, 71.40642],
+                [-999.0, 63.974632, 71.410835],
+                [-999.0, 64.696236, 72.12444],
+                [-999.0, 64.07724, 71.43249],
             ]
         elif observatory == "sheba" and instrument == "mmcr":
             # Attributes
