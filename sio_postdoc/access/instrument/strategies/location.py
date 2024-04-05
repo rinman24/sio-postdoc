@@ -27,24 +27,28 @@ class MobileLocationStrategy(AbstractLocationStrategy):
         rootgrp: nc.Dataset,
     ) -> nc.Dataset:
         dimension: tuple[str] = ("record",)
-        latitude = rootgrp.createVariable("latitude", "f4", dimension)
-        longitude = rootgrp.createVariable("longitude", "f4", dimension)
-        altitude = rootgrp.createVariable("altitude", "f4", dimension)
-        for vector in data.vectors:
+        dtype: str
+        for vector in data.vectors.values():
             match vector.name:
                 case "latitude":
+                    dtype = vector.dtype
+                    latitude = rootgrp.createVariable("latitude", dtype, dimension)
                     latitude[:] = list(vector.values)
                     latitude.units = vector.units
                     latitude.name_ = vector.name
                     latitude.scale_ = vector.scale
                     latitude.flag = vector.flag
                 case "longitude":
+                    dtype = vector.dtype
+                    longitude = rootgrp.createVariable("longitude", dtype, dimension)
                     longitude[:] = list(vector.values)
                     longitude.units = vector.units
                     longitude.name_ = vector.name
                     longitude.scale_ = vector.scale
                     longitude.flag = vector.flag
                 case "altitude":
+                    dtype = vector.dtype
+                    altitude = rootgrp.createVariable("altitude", dtype, dimension)
                     altitude[:] = list(vector.values)
                     altitude.units = vector.units
                     altitude.name_ = vector.name

@@ -60,7 +60,7 @@ class NcdfContext:
                 records,
             )
             if data.axis:
-                levels: int = len(data.axis[0].values)
+                levels: int = len(data.axis.values)
                 level = rootgrp.createDimension(  # pylint: disable=unused-variable
                     "level",
                     levels,
@@ -68,17 +68,25 @@ class NcdfContext:
             # Variables
             offsets = rootgrp.createVariable(
                 "offsets",
-                "f4",
+                "i4",
                 ("record",),
             )
             offsets[:] = list(data.time.offsets)
+            offsets.units = "seconds"
+            offsets.name_ = "offsets"
+            offsets.scale_ = 1
+            offsets.flag = -999
             if data.axis:
                 range = rootgrp.createVariable(  # pylint: disable=redefined-builtin
                     "range",
-                    "f4",
+                    "u2",
                     ("level",),
                 )
-                range[:] = list(data.axis[0].values)
+                range[:] = list(data.axis.values)
+                range.units = "meters"
+                range.name_ = "range"
+                range.scale_ = 1
+                range.flag = int(2**16 - 1)
             rootgrp = self.location.write_data(
                 data,
                 rootgrp,

@@ -21,4 +21,5 @@ class DataContext:
 
     def extract(self, name: str) -> InstrumentData:
         """Extract InstrumentData from a given source."""
+        name: str = name.split("/")[-1]
         return self.strategy.extract(name)

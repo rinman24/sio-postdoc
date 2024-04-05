@@ -12,6 +12,7 @@ from sio_postdoc.access.instrument.contracts import (
     PhysicalVector,
     TemporalVector,
 )
+from sio_postdoc.access.instrument.constants import REFERENCE_TIME
 
 ContentType = Union[str, bool, InstrumentData]
 Content = tuple[ContentType, ...]
@@ -103,41 +104,46 @@ class IndicesByDate(AbstractDateStrategy):
             for i, item in enumerate(mask):
                 if item:
                     offsets.append(data.time.offsets[i])
-                    for matrix in data.matrices:
+                    for matrix in data.matrices.values():
                         data_2d[matrix.name].append(matrix.values[i])
-                    for vector in data.vectors:
+                    for vector in data.vectors.values():
                         data_1d[vector.name].append(vector.values[i])
         # Convert to corresponding contracts
-        matrices: list[PhysicalMatrix] = []
-        vectors: list[PhysicalVector] = []
-        for matrix in prototype.matrices:
+        matrices: dict[str, PhysicalMatrix] = {}
+        vectors: dict[str, PhysicalVector] = {}
+        for matrix in prototype.matrices.values():
             item: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(data_2d[matrix.name]),
                 units=matrix.units,
                 name=matrix.name,
                 scale=matrix.scale,
                 flag=matrix.flag,
-                dtype="TODO",
+                dtype=matrix.dtype,
+                long_name=matrix.long_name,
             )
-            matrices.append(item)
-        for vector in prototype.vectors:
+            matrices[matrix.name] = item
+        for vector in prototype.vectors.values():
             item: PhysicalVector = PhysicalVector(
                 values=tuple(data_1d[vector.name]),
                 units=vector.units,
                 name=vector.name,
                 scale=vector.scale,
                 flag=vector.flag,
-                dtype="TODO",
+                dtype=vector.dtype,
+                long_name=vector.long_name,
             )
-            vectors.append(item)
+            vectors[vector.name] = item
+        initial: datetime = datetime.combine(target, time())
         time_: TemporalVector = TemporalVector(
-            initial=datetime.combine(target, time()),
+            initial=initial,
             offsets=offsets,
             units=prototype.time.units,
             name=prototype.time.name,
             scale=prototype.time.scale,
             flag=prototype.time.flag,
-            dtype="TODO",
+            dtype=prototype.time.dtype,
+            base_time=int((initial - REFERENCE_TIME).total_seconds()),
+            long_name=prototype.time.long_name,
         )
         # Construct the result
         result: InstrumentData = InstrumentData(

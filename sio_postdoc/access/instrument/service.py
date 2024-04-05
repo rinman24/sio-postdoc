@@ -90,6 +90,16 @@ class InstrumentAccess(BlobAccess):
         """Return instance of Azure BlobServiceClient."""
         return self._blob_service
 
+    @property
+    def data_context(self) -> DataContext:
+        """Return instance of `DataContext`."""
+        return self._data_context
+
+    @property
+    def ncdf_context(self) -> NcdfContext:
+        """Return instance of `NcdfContext`."""
+        return self._ncdf_context
+
     def create_container(self, name: str) -> None:
         """Create a new blob container."""
         message: str = "Success."
@@ -123,9 +133,10 @@ class InstrumentAccess(BlobAccess):
         return blobs
 
     def download_blob(self, container: str, name: str) -> None:
+        localname: str = name.split("/")[-1]
         with self.blob_service.get_blob_client(
             container=container, blob=name
         ) as blob_client:
-            with open(name, mode="wb") as blob:
+            with open(localname, mode="wb") as blob:
                 download_stream = blob_client.download_blob()
                 blob.write(download_stream.readall())
