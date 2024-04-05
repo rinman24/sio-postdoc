@@ -236,13 +236,15 @@ class ShebaMmcrRaw(InstrumentDataStrategy):
             for row in dataset[variable][:]:
                 values.append(
                     tuple(
-                        params.strategy(element) * params.scale
-                        if params.valid_range.min
-                        <= params.strategy(element) * params.scale
-                        <= params.valid_range.max
-                        else params.flag
+                        (
+                            params.strategy(element) * params.scale
+                            if params.valid_range.min
+                            <= params.strategy(element) * params.scale
+                            <= params.valid_range.max
+                            else params.flag
+                        )
+                        for element in row[:]
                     )
-                    for element in row[:]
                 )
             matrix: PhysicalMatrix = PhysicalMatrix(
                 values=tuple(values),
