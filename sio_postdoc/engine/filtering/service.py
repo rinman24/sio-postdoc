@@ -17,6 +17,8 @@ class FilteringEngine:
         """TODO: Docstring."""
         return self._date_context
 
-    def apply(self, target: date, content: Content) -> Content:
+    def apply(self, target: date, content: Content, directory: str = "") -> Content:
         """TODO: Docstring."""
+        if directory:
+            content = tuple(i for i in content if i.startswith(directory))
         return self.date_context.apply(target=target, content=content)
