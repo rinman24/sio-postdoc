@@ -8,6 +8,10 @@ from sio_postdoc.access.instrument.types import Dataset, Variable
 class RawDataHydrationStrategy(ABC):
     """Declare operations common to raw data creation."""
 
+    def __init__(self) -> None:
+        """Create a new Dataset when you instantiate the object."""
+        self._dataset: Dataset
+
     @property
     def dataset(self) -> Dataset:
         """Return the dataset property."""
@@ -43,10 +47,6 @@ class ShebaDabulRaw(RawDataHydrationStrategy):
 
     _records: int = 6
     _levels: int = 3
-
-    def __init__(self) -> None:
-        """Create a new Dataset when you iinstantiate the object."""
-        self._dataset: Dataset
 
     def _add_attributes(self, filename: str) -> None:
         self.dataset.instrument_name = "dabul"
@@ -187,4 +187,154 @@ class ShebaDabulRaw(RawDataHydrationStrategy):
             [-999.0, -999.0, 60.391975],
             [-999.0, -999.0, 58.352943],
             [-999.0, -999.0, 59.214672],
+        ]
+
+
+class ShebaMmcrRaw(RawDataHydrationStrategy):
+    """Sheba Mmcr Raw Data Strategy."""
+
+    _time: int = 6
+    _nheights: int = 3
+
+    def _add_attributes(self, filename: str) -> None:
+        self.dataset.contact = "Eugene E. Clothiaux, Gerald. G. Mace, Thomas A. Ackerman, 503 Walker Building, University Park, PA, 16802; Phone: , FAX: , E-mail: cloth,mace,ackerman@essc.psu.edu"
+        self.dataset.comment = "Divide Reflectivity by 100 to get dBZ, SignaltoNoiseRatio by 100 to get dB and MeanDopplerVelocity and SpectralWidth by 1000 to get m/s!"
+        self.dataset.commenta = "For each merged range gate reflectivity, velocity and width always come from the same mode."
+        self.dataset.commentb = "Quality Control Flags: 0 - No Data, 1 - Good Data, 2 - Second Trip Echo Problems, 3 - Coherent Integration Problems, 4 - Second Trip Echo and Coherent Integration Problems"
+
+    def _add_dimensions(self, filename: str) -> None:
+        self.dataset.createDimension("time", self._time)
+        self.dataset.createDimension("nheights", self._nheights)
+
+    def _add_variables(self) -> None:
+        self._add_base_time()
+        self._add_time_offset()
+        self._add_Heights()
+        self._add_Qc()
+        self._add_Reflectivity()
+        self._add_MeanDopplerVelocity()
+        self._add_SpectralWidth()
+        self._add_ModeId()
+        self._add_SignaltoNoiseRatio()
+
+    def _add_base_time(self) -> None:
+        base_time = self.dataset.createVariable("base_time", "i4")
+        base_time.long_name = "Beginning Time of File"
+        base_time.units = "seconds since 1970-01-01 00:00:00 00:00"
+        base_time.calendar_date = "Year 1997 Month 11 Day 20 00:00:50"
+        base_time[:] = 879984050
+
+    def _add_time_offset(self) -> None:
+        time_offset = self.dataset.createVariable("time_offset", "f8", ("time",))
+        time_offset.long_name = "Time Offset from base_time"
+        time_offset.units = "seconds"
+        time_offset.comment = "none"
+        time_offset[:] = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
+
+    def _add_Heights(self) -> None:
+        Heights = self.dataset.createVariable("Heights", "f4", ("nheights",))
+        Heights.long_name = "Height of Measured Value; agl"
+        Heights.units = "m"
+        Heights[:] = [105.0, 150.0, 195.0]
+
+    def _add_Qc(self) -> None:
+        Qc = self.dataset.createVariable(
+            "Qc",
+            "S1",
+            ("time", "nheights"),
+        )
+        Qc.long_name = "Quality Control Flags"
+        Qc.units = "unitless"
+        Qc[:] = [
+            [b"\x01", b"\x01", b""],
+            [b"\x01", b"\x01", b""],
+            [b"\x01", b"\x01", b""],
+            [b"\x01", b"\x01", b""],
+            [b"\x01", b"\x01", b""],
+            [b"\x01", b"\x01", b""],
+        ]
+
+    def _add_Reflectivity(self) -> None:
+        Reflectivity = self.dataset.createVariable(
+            "Reflectivity",
+            "i2",
+            ("time", "nheights"),
+        )
+        Reflectivity.long_name = "Reflectivity"
+        Reflectivity.units = "dBZ (X100)"
+        Reflectivity[:] = [
+            [-4713, -3745, -32768],
+            [-4713, -3745, -32768],
+            [-4713, -3745, -32768],
+            [-4725, -3727, -32768],
+            [-4738, -3709, -32768],
+            [-4751, -3692, -32768],
+        ]
+
+    def _add_MeanDopplerVelocity(self) -> None:
+        MeanDopplerVelocity = self.dataset.createVariable(
+            "MeanDopplerVelocity",
+            "i2",
+            ("time", "nheights"),
+        )
+        MeanDopplerVelocity.long_name = "Mean Doppler Velocity"
+        MeanDopplerVelocity.units = "m/s (X1000)"
+        MeanDopplerVelocity[:] = [
+            [-826, -299, -32768],
+            [-826, -299, -32768],
+            [-826, -299, -32768],
+            [-821, -303, -32768],
+            [-816, -308, -32768],
+            [-810, -313, -32768],
+        ]
+
+    def _add_SpectralWidth(self) -> None:
+        SpectralWidth = self.dataset.createVariable(
+            "SpectralWidth",
+            "i2",
+            ("time", "nheights"),
+        )
+        SpectralWidth.long_name = "Spectral Width"
+        SpectralWidth.units = "m/s (X1000)"
+        SpectralWidth[:] = [
+            [101, 116, -32768],
+            [101, 116, -32768],
+            [101, 116, -32768],
+            [173, 180, -32768],
+            [244, 244, -32768],
+            [316, 308, -32768],
+        ]
+
+    def _add_ModeId(self) -> None:
+        ModeId = self.dataset.createVariable(
+            "ModeId",
+            "S1",
+            ("time", "nheights"),
+        )
+        ModeId.long_name = "Mode I.D. for Merged Time-Height Moments Data"
+        ModeId.units = "unitless"
+        ModeId[:] = [
+            [b"\x03", b"\x03", b""],
+            [b"\x03", b"\x03", b""],
+            [b"\x03", b"\x03", b""],
+            [b"\x03", b"\x03", b""],
+            [b"\x03", b"\x03", b""],
+            [b"\x03", b"\x03", b""],
+        ]
+
+    def _add_SignaltoNoiseRatio(self) -> None:
+        SignaltoNoiseRatio = self.dataset.createVariable(
+            "SignaltoNoiseRatio",
+            "i2",
+            ("time", "nheights"),
+        )
+        SignaltoNoiseRatio.long_name = "Signal-to-Noise Ratio"
+        SignaltoNoiseRatio.units = "dB (X100)"
+        SignaltoNoiseRatio[:] = [
+            [1376, 1219, -32768],
+            [1376, 1219, -32768],
+            [1376, 1219, -32768],
+            [1356, 1212, -32768],
+            [1336, 1205, -32768],
+            [1314, 1197, -32768],
         ]

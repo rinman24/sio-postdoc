@@ -1,6 +1,6 @@
 """Constants for raw data builders."""
 
-from tests.helper.builder.raw.strategies import ShebaDabulRaw
+from tests.helper.builder.raw.strategies import ShebaDabulRaw, ShebaMmcrRaw
 from tests.helper.builder.raw.types import (
     FilenameMap,
     Instrument,
@@ -11,11 +11,13 @@ from tests.helper.builder.raw.types import (
 STRATEGIES: StrategyMap = {
     Observatory.SHEBA: {
         Instrument.DABUL: ShebaDabulRaw(),
+        Instrument.MMCR: ShebaMmcrRaw(),
     }
 }
 
 FILENAMES: FilenameMap = {
     Observatory.SHEBA: {
-        Instrument.DABUL: "D1997-11-04T00-31-00.BHAR.sheba_dabul_test.ncdf"
+        Instrument.DABUL: "D1998-05-06T00-25-00.BARO.sheba_dabul_test.ncdf",
+        Instrument.MMCR: "D1997-11-20T00-00-00.mrg.corrected.sheba_mmcr_test.nc",
     }
 }

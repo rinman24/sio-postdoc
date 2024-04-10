@@ -15,6 +15,7 @@ class Instrument(Enum):
     """Instrument names."""
 
     DABUL = auto()
+    MMCR = auto()
 
 
 StrategyMap = dict[Observatory, dict[Instrument, RawDataHydrationStrategy]]
