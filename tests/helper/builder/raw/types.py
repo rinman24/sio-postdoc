@@ -8,12 +8,14 @@ from tests.helper.builder.raw.strategies import RawDataHydrationStrategy
 class Observatory(Enum):
     """Observatory names."""
 
+    EUREKA = auto()
     SHEBA = auto()
 
 
 class Instrument(Enum):
     """Instrument names."""
 
+    AHSRL = auto()
     DABUL = auto()
     MMCR = auto()
 
