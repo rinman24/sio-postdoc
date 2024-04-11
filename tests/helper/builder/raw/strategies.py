@@ -426,7 +426,7 @@ class EurekaAhsrlRaw(RawDataHydrationStrategy):
         self.dataset.createDimension("geoheader", 2)
         self.dataset.createDimension("apheader", 3)
 
-    def _add_variables(self) -> None:
+    def _add_variables(self) -> None:  # noqa: PLR0915
         self._add_base_time()
         self._add_first_time()
         self._add_last_time()
@@ -1215,3 +1215,170 @@ class EurekaAhsrlRaw(RawDataHydrationStrategy):
             [nan, 3.0241167e-06, 1.7450182e-08],
             [nan, 2.9597777e-06, 1.8751841e-08],
         ]
+
+
+class EurekaMmcrRaw(RawDataHydrationStrategy):
+    """Eureka Mmcr Raw Data Strategy."""
+
+    time: int = 6
+    nheights: int = 3
+    numlayers: int = 10
+
+    def _add_attributes(self, filename: str) -> None:
+        self.dataset.Source = "20080921.000000"
+        self.dataset.Version = "***1.0***"
+        self.dataset.Input_Platforms = ""
+        self.dataset.Contact = "***ETL***"
+        self.dataset.commenta = "At each height and time, the MMCR reflectivity, velocity, spectral width and signal-to-noise ratio always come from the same mode. The mode in indicated by ModeId."
+        self.dataset.commentb = "Missing (i.e., does not exist) data for a particular time period are indicated by a value of 10 for the ModeId. The geophysical variables should contain a value of -32768 at these times."
+        self.dataset.commentc = "Nore that -32768 is also used for the geophysical variables when there are no significant detections, in which case ModeId is 0."
+
+    def _add_dimensions(self, filename: str) -> None:
+        self.dataset.createDimension("time", self.time)
+        self.dataset.createDimension("nheights", self.nheights)  # noqa: F841
+        self.dataset.createDimension("numlayers", self.numlayers)  # noqa: F841
+
+    def _add_variables(self) -> None:
+        self._add_base_time()
+        self._add_time_offset()
+        self._add_heights()
+        self._add_Reflectivity()
+        self._add_MeanDopplerVelocity()
+        self._add_SpectralWidth()
+        self._add_SignalToNoiseRatio()
+        self._add_ModeId()
+        self._add_CloudLayerBottomHeight()
+        self._add_CloudLayerTopHeight()
+
+    def _add_base_time(self) -> None:
+        base_time = self.dataset.createVariable("base_time", "f8")
+        base_time.long_name = "Beginning Time of File"
+        base_time.units = "seconds since 1970-01-01 00:00 UTC"
+        base_time.calendar_date = "20080921_00:00:09"
+        base_time[:] = 1221955209.0
+
+    def _add_time_offset(self) -> None:
+        time_offset = self.dataset.createVariable("time_offset", "f8", ("time",))
+        time_offset.long_name = "Time Offset from base_time"
+        time_offset.units = "seconds"
+        time_offset.comment = "none"
+        time_offset[:] = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
+
+    def _add_heights(self) -> None:
+        heights = self.dataset.createVariable("heights", "f4", ("nheights",))
+        heights.long_name = "Height of Measured Value"
+        heights.units = "m AGL"
+        heights.comment = "none"
+        heights[:] = [54.0, 97.0, 140.0]
+
+    def _add_Reflectivity(self) -> None:
+        Reflectivity = self.dataset.createVariable(
+            "Reflectivity", "i2", ("time", "nheights")
+        )
+        Reflectivity.long_name = "MMCR Reflectivity"
+        Reflectivity.units = "dBZ(x100)"
+        Reflectivity.comment = "Divide Reflectivity by 100 to get dBZ"
+        Reflectivity[:] = [
+            [-32768, -32768, -32768],
+            [-3438, -3730, -5072],
+            [-4511, -4802, -6151],
+            [-4540, -4831, -6183],
+            [-4303, -4595, -5946],
+            [-4400, -4688, -5924],
+        ]
+
+    def _add_MeanDopplerVelocity(self) -> None:
+        MeanDopplerVelocity = self.dataset.createVariable(
+            "MeanDopplerVelocity", "i2", ("time", "nheights")
+        )
+        MeanDopplerVelocity.long_name = "MMCR MeanDopplerVelocity"
+        MeanDopplerVelocity.units = "m/s(x1000)"
+        MeanDopplerVelocity.comment = "Divide MeanDopplerVelocity by 1000 to get m/s"
+        MeanDopplerVelocity[:] = [
+            [-32768, -32768, -32768],
+            [77, 69, 61],
+            [-4057, -1847, 363],
+            [-4111, -2629, -1148],
+            [-4460, -1692, 1076],
+            [-4284, -1676, 931],
+        ]
+
+    def _add_SpectralWidth(self) -> None:
+        SpectralWidth = self.dataset.createVariable(
+            "SpectralWidth", "i2", ("time", "nheights")
+        )
+        SpectralWidth.long_name = "MMCR SpectralWidth"
+        SpectralWidth.units = "m/s(x1000)"
+        SpectralWidth.comment = "Divide SpectralWidth by 1000 to get m/s"
+        SpectralWidth[:] = [
+            [-32768, -32768, -32768],
+            [470, 300, 130],
+            [593, 353, 113],
+            [513, 296, 80],
+            [1013, 552, 91],
+            [727, 466, 205],
+        ]
+
+    def _add_SignalToNoiseRatio(self) -> None:
+        SignalToNoiseRatio = self.dataset.createVariable(
+            "SignalToNoiseRatio", "i2", ("time", "nheights")
+        )
+        SignalToNoiseRatio.long_name = "MMCR Signal-To-Noise Ratio"
+        SignalToNoiseRatio.units = "dB(x100)"
+        SignalToNoiseRatio.comment = "Divide SignalToNoiseRatio by 100 to get dB"
+        SignalToNoiseRatio[:] = [
+            [-32768, -32768, -32768],
+            [2044, 1753, 405],
+            [602, 312, -1002],
+            [588, 297, -1035],
+            [768, 477, -859],
+            [712, 424, -793],
+        ]
+
+    def _add_ModeId(self) -> None:
+        ModeId = self.dataset.createVariable("ModeId", "i2", ("time", "nheights"))
+        ModeId.long_name = "MMCR ModeId"
+        ModeId.units = "unitless"
+        ModeId.comment = (
+            "0 No significant power return, 1-5 Valid modes, 10 Data do not exist"
+        )
+        ModeId[:] = [
+            [0, 0, 0],
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+            [2, 2, 2],
+        ]
+
+    def _add_CloudLayerBottomHeight(self) -> None:
+        CloudLayerBottomHeight = self.dataset.createVariable(
+            "CloudLayerBottomHeight", "f4", ("time", "numlayers")
+        )
+        CloudLayerBottomHeight.long_name = "Bottom Height of Echo Layer"
+        CloudLayerBottomHeight.units = "m AGL"
+        CloudLayerBottomHeight.comment = "none"
+        CloudLayerBottomHeight[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [54.0, 1731.0, 4268.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [54.0, 1645.0, 4268.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [54.0, 1645.0, 4268.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [54.0, 1645.0, 4268.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [54.0, 1645.0, 4354.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_CloudLayerTopHeight(self) -> None:
+        CloudLayerTopHeight = self.dataset.createVariable(
+            "CloudLayerTopHeight", "f4", ("time", "numlayers")
+        )
+        CloudLayerTopHeight[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [226.0, 1860.0, 6246.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [226.0, 1860.0, 6246.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [226.0, 1860.0, 6246.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [226.0, 1860.0, 6160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [226.0, 1860.0, 6160.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+        CloudLayerTopHeight.long_name = "Top Height of Echo Layer"
+        CloudLayerTopHeight.units = "m AGL"
+        CloudLayerTopHeight.comment = "none"

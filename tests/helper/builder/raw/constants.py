@@ -2,6 +2,7 @@
 
 from tests.helper.builder.raw.strategies import (
     EurekaAhsrlRaw,
+    EurekaMmcrRaw,
     ShebaDabulRaw,
     ShebaMmcrRaw,
 )
@@ -19,6 +20,7 @@ STRATEGIES: StrategyMap = {
     },
     Observatory.EUREKA: {
         Instrument.AHSRL: EurekaAhsrlRaw(),
+        Instrument.MMCR: EurekaMmcrRaw(),
     },
 }
 
@@ -29,5 +31,6 @@ FILENAMES: FilenameMap = {
     },
     Observatory.EUREKA: {
         Instrument.AHSRL: "ahsrl_D2008-09-21T00-00-00_30s_30m.eureka_ahsrl_test.nc",
+        Instrument.MMCR: "eurmmcrmerge.C1.c1.D2008-09-21T00-00-00.eureka_mmcr_test.nc",
     },
 }
