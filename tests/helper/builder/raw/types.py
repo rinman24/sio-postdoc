@@ -10,6 +10,7 @@ class Observatory(Enum):
 
     EUREKA = auto()
     SHEBA = auto()
+    UTQIAGVIK = auto()
 
 
 class Instrument(Enum):
@@ -18,6 +19,7 @@ class Instrument(Enum):
     AHSRL = auto()
     DABUL = auto()
     MMCR = auto()
+    MPL = auto()
 
 
 StrategyMap = dict[Observatory, dict[Instrument, RawDataHydrationStrategy]]

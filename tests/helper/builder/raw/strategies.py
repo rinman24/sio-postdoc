@@ -1382,3 +1382,524 @@ class EurekaMmcrRaw(RawDataHydrationStrategy):
         CloudLayerTopHeight.long_name = "Top Height of Echo Layer"
         CloudLayerTopHeight.units = "m AGL"
         CloudLayerTopHeight.comment = "none"
+
+
+class UtqiagvikMplRaw(RawDataHydrationStrategy):
+    """Utqiagvik Mpl Raw Data Strategy."""
+
+    time: int = 6
+    height: int = 3
+    layer: int = 10
+    num_deadtime_corr: int = 16
+
+    def _add_attributes(self, filename: str) -> None:
+        self.dataset.command_line = (
+            "mplcmask -s nsa -f C1 -D 2 -b 20080924 -e 20080925 -R"
+        )
+        self.dataset.process_version = "vap-mplcmask-0.4-0.el6"
+        self.dataset.dod_version = "30smplcmask1zwang-c1-1.0"
+        self.dataset.input_datastreams = "nsamplpolavgC1.c1 : 1.14 : 20080924.000030\nnsasondewnpnC1.b1 : 8.1 : 20080924.052600-20080924.165800"
+        self.dataset.site_id = "nsa"
+        self.dataset.platform_id = "30smplcmask1zwang"
+        self.dataset.facility_id = "C1"
+        self.dataset.location_description = (
+            "North Slope of Alaska (NSA), Barrow, Alaska"
+        )
+        self.dataset.datastream = "nsa30smplcmask1zwangC1.c1"
+        self.dataset.serial_number = "105"
+        self.dataset.height_uncertainty = "N/A"
+        self.dataset.min_cloud_detection_height = "0.500 km AGL"
+        self.dataset.max_cloud_detection_height = "20.000 km AGL"
+        self.dataset.deadtime_correction = (
+            "Applied deadtime correction factor from the configuration file"
+        )
+        self.dataset.overlap_correction = "Applied overlap correction from the configuration file to the height of the MPL"
+        self.dataset.afterpulse_correction = "No afterpulse corrections are applied"
+        self.dataset.nasa_gsfc_mpl_help = "N/A"
+        self.dataset.missing_value = "-9999.0"
+        self.dataset.applied_corrections = (
+            "Applied overlap, energy and deadtime correction"
+        )
+        self.dataset.backscatter_data_quality_comment = (
+            "Data quality ok for both cloud and aerosol analysis"
+        )
+        self.dataset.data_level = "c1"
+        self.dataset.comment = "VAP that applies Zhien's cloud boundary algorithm"
+        self.dataset.history = "created by user sri on machine amber at 2014-07-12 00:18:36, using vap-mplcmask-0.4-0.el6"
+
+    def _add_dimensions(self, filename: str) -> None:
+        self.dataset.createDimension("time", self.time)
+        self.dataset.createDimension("height", self.height)
+        self.dataset.createDimension("layer", self.layer)
+        self.dataset.createDimension("num_deadtime_corr", self.num_deadtime_corr)
+
+    def _add_variables(self) -> None:
+        self._add_base_time()
+        self._add_time_offset()
+        self._add_time()
+        self._add_height()
+        self._add_cloud_base()
+        self._add_cloud_top()
+        self._add_num_cloud_layers()
+        self._add_linear_depol_ratio()
+        self._add_qc_linear_depol_ratio()
+        self._add_linear_depol_snr()
+        self._add_qc_linear_depol_snr()
+        self._add_cloud_mask()
+        self._add_qc_cloud_mask()
+        self._add_cloud_base_layer()
+        self._add_cloud_top_layer()
+        self._add_backscatter()
+        self._add_qc_backscatter()
+        self._add_backscatter_snr()
+        self._add_qc_backscatter_snr()
+        self._add_background_signal()
+        self._add_cloud_top_attenuation_flag()
+        self._add_shots_summed()
+        self._add_deadtime_correction_counts()
+        self._add_deadtime_correction()
+        self._add_afterpulse_correction()
+        self._add_overlap_correction()
+        self._add_lat()
+        self._add_lon()
+        self._add_alt()
+
+    def _add_base_time(self) -> None:
+        base_time = self.dataset.createVariable("base_time", "i4")
+        base_time.string = "2008-09-24 00:00:00 0:00"
+        base_time.long_name = "Base time in Epoch"
+        base_time.units = "seconds since 1970-1-1 0:00:00 0:00"
+        base_time.ancillary_variables = "time_offset"
+        base_time[:] = 1222214400
+
+    def _add_time_offset(self) -> None:
+        time_offset = self.dataset.createVariable("time_offset", "f8", ("time",))
+        time_offset.long_name = "Time offset from base_time"
+        time_offset.units = "seconds since 2008-09-24 00:00:00 0:00"
+        time_offset.ancillary_variables = "base_time"
+        time_offset[:] = [30.0, 60.0, 90.0, 120.0, 150.0, 180.0]
+
+    def _add_time(self) -> None:
+        time = self.dataset.createVariable("time", "f8", ("time",))
+        time.long_name = "Time offset from midnight"
+        time.units = "seconds since 2008-09-24 00:00:00 0:00"
+        time[:] = [30.0, 60.0, 90.0, 120.0, 150.0, 180.0]
+
+    def _add_height(self) -> None:
+        height = self.dataset.createVariable("height", "f4", ("height",))
+        height.long_name = "Vertical height above ground level (AGL) corresponding to the bottom of height bin"
+        height.units = "km"
+        height[:] = [0.02249481, 0.05247406, 0.0824533]
+
+    def _add_cloud_base(self) -> None:
+        cloud_base = self.dataset.createVariable("cloud_base", "f4", ("time",))
+        cloud_base.long_name = "Lowest cloud base height above ground level (AGL)"
+        cloud_base.units = "km"
+        cloud_base.comment = "A value of -1 means no cloud is detected"
+        cloud_base.missing_value = -9999.0
+        cloud_base[:] = [0.682038, -1.0, -1.0, -1.0, -1.0, -1.0]
+
+    def _add_cloud_top(self) -> None:
+        cloud_top = self.dataset.createVariable("cloud_top", "f4", ("time",))
+        cloud_top.long_name = "Highest cloud top height above ground level (AGL)"
+        cloud_top.units = "km"
+        cloud_top.comment = "A value of -1 means no cloud is detected"
+        cloud_top.missing_value = -9999.0
+        cloud_top[:] = [1.7912695, -1.0, -1.0, -1.0, -1.0, -1.0]
+
+    def _add_num_cloud_layers(self) -> None:
+        num_cloud_layers = self.dataset.createVariable(
+            "num_cloud_layers", "i4", ("time",)
+        )
+        num_cloud_layers.long_name = "Number of cloud layers"
+        num_cloud_layers.units = "unitless"
+        num_cloud_layers.missing_value = -9999
+        num_cloud_layers[:] = [1, 0, 0, 0, 0, 0]
+
+    def _add_linear_depol_ratio(self) -> None:
+        linear_depol_ratio = self.dataset.createVariable(
+            "linear_depol_ratio", "f4", ("time", "height")
+        )
+        linear_depol_ratio.long_name = "Linear depolarization ratio"
+        linear_depol_ratio.units = "unitless"
+        linear_depol_ratio.missing_value = -9999.0
+        linear_depol_ratio.ancillary_variables = "qc_linear_depol_ratio"
+        linear_depol_ratio[:] = [
+            [-0.28459275, 0.977915, 0.38756308],
+            [-0.35307893, 0.9776862, 0.39125702],
+            [-0.4996107, 0.9772247, 0.3911428],
+            [0.4311789, 0.9775953, 0.38763753],
+            [0.16858189, 0.9769985, 0.38921818],
+            [1.5727872, 0.97737384, 0.38858318],
+        ]
+
+    def _add_qc_linear_depol_ratio(self) -> None:
+        qc_linear_depol_ratio = self.dataset.createVariable(
+            "qc_linear_depol_ratio", "i4", ("time", "height")
+        )
+        qc_linear_depol_ratio.long_name = (
+            "Quality check results on field: Linear depolarization ratio"
+        )
+        qc_linear_depol_ratio.units = "unitless"
+        qc_linear_depol_ratio.comment = "This field contains bit packed integer values, where each bit represents a QC test on the data. Non-zero bits indicate the QC condition given in the description for those bits; a value of 0 (no bits set) indicates the data has not failed any QC tests."
+        qc_linear_depol_ratio.flag_method = "bit"
+        qc_linear_depol_ratio.bit_1_description = "The value of signal is zero in the denominator causing the value of depolarization ratio to be NaN, data value set to missing_value in output file."
+        qc_linear_depol_ratio.bit_1_assessment = "Bad"
+        qc_linear_depol_ratio.bit_2_description = "Data value not available in input file, data value set to missing_value in output file."
+        qc_linear_depol_ratio.bit_2_assessment = "Bad"
+        qc_linear_depol_ratio[:] = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+    def _add_linear_depol_snr(self) -> None:
+        linear_depol_snr = self.dataset.createVariable(
+            "linear_depol_snr", "f4", ("time", "height")
+        )
+        linear_depol_snr.long_name = (
+            "Signal to noise ratio for the linear depolarization ratio"
+        )
+        linear_depol_snr.units = "unitless"
+        linear_depol_snr.missing_value = -9999.0
+        linear_depol_snr.ancillary_variables = "qc_linear_depol_snr"
+        linear_depol_snr[:] = [
+            [-9999.0, 268.67264, 126.09152],
+            [-9999.0, 268.61926, 126.32019],
+            [-9999.0, 268.60895, 126.207695],
+            [4.3232746, 268.49026, 125.94582],
+            [3.128249, 268.46893, 126.202],
+            [3.5918827, 268.5175, 125.94176],
+        ]
+
+    def _add_qc_linear_depol_snr(self) -> None:
+        qc_linear_depol_snr = self.dataset.createVariable(
+            "qc_linear_depol_snr", "i4", ("time", "height")
+        )
+        qc_linear_depol_snr.long_name = "Quality check results on field: Signal to noise ratio for the linear depolarization ratio"
+        qc_linear_depol_snr.units = "unitless"
+        qc_linear_depol_snr.description = "This field contains bit packed integer values, where each bit represents a QC test on the data. Non-zero bits indicate the QC condition given in the description for those bits; a value of 0 (no bits set) indicates the data has not failed any QC tests."
+        qc_linear_depol_snr.flag_method = "bit"
+        qc_linear_depol_snr.bit_1_description = "The value of signal is zero in the denominator causing the value of snr to be NaN, data value set to missing_value in output file."
+        qc_linear_depol_snr.bit_1_assessment = "Bad"
+        qc_linear_depol_snr.bit_2_description = "Data value not available in input file, data value set to missing_value in output file."
+        qc_linear_depol_snr.bit_2_assessment = "Bad"
+        qc_linear_depol_snr[:] = [
+            [1, 0, 0],
+            [1, 0, 0],
+            [1, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+    def _add_cloud_mask(self) -> None:
+        cloud_mask = self.dataset.createVariable("cloud_mask", "i4", ("time", "height"))
+        cloud_mask.long_name = "Cloud mask"
+        cloud_mask.units = "unitless"
+        cloud_mask.comment = "Cloud mask indeterminate below 500 m"
+        cloud_mask.flag_values = [0, 1]
+        cloud_mask.flag_meanings = "clear cloudy"
+        cloud_mask.flag_0_description = "Clear"
+        cloud_mask.flag_1_description = "Cloudy"
+        cloud_mask.missing_value = -9999
+        cloud_mask.ancillary_variables = "qc_cloud_mask"
+        cloud_mask[:] = [
+            [-9999, 0, 1],
+            [-9999, 0, 1],
+            [-9999, 0, 1],
+            [-9999, 0, 1],
+            [-9999, 0, 1],
+            [-9999, 0, 1],
+        ]
+
+    def _add_qc_cloud_mask(self) -> None:
+        qc_cloud_mask = self.dataset.createVariable(
+            "qc_cloud_mask", "i4", ("time", "height")
+        )
+        qc_cloud_mask.long_name = "Quality check results on field: Cloud mask"
+        qc_cloud_mask.units = "unitless"
+        qc_cloud_mask.description = "This field contains bit packed integer values, where each bit represents a QC test on the data. Non-zero bits indicate the QC condition given in the description for those bits; a value of 0 (no bits set) indicates the data has not failed any QC tests."
+        qc_cloud_mask.flag_method = "bit"
+        qc_cloud_mask.bit_1_description = "Unable to determine the cloud mask, data value set to missing_value in output file."
+        qc_cloud_mask.bit_1_assessment = "Bad"
+        qc_cloud_mask.bit_2_description = "backscatter is unusable due to instrument malfunction, data value set to missing_value in output file."
+        qc_cloud_mask.bit_2_assessment = "Bad"
+        qc_cloud_mask[:] = [
+            [1, 0, 0],
+            [1, 0, 0],
+            [1, 0, 0],
+            [1, 0, 0],
+            [1, 0, 0],
+            [1, 0, 0],
+        ]
+
+    def _add_cloud_base_layer(self) -> None:
+        cloud_base_layer = self.dataset.createVariable(
+            "cloud_base_layer", "f4", ("time", "layer")
+        )
+        cloud_base_layer.long_name = "Cloud base for each layer"
+        cloud_base_layer.units = "km"
+        cloud_base_layer.missing_value = -9999.0
+        cloud_base_layer.comment = (
+            "Positive values indicate the height of the cloud base"
+        )
+        cloud_base_layer[:] = [
+            [0.682038, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+        ]
+
+    def _add_cloud_top_layer(self) -> None:
+        cloud_top_layer = self.dataset.createVariable(
+            "cloud_top_layer", "f4", ("time", "layer")
+        )
+        cloud_top_layer.long_name = "Cloud top for each layer above ground level (AGL)"
+        cloud_top_layer.units = "km"
+        cloud_top_layer.missing_value = -9999.0
+        cloud_top_layer.comment = "Positive values indicate the height of the cloud top"
+        cloud_top_layer[:] = [
+            [1.7912695, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+            [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+        ]
+
+    def _add_backscatter(self) -> None:
+        backscatter = self.dataset.createVariable(
+            "backscatter", "f4", ("time", "height")
+        )
+        backscatter.long_name = "Total attenuated backscatter"
+        backscatter.units = "counts/microsecond"
+        backscatter.missing_value = -9999.0
+        backscatter.comment = (
+            "background subtracted, overlap, energy and dead-time corrected"
+        )
+        backscatter.calculation = "((copol+(2*crosspol))*overlap)/energy"
+        backscatter.data_quality_comment = (
+            "Data quality ok for both cloud and aerosol analysis"
+        )
+        backscatter.normalization_factor = "N/A"
+        backscatter.backscatter_data_quality_comment = (
+            "Data quality ok for both cloud and aerosol analysis"
+        )
+        backscatter.ancillary_variables = "qc_backscatter"
+        backscatter[:] = [
+            [6.0800654e-01, 2.4693540e03, 3.1821454e02],
+            [2.6602274e-01, 2.4681104e03, 3.1809964e02],
+            [1.3450946e-04, 2.4683525e03, 3.1760068e02],
+            [1.8580000e00, 2.4659375e03, 3.1742856e02],
+            [1.5707090e00, 2.4655125e03, 3.1815848e02],
+            [9.6904886e-01, 2.4663083e03, 3.1706573e02],
+        ]
+
+    def _add_qc_backscatter(self) -> None:
+        qc_backscatter = self.dataset.createVariable(
+            "qc_backscatter", "i4", ("time", "height")
+        )
+        qc_backscatter.long_name = (
+            "Quality check results on field: Total attenuated backscatter"
+        )
+        qc_backscatter.units = "unitless"
+        qc_backscatter.description = "This field contains bit packed integer values, where each bit represents a QC test on the data. Non-zero bits indicate the QC condition given in the description for those bits; a value of 0 (no bits set) indicates the data has not failed any QC tests."
+        qc_backscatter.flag_method = "bit"
+        qc_backscatter.bit_1_description = "The value of backscatter is not finite, data value set to missing_value in output file."
+        qc_backscatter.bit_1_assessment = "Bad"
+        qc_backscatter[:] = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+    def _add_backscatter_snr(self) -> None:
+        backscatter_snr = self.dataset.createVariable(
+            "backscatter_snr", "f4", ("time", "height")
+        )
+        backscatter_snr.long_name = "Signal to noise ratio of backscatter"
+        backscatter_snr.units = "unitless"
+        backscatter_snr.missing_value = -9999.0
+        backscatter_snr.ancillary_variables = "qc_backscatter_snr"
+        backscatter_snr[:] = [
+            [0.3529468, 0.3529468, 0.3529468],
+            [0.35290167, 0.35290167, 0.35290167],
+            [0.35320997, 0.35320997, 0.35320997],
+            [0.35394973, 0.35394973, 0.35394973],
+            [0.35389477, 0.35389477, 0.35389477],
+            [0.35366353, 0.35366353, 0.35366353],
+        ]
+
+    def _add_qc_backscatter_snr(self) -> None:
+        qc_backscatter_snr = self.dataset.createVariable(
+            "qc_backscatter_snr", "i4", ("time", "height")
+        )
+        qc_backscatter_snr.long_name = (
+            "Quality check results on field: Signal to noise ratio of backscatter"
+        )
+        qc_backscatter_snr.units = "unitless"
+        qc_backscatter_snr.description = "This field contains bit packed integer values, where each bit represents a QC test on the data. Non-zero bits indicate the QC condition given in the description for those bits; a value of 0 (no bits set) indicates the data has not failed any QC tests."
+        qc_backscatter_snr.flag_method = "bit"
+        qc_backscatter_snr.bit_1_description = "The value of Signal to noise ratio of backscatter is not finite, data value set to missing_value in output file."
+        qc_backscatter_snr.bit_1_assessment = "Bad"
+        qc_backscatter_snr[:] = [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+    def _add_background_signal(self) -> None:
+        background_signal = self.dataset.createVariable(
+            "background_signal", "f4", ("time",)
+        )
+        background_signal.long_name = "Background signal"
+        background_signal.units = "counts/microsecond"
+        background_signal.missing_value = -9999.0
+        background_signal.comment = (
+            "sum of co-polarized and cross polarized signals from input source"
+        )
+        background_signal[:] = [
+            0.3424501,
+            0.34605426,
+            0.33168215,
+            0.3724103,
+            0.3804245,
+            0.37163568,
+        ]
+
+    def _add_cloud_top_attenuation_flag(self) -> None:
+        cloud_top_attenuation_flag = self.dataset.createVariable(
+            "cloud_top_attenuation_flag", "i4", ("time",)
+        )
+        cloud_top_attenuation_flag.long_name = (
+            "Flag indicating whether the beam was extinguished at indicated cloud top"
+        )
+        cloud_top_attenuation_flag.units = "unitless"
+        cloud_top_attenuation_flag.missing_value = -9999
+        cloud_top_attenuation_flag.flag_values = [0, 1]
+        cloud_top_attenuation_flag.flag_meanings = (
+            "beam_not_extinguished_by_layer beam_extinguished_by_layer"
+        )
+        cloud_top_attenuation_flag.flag_0_description = (
+            "Indicates that the beam was not extinguished by the layer"
+        )
+        cloud_top_attenuation_flag.flag_1_description = (
+            "Indicates that the beam was totally extinguished by the layer"
+        )
+        cloud_top_attenuation_flag[:] = [1, 0, 0, 0, 0, 0]
+
+    def _add_shots_summed(self) -> None:
+        shots_summed = self.dataset.createVariable("shots_summed", "f4", ("time",))
+        shots_summed.long_name = "Number of lidar pulses summed"
+        shots_summed.units = "unitless"
+        shots_summed[:] = [37500.0, 37500.0, 37500.0, 37500.0, 37500.0, 37500.0]
+
+    def _add_deadtime_correction_counts(self) -> None:
+        deadtime_correction_counts = self.dataset.createVariable(
+            "deadtime_correction_counts", "f4", ("num_deadtime_corr",)
+        )
+        deadtime_correction_counts.long_name = "Laboratory measured counts used to calculate the deadtime correction samples"
+        deadtime_correction_counts.units = "counts/microsecond"
+        deadtime_correction_counts[:] = [
+            0.0174,
+            0.0427,
+            0.1072,
+            0.2658,
+            0.64790004,
+            1.5681,
+            2.3818998,
+            3.5411,
+            5.1162996,
+            7.1609,
+            9.4056,
+            10.3771,
+            11.3029,
+            12.1121,
+            13.8199005,
+            13.422299,
+        ]
+
+    def _add_deadtime_correction(self) -> None:
+        deadtime_correction = self.dataset.createVariable(
+            "deadtime_correction", "f4", ("num_deadtime_corr",)
+        )
+        deadtime_correction.long_name = "Deadtime correction factor"
+        deadtime_correction.units = "unitless"
+        deadtime_correction[:] = (
+            [
+                1.0,
+                1.02,
+                1.02,
+                1.04,
+                1.07,
+                1.11,
+                1.16,
+                1.23,
+                1.35,
+                1.54,
+                1.85,
+                2.11,
+                2.44,
+                2.86,
+                3.4,
+                4.09,
+            ],
+        )
+
+    def _add_afterpulse_correction(self) -> None:
+        afterpulse_correction = self.dataset.createVariable(
+            "afterpulse_correction", "f4", ("height",)
+        )
+        afterpulse_correction.long_name = "Detector afterpulse from laser flash"
+        afterpulse_correction.units = "counts/microsecond"
+        afterpulse_correction.comment = "No afterpulse corrections are applied"
+        afterpulse_correction[:] = [1.0, 1.0, 1.0]
+
+    def _add_overlap_correction(self) -> None:
+        overlap_correction = self.dataset.createVariable(
+            "overlap_correction", "f4", ("height",)
+        )
+        overlap_correction.long_name = "Overlap correction"
+        overlap_correction.units = "unitless"
+        overlap_correction[:] = [
+            547.11566,
+            211.03833,
+            101.589676,
+        ]
+
+    def _add_lat(self) -> None:
+        lat = self.dataset.createVariable("lat", "f4")
+        lat.long_name = "North latitude"
+        lat.units = "degree_N"
+        lat.standard_name = "latitude"
+        lat.valid_min = -90.0
+        lat.valid_max = 90.0
+        lat[:] = 71.323
+
+    def _add_lon(self) -> None:
+        lon = self.dataset.createVariable("lon", "f4")
+        lon.long_name = "East longitude"
+        lon.units = "degree_E"
+        lon.standard_name = "longitude"
+        lon.valid_min = -180.0
+        lon.valid_max = 180.0
+        lon[:] = -156.609
+
+    def _add_alt(self) -> None:
+        alt = self.dataset.createVariable("alt", "f4")
+        alt.long_name = "Altitude above mean sea level"
+        alt.units = "m"
+        alt.standard_name = "altitude"
+        alt[:] = 8.0
