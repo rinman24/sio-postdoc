@@ -29,7 +29,7 @@ def test_attributes(dataset):
     assert dataset.instrument_name == "dabul"
     assert dataset.experiment_name == "sheba"
     assert dataset.site_name == "arctic"
-    assert dataset.netcdf_filename == "D1997-11-04T00-31-00.BHAR.sheba_dabul_test.ncdf"
+    assert dataset.netcdf_filename == "D1998-05-06T00-25-00.BARO.sheba_dabul_test.ncdf"
     assert dataset.netcdf_file_creation == "012201"
 
 

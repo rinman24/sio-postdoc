@@ -1903,3 +1903,476 @@ class UtqiagvikMplRaw(RawDataHydrationStrategy):
         alt.units = "m"
         alt.standard_name = "altitude"
         alt[:] = 8.0
+
+
+class UtqiagvikMmcrRaw(RawDataHydrationStrategy):
+    """Utqiagvik Mpl Raw Data Strategy."""
+
+    time: int = 6
+    nheights: int = 3
+    numlayers: int = 10
+
+    def _add_attributes(self, filename: str) -> None:
+        self.dataset.Date = "Wed Jun 10 21:07:04 GMT 2009"
+        self.dataset.Version = "$State: Release_4_0 $"
+        self.dataset.Number_Input_Platforms = 4
+        self.dataset.Input_Platforms = (
+            "nsamplpolavgxxC1.c1,vap-mplpolavg-1.9-0,nsavceil25kC1.b1,nsammcrmomC1.b1"
+        )
+        self.dataset.Input_Platforms_Versions = "$State:,$,8.2,1.16"
+        self.dataset.zeb_platform = "nsaarscl1clothC1.c1"
+        self.dataset.Command_Line = (
+            "arsc1/arscl2 -s YYYYMMDD -e YYYYMMDD SITE FACILITY QCFILE ZIPPING"
+        )
+        self.dataset.contact = ""
+        self.dataset.commenta = "At each height and time, the MMCR reflectivity, velocity, width and signal-to-noise ratio always come from the same mode.  The mode is indicated by ModeId."
+        self.dataset.commentb = "MeanDopplerVelocity, ModeId, qc_RadarArtifacts, qc_ReflectivityClutterFlag, SpectralWidth, and SignaltoNoiseRatio data are reported at all range gates for which there is a significant detection, including from clutter."
+        self.dataset.commentc = "The value of qc_ReflectivityClutterFlag indicates whether or not the signal is from clutter."
+        self.dataset.commentd = "Use the appropriate reflectivity fields (e.g., with clutter, with clutter removed, or best estimate) to filter the variables discussed in commentb."
+        self.dataset.commente = "Missing (i.e., does not exist) data for a particular time period are indicated by a value of 10 for the ModeId, qc_RadarArtifacts, and qc_ReflectivityClutterFlag variables.  The geophysical variables should contain a value of -32768 at these times."
+        self.dataset.commentf = "Note that -32768 is also used for the geophysical variables when there are no significant detections, in which case ModeId, qc_RadarArtifacts, and qc_ReflectivityClutterFlag are 0."
+
+    def _add_dimensions(self, filename: str) -> None:
+        self.dataset.createDimension("time", self.time)
+        self.dataset.createDimension("nheights", self.nheights)
+        self.dataset.createDimension("numlayers", self.numlayers)
+
+    def _add_variables(self) -> None:
+        self._add_base_time()
+        self._add_time_offset()
+        self._add_Heights()
+        self._add_Reflectivity()
+        self._add_ReflectivityNoClutter()
+        self._add_ReflectivityBestEstimate()
+        self._add_MeanDopplerVelocity()
+        self._add_SpectralWidth()
+        self._add_RadarFirstTop()
+        self._add_ModeId()
+        self._add_SignaltoNoiseRatio()
+        self._add_CloudBasePrecipitation()
+        self._add_CloudBaseCeilometerStd()
+        self._add_CloudBaseCeilometerCloth()
+        self._add_CloudBaseMplScott()
+        self._add_CloudBaseMplCamp()
+        self._add_CloudBaseMplCloth()
+        self._add_CloudBaseBestEstimate()
+        self._add_CloudMaskMplCamp()
+        self._add_CloudMaskMplCloth()
+        self._add_CloudLayerBottomHeightMplCamp()
+        self._add_CloudLayerBottomHeightMplCloth()
+        self._add_CloudLayerTopHeightMplCamp()
+        self._add_CloudLayerTopHeightMplCloth()
+        self._add_qc_RadarArtifacts()
+        self._add_qc_ReflectivityClutterFlag()
+        self._add_qc_CloudLayerTopHeightMplCamp()
+        self._add_qc_CloudLayerTopHeightMplCloth()
+        self._add_qc_BeamAttenuationMplCamp()
+        self._add_qc_BeamAttenuationMplCloth()
+
+    def _add_base_time(self) -> None:
+        base_time = self.dataset.createVariable("base_time", "i4")
+        base_time.long_name = "Beginning Time of File"
+        base_time.units = "seconds since 1970-01-01 00:00:00 00:00"
+        base_time.calendar_date = "Year 2008 Month 09 Day 24 00:00:00"
+        base_time[:] = 1222214400
+
+    def _add_time_offset(self) -> None:
+        time_offset = self.dataset.createVariable("time_offset", "f8", ("time",))
+        time_offset.long_name = "Time Offset from base_time"
+        time_offset.units = "seconds"
+        time_offset.comment = "none"
+        time_offset[:] = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
+
+    def _add_Heights(self) -> None:
+        Heights = self.dataset.createVariable("Heights", "f4", ("nheights",))
+        Heights.long_name = "Height of Measured Value"
+        Heights.units = "m AGL"
+        Heights.comment = "none"
+        Heights[:] = [75.67602, 119.383286, 163.09055]
+
+    def _add_Reflectivity(self) -> None:
+        Reflectivity = self.dataset.createVariable(
+            "Reflectivity", "i2", ("time", "nheights")
+        )
+        Reflectivity.long_name = "MMCR Reflectivity"
+        Reflectivity.units = "dBZ (X100)"
+        Reflectivity.comment = "Divide Reflectivity by 100 to get dBZ"
+        Reflectivity[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-6216, -5650, -6338],
+            [-32768, -32768, -32768],
+            [-6428, -6320, -7052],
+            [-6162, -5892, -6603],
+        ]
+
+    def _add_ReflectivityNoClutter(self) -> None:
+        ReflectivityNoClutter = self.dataset.createVariable(
+            "ReflectivityNoClutter", "i2", ("time", "nheights")
+        )
+        ReflectivityNoClutter.long_name = "MMCR Reflectivity with Clutter Removed"
+        ReflectivityNoClutter.units = "dBZ (X100)"
+        ReflectivityNoClutter.comment = "Divide ReflectivityNoClutter by 100 to get dBZ"
+        ReflectivityNoClutter[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+        ]
+
+    def _add_ReflectivityBestEstimate(self) -> None:
+        ReflectivityBestEstimate = self.dataset.createVariable(
+            "ReflectivityBestEstimate", "i2", ("time", "nheights")
+        )
+        ReflectivityBestEstimate.long_name = (
+            "MMCR Best Estimate of Hydrometeor Reflectivity"
+        )
+        ReflectivityBestEstimate.units = "dBZ (X100)"
+        ReflectivityBestEstimate.comment = (
+            "Divide ReflectivityBestEstimate by 100 to get dBZ"
+        )
+        ReflectivityBestEstimate[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+        ]
+
+    def _add_MeanDopplerVelocity(self) -> None:
+        MeanDopplerVelocity = self.dataset.createVariable(
+            "MeanDopplerVelocity", "i2", ("time", "nheights")
+        )
+        MeanDopplerVelocity.long_name = "MMCR Mean Doppler Velocity"
+        MeanDopplerVelocity.units = "m/s (X1000)"
+        MeanDopplerVelocity.comment = "Divide MeanDopplerVelocity by 1000 to get m/s"
+        MeanDopplerVelocity[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-3600, -3719, -3745],
+            [-32768, -32768, -32768],
+            [319, 3102, 3701],
+            [-3843, 461, 1387],
+        ]
+
+    def _add_SpectralWidth(self) -> None:
+        SpectralWidth = self.dataset.createVariable(
+            "SpectralWidth", "i2", ("time", "nheights")
+        )
+        SpectralWidth.long_name = "MMCR Spectral Width"
+        SpectralWidth.units = "m/s (X1000)"
+        SpectralWidth.comment = "Divide SpectralWidth by 1000 to get m/s"
+        SpectralWidth[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [41, 52, 54],
+            [-32768, -32768, -32768],
+            [41, 41, 41],
+            [41, 41, 41],
+        ]
+
+    def _add_RadarFirstTop(self) -> None:
+        RadarFirstTop = self.dataset.createVariable("RadarFirstTop", "f4", ("time",))
+        RadarFirstTop.long_name = (
+            "MMCR Top Height of Lowest Detected Layer before Clutter Removal"
+        )
+        RadarFirstTop.units = "m AGL"
+        RadarFirstTop.comment = "-3. Data do not exist, 0. No significant detection in column, > 0. Top Height of Lowest Cloud/Clutter Layer"
+        RadarFirstTop[:] = [-3.0, -3.0, 184.94418, 0.0, 184.94418, 184.94418]
+
+    def _add_ModeId(self) -> None:
+        ModeId = self.dataset.createVariable("ModeId", "S1", ("time", "nheights"))
+        ModeId.long_name = "MMCR Mode I.D."
+        ModeId.units = "unitless"
+        ModeId.comment = (
+            "0 No significant power return, 1-5 Valid modes, 10 Data do not exist"
+        )
+        ModeId[:] = [
+            [b"\n", b"\n", b"\n"],
+            [b"\n", b"\n", b"\n"],
+            [b"\x01", b"\x01", b"\x01"],
+            [b"", b"", b""],
+            [b"\x01", b"\x01", b"\x01"],
+            [b"\x01", b"\x01", b"\x01"],
+        ]
+
+    def _add_SignaltoNoiseRatio(self) -> None:
+        SignaltoNoiseRatio = self.dataset.createVariable(
+            "SignaltoNoiseRatio", "i2", ("time", "nheights")
+        )
+        SignaltoNoiseRatio.long_name = "MMCR Signal-to-Noise Ratio"
+        SignaltoNoiseRatio.units = "dB (X100)"
+        SignaltoNoiseRatio.comment = "Divide SignaltoNoiseRatio by 100 to get dB"
+        SignaltoNoiseRatio[:] = [
+            [-32768, -32768, -32768],
+            [-32768, -32768, -32768],
+            [-2142, -1819, -2524],
+            [-32768, -32768, -32768],
+            [-2236, -2175, -2915],
+            [-2143, -1977, -2700],
+        ]
+
+    def _add_CloudBasePrecipitation(self) -> None:
+        CloudBasePrecipitation = self.dataset.createVariable(
+            "CloudBasePrecipitation", "f4", ("time",)
+        )
+        CloudBasePrecipitation.long_name = (
+            "Microwave Radiometer Wet Window/Optical Rain Gauge Cloud Base Height"
+        )
+        CloudBasePrecipitation.units = "m AGL"
+        CloudBasePrecipitation.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBasePrecipitation[:] = [-3.0, -3.0, -3.0, -3.0, -3.0, -3.0]
+
+    def _add_CloudBaseCeilometerStd(self) -> None:
+        CloudBaseCeilometerStd = self.dataset.createVariable(
+            "CloudBaseCeilometerStd", "f4", ("time",)
+        )
+        CloudBaseCeilometerStd.long_name = (
+            "BLC/VCEIL Standard Algorithm Cloud Base Height"
+        )
+        CloudBaseCeilometerStd.units = "m AGL"
+        CloudBaseCeilometerStd.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseCeilometerStd[:] = [716.28, 716.28, 716.28, 716.28, 716.28, 1371.6]
+
+    def _add_CloudBaseCeilometerCloth(self) -> None:
+        CloudBaseCeilometerCloth = self.dataset.createVariable(
+            "CloudBaseCeilometerCloth", "f4", ("time",)
+        )
+        CloudBaseCeilometerCloth.long_name = (
+            "BLC/VCEIL Clothiaux et al. Algorithm Cloud Base Height"
+        )
+        CloudBaseCeilometerCloth.units = "m AGL"
+        CloudBaseCeilometerCloth.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseCeilometerCloth[:] = [-3.0, -3.0, -3.0, -3.0, -3.0, -3.0]
+
+    def _add_CloudBaseMplScott(self) -> None:
+        CloudBaseMplScott = self.dataset.createVariable(
+            "CloudBaseMplScott", "f4", ("time",)
+        )
+        CloudBaseMplScott.long_name = "MPL Scott Algorithm Cloud Base Height"
+        CloudBaseMplScott.units = "m AGL"
+        CloudBaseMplScott.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseMplScott[:] = [-3.0, -3.0, -3.0, -3.0, -3.0, -3.0]
+
+    def _add_CloudBaseMplCamp(self) -> None:
+        CloudBaseMplCamp = self.dataset.createVariable(
+            "CloudBaseMplCamp", "f4", ("time",)
+        )
+        CloudBaseMplCamp.long_name = "MPL Campbell et al. Algorithm Cloud Base Height"
+        CloudBaseMplCamp.units = "m AGL"
+        CloudBaseMplCamp.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseMplCamp[:] = [-3.0, -3.0, -3.0, -3.0, -3.0, -3.0]
+
+    def _add_CloudBaseMplCloth(self) -> None:
+        CloudBaseMplCloth = self.dataset.createVariable(
+            "CloudBaseMplCloth", "f4", ("time",)
+        )
+        CloudBaseMplCloth.long_name = "MPL Clothiaux et al. Algorithm Cloud Base Height"
+        CloudBaseMplCloth.units = "m AGL"
+        CloudBaseMplCloth.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseMplCloth[:] = [-3.0, -3.0, -3.0, 719.0529, 719.0529, 719.0529]
+
+    def _add_CloudBaseBestEstimate(self) -> None:
+        CloudBaseBestEstimate = self.dataset.createVariable(
+            "CloudBaseBestEstimate", "f4", ("time",)
+        )
+        CloudBaseBestEstimate.long_name = "LASER Cloud Base Height Best Estimate"
+        CloudBaseBestEstimate.units = "m AGL"
+        CloudBaseBestEstimate.comment = "-3. Data do not exist, -2. Data exist but no retrieval, -1. Clear sky, >= 0. Valid cloud base height"
+        CloudBaseBestEstimate[:] = [716.28, 716.28, 716.28, 716.28, 716.28, 1371.6]
+
+    def _add_CloudMaskMplCamp(self) -> None:
+        CloudMaskMplCamp = self.dataset.createVariable(
+            "CloudMaskMplCamp", "i2", ("time", "nheights")
+        )
+        CloudMaskMplCamp.long_name = (
+            "MPL Campbell et al. Algorithm Cloud Mask Occurrence"
+        )
+        CloudMaskMplCamp.units = "Percent(x100)"
+        CloudMaskMplCamp.comment = "-30000 Data do not exist, -20000 Beam blocked, -10000 Beam attenuated, 0 No cloud (clear), > 0 Valid cloud"
+        CloudMaskMplCamp[:] = [
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+        ]
+
+    def _add_CloudMaskMplCloth(self) -> None:
+        CloudMaskMplCloth = self.dataset.createVariable(
+            "CloudMaskMplCloth", "i2", ("time", "nheights")
+        )
+        CloudMaskMplCloth.long_name = (
+            "MPL Clothiaux et al. Algorithm Cloud Mask Occurrence"
+        )
+        CloudMaskMplCloth.units = "Percent(x100)"
+        CloudMaskMplCloth.comment = "-30000 Data do not exist, -20000 Beam blocked, -10000 Beam attenuated, 0 No cloud (clear), > 0 Valid cloud"
+        CloudMaskMplCloth[:] = [
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [-30000, -30000, -30000],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ]
+
+    def _add_CloudLayerBottomHeightMplCamp(self) -> None:
+        CloudLayerBottomHeightMplCamp = self.dataset.createVariable(
+            "CloudLayerBottomHeightMplCamp", "f4", ("time", "numlayers")
+        )
+        CloudLayerBottomHeightMplCamp.long_name = "Bottom Height of Hydrometeor Layer from Composite (MMCR/Campbell et al. MPL) Algorithms"
+        CloudLayerBottomHeightMplCamp.units = "m AGL"
+        CloudLayerBottomHeightMplCamp.comment = "none"
+        CloudLayerBottomHeightMplCamp[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_CloudLayerBottomHeightMplCloth(self) -> None:
+        CloudLayerBottomHeightMplCloth = self.dataset.createVariable(
+            "CloudLayerBottomHeightMplCloth", "f4", ("time", "numlayers")
+        )
+        CloudLayerBottomHeightMplCloth.long_name = "Bottom Height of Hydrometeor Layer from Composite (MMCR/Clothiaux et al. MPL) Algorithms"
+        CloudLayerBottomHeightMplCloth.units = "m AGL"
+        CloudLayerBottomHeightMplCloth.comment = "none"
+        CloudLayerBottomHeightMplCloth[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1299.4795, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1299.4795, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1299.4795, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_CloudLayerTopHeightMplCamp(self) -> None:
+        CloudLayerTopHeightMplCamp = self.dataset.createVariable(
+            "CloudLayerTopHeightMplCamp", "f4", ("time", "numlayers")
+        )
+        CloudLayerTopHeightMplCamp.long_name = "Top Height of Hydrometeor Layer from Composite (MMCR/Campbell et al. MPL) Algorithms"
+        CloudLayerTopHeightMplCamp.units = "m AGL"
+        CloudLayerTopHeightMplCamp.comment = "none"
+        CloudLayerTopHeightMplCamp[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_CloudLayerTopHeightMplCloth(self) -> None:
+        CloudLayerTopHeightMplCloth = self.dataset.createVariable(
+            "CloudLayerTopHeightMplCloth", "f4", ("time", "numlayers")
+        )
+        CloudLayerTopHeightMplCloth.long_name = "Top Height of Hydrometeor Layer from Composite (MMCR/Clothiaux et al. MPL) Algorithms"
+        CloudLayerTopHeightMplCloth.units = "m AGL"
+        CloudLayerTopHeightMplCloth.comment = "none"
+        CloudLayerTopHeightMplCloth[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1430.6013, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1430.6013, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [731.28503, 1430.6013, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_qc_RadarArtifacts(self) -> None:
+        qc_RadarArtifacts = self.dataset.createVariable(
+            "qc_RadarArtifacts", "S1", ("time", "nheights")
+        )
+        qc_RadarArtifacts.long_name = "MMCR Mode Quality Control Flags"
+        qc_RadarArtifacts.units = "unitless"
+        qc_RadarArtifacts.comment = "0 No significant power return, 1 Significant, problem free data, 2 Second trip echo problems, 3 Coherent integration problems, 4 Second trip echo and coherent integration problems, 5 Pulse coding problems, 10 Data do not exist"
+        qc_RadarArtifacts[:] = [
+            [b"\n", b"\n", b"\n"],
+            [b"\n", b"\n", b"\n"],
+            [b"\x01", b"\x01", b"\x01"],
+            [b"", b"", b""],
+            [b"\x01", b"\x01", b"\x01"],
+            [b"\x01", b"\x01", b"\x01"],
+        ]
+
+    def _add_qc_ReflectivityClutterFlag(self) -> None:
+        qc_ReflectivityClutterFlag = self.dataset.createVariable(
+            "qc_ReflectivityClutterFlag", "S1", ("time", "nheights")
+        )
+        qc_ReflectivityClutterFlag.long_name = "MMCR Reflectivity Clutter Flags"
+        qc_ReflectivityClutterFlag.units = "unitless"
+        qc_ReflectivityClutterFlag.comment = "0 No significant power return, 1 Significant, problem free data, 2 Clutter and cloud contribution, 3 Clutter only contribution, 10 Data do not exist"
+        qc_ReflectivityClutterFlag[:] = [
+            [b"\n", b"\n", b"\n"],
+            [b"\n", b"\n", b"\n"],
+            [b"\x03", b"\x03", b"\x03"],
+            [b"", b"", b""],
+            [b"\x03", b"\x03", b"\x03"],
+            [b"\x03", b"\x03", b"\x03"],
+        ]
+
+    def _add_qc_CloudLayerTopHeightMplCamp(self) -> None:
+        qc_CloudLayerTopHeightMplCamp = self.dataset.createVariable(
+            "qc_CloudLayerTopHeightMplCamp", "f4", ("time", "numlayers")
+        )
+        qc_CloudLayerTopHeightMplCamp.long_name = "Value Indicating the Reliability of the Layer Top Height Using the Campbell et al. MPL Algorithm"
+        qc_CloudLayerTopHeightMplCamp.units = "unitless"
+        qc_CloudLayerTopHeightMplCamp.comment = "none"
+        qc_CloudLayerTopHeightMplCamp[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_qc_CloudLayerTopHeightMplCloth(self) -> None:
+        qc_CloudLayerTopHeightMplCloth = self.dataset.createVariable(
+            "qc_CloudLayerTopHeightMplCloth", "f4", ("time", "numlayers")
+        )
+        qc_CloudLayerTopHeightMplCloth.long_name = "Value Indicating the Reliability of the Layer Top Height Using the Clothiaux et al. MPL Algorithm"
+        qc_CloudLayerTopHeightMplCloth.units = "unitless"
+        qc_CloudLayerTopHeightMplCloth.comment = "none"
+        qc_CloudLayerTopHeightMplCloth[:] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [1.0, 2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        ]
+
+    def _add_qc_BeamAttenuationMplCamp(self) -> None:
+        qc_BeamAttenuationMplCamp = self.dataset.createVariable(
+            "qc_BeamAttenuationMplCamp", "f4", ("time",)
+        )
+        qc_BeamAttenuationMplCamp.long_name = (
+            "MPL Campbell et al. Algorithm Beam Attenuation Assessment"
+        )
+        qc_BeamAttenuationMplCamp.units = "unitless"
+        qc_BeamAttenuationMplCamp.comment = "-9. Data do not exist, -2. Beam blocked, -1. Beam attenuated, 0. No cloud (clear), 1. Beam penetrated atmosphere"
+        qc_BeamAttenuationMplCamp[:] = [-9.0, -9.0, -9.0, -9.0, -9.0, -9.0]
+
+    def _add_qc_BeamAttenuationMplCloth(self) -> None:
+        qc_BeamAttenuationMplCloth = self.dataset.createVariable(
+            "qc_BeamAttenuationMplCloth", "f4", ("time",)
+        )
+        qc_BeamAttenuationMplCloth.long_name = (
+            "MPL Cloth et al. Algorithm Beam Attenuation Assessment"
+        )
+        qc_BeamAttenuationMplCloth.units = "unitless"
+        qc_BeamAttenuationMplCloth.comment = "-9. Data do not exist, Log10(Signal Power above Cloud/Estimated Clearsky Power above Cloud)"
+        qc_BeamAttenuationMplCloth[:] = [
+            -9.0,
+            -9.0,
+            -9.0,
+            -1.2243652,
+            -1.2243652,
+            -1.2243652,
+        ]

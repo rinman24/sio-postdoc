@@ -677,20 +677,3 @@ def test_alt(dataset):
         variable[:].data,
         8.0,
     )
-
-
-# NOTE: EXAMPLE
-#
-# def test_name(dataset):
-#     variable: str = dataset["name"]
-#     assert str(variable.dtype) == ""
-#     assert variable.string == ""
-#     assert variable.long_name == ""
-#     assert variable.units == ""
-#     assert variable.comment == ""
-#     assert variable.missing_value ==
-#     assert variable.ancillary_variables == ""
-#     assert allclose(
-#         variable[:].data,
-#         [],
-#     )
