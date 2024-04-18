@@ -4,24 +4,15 @@ import os
 from pathlib import Path
 from typing import Protocol
 
-Contents = tuple[Path, ...]
+from sio_postdoc.access import Contents, DataSet
 
 
 class DiskAccess(Protocol):
     """Define protocol for Local Disk Access."""
 
-    # pylint: disable=missing-function-docstring
-
-    def list_files(
-        self,
-        directory: Path,
-        extension: str,
-    ) -> Contents: ...
-    def rename_files(
-        self,
-        current: Contents,
-        new: Contents,
-    ) -> None: ...
+    def list_files(self, directory: Path, extension: str) -> Contents: ...
+    def rename_files(self, current: Contents, new: Contents) -> None: ...
+    def open_dataset(self, directory: Path, name: str) -> DataSet: ...
 
 
 class LocalAccess(DiskAccess):
@@ -48,3 +39,15 @@ class LocalAccess(DiskAccess):
         """Change the current names to the new names."""
         for src, dst in zip(current, new):
             os.rename(src, dst)
+
+    def open_dataset(self, directory: Path, name: str) -> DataSet:
+        """Return a `DataSet` in the specified directory with the specified filename."""
+        target: str = f"{directory}/{name}"
+        try:
+            return DataSet(target)
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"No such file or directory: '{target}'") from exc
+        except OSError as exc:
+            raise FileNotFoundError(
+                f"'{name}' not a valid format for DataSet'"
+            ) from exc
