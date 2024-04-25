@@ -85,3 +85,4 @@ class VariableRequest(BaseModel):
     dtype: DType
     flag: int
     dimensions: tuple[Dimension, ...]
+    conversion_scale: Scales = Scales.ONE

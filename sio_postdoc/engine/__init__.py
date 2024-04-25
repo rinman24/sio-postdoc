@@ -83,10 +83,3 @@ class Scales(Enum):
     HUNDRED = 100
     THOUSAND = 1000
     SECONDS_PER_HOUR = 3600
-
-
-class Signs(Enum):
-    """Positive or Negative."""
-
-    POSITIVE = auto()
-    NEGATIVE = auto()

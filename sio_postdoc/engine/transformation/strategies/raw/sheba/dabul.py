@@ -130,6 +130,7 @@ class ShebaDabulRaw(TransformationStrategy):
             long_name="Seconds Since Initial Timestamp",
             units=Units.SECONDS,
             scale=Scales.ONE,
+            conversion_scale=Scales.SECONDS_PER_HOUR,
             dtype=DType.I4,
             flag=NINES,
             dimensions=(self._dimensions["time"],),
