@@ -61,6 +61,7 @@ class Units(Enum):
     DBZ = auto()
     DEGREES = auto()
     METERS = auto()
+    METERS_PER_SECOND = auto()
     NONE = auto()
     SECONDS = auto()
     UNSPECIFIED = auto()

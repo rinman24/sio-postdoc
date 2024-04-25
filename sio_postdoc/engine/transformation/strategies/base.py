@@ -82,7 +82,7 @@ class TransformationStrategy(ABC):
                 (
                     req.dtype.min
                     if i == req.flag
-                    else round(i * req.scale.value * req.conversion_scale.value)
+                    else round(i * req.conversion_scale.value)
                 )
                 for i in data
             )
@@ -92,7 +92,7 @@ class TransformationStrategy(ABC):
                     (
                         req.dtype.min
                         if i == req.flag
-                        else round(i * req.scale.value * req.conversion_scale.value)
+                        else round(i * req.conversion_scale.value)
                     )
                     for i in row
                 )
