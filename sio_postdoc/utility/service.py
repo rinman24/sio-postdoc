@@ -1,18 +1,17 @@
 """TODO: Docstring."""
 
 import re
-from datetime import datetime
 
-from sio_postdoc.access.instrument.contracts import InstrumentData
+from sio_postdoc.engine.transformation.contracts import DateTime, InstrumentData
 
 REGEX: str = "D[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}-[0-9]{2}-[0-9]{2}"
 PATTERN = re.compile(REGEX)
 
 
-def extract_datetime(raw: str) -> datetime:
-    """TODO: docstring."""
+def extract_datetime(raw: str) -> DateTime:
+    """Extract `DateTime` from string."""
     extracted: str = PATTERN.search(raw).group(0)
-    return datetime(
+    return DateTime(
         year=int(extracted[1:5]),
         month=int(extracted[6:8]),
         day=int(extracted[9:11]),
