@@ -7,7 +7,7 @@ from typing import Generator
 import pytest
 
 from sio_postdoc.access import DataSet
-from sio_postdoc.engine import Dimensions, Scales, Signs, Units
+from sio_postdoc.engine import Dimensions, Scales, Units
 from sio_postdoc.engine.transformation.context.service import TransformationContext
 from sio_postdoc.engine.transformation.contracts import (
     Dimension,
