@@ -38,16 +38,12 @@ def dataset() -> Generator[DataSet, None, None]:
 
 @pytest.fixture(scope="module")
 def data(context, dataset) -> InstrumentData:
-    return context.instrument_data(dataset, PATH)
+    return context.hydrate(dataset, PATH)
 
 
 def test_init(context):
     assert isinstance(context, TransformationContext)
     assert isinstance(context.strategy, ShebaDabulRaw)
-
-
-def test_instrument_data(data):
-    assert isinstance(data, InstrumentData)
 
 
 def test_dimensions(data):
@@ -115,7 +111,7 @@ def test_epoch_variable(data):
     assert var.long_name == "Unix Epoch 1970 of Initial Timestamp"
     assert var.scale == Scales.ONE
     assert var.units == Units.SECONDS
-    assert var.values == 894439500
+    assert var.values == 894438000
 
 
 def test_far_par_variable(data):

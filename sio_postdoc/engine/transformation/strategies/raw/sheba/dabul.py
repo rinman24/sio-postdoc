@@ -75,14 +75,23 @@ class ShebaDabulRaw(TransformationStrategy):
         self._add_single_variable(dataset, value_request)
 
     def _add_epoch(self, path: Path) -> None:
+        # Change this to base: it should not be epoch
         extracted: DateTime = utility.extract_datetime(path.name)
+        value: int = DateTime(
+            year=extracted.year,
+            month=extracted.month,
+            day=extracted.day,
+            hour=0,
+            minute=0,
+            second=0,
+        ).unix
         self._variables["epoch"] = Variable(
             dtype=DType.I4,
             long_name="Unix Epoch 1970 of Initial Timestamp",
             scale=Scales.ONE,
             units=Units.SECONDS,
             dimensions=(),
-            values=extracted.unix,
+            values=value,
         )
 
     def _add_far_par(self, dataset: DataSet) -> None:

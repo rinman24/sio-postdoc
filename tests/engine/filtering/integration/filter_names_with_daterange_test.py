@@ -2,14 +2,15 @@
 
 from datetime import date
 
-from sio_postdoc.engine.filtering.service import FilteringEngine
+from sio_postdoc.engine.filtering.context import FilterContext
+from sio_postdoc.engine.filtering.strategies import NamesByDate
 
 Content = tuple[str, ...]
 
 
 def test_filter_01():
     # Arrange
-    service: FilteringEngine = FilteringEngine()
+    service: FilterContext = FilterContext()
     filenames: Content = (
         "D1998-03-24T00-00-00.mrg.corrected.nc",
         "D1998-03-24T12-00-00.mrg.corrected.nc",
@@ -20,7 +21,7 @@ def test_filter_01():
     )
     target = date(1998, 3, 25)
     # Act
-    response: Content = service.apply(target, filenames)
+    response: Content = service.apply(target, filenames, strategy=NamesByDate())
     # Assert
     assert response == (
         "D1998-03-25T00-00-00.mrg.corrected.nc",
@@ -30,7 +31,7 @@ def test_filter_01():
 
 def test_filter_02():
     # Arrange
-    service: FilteringEngine = FilteringEngine()
+    service: FilterContext = FilterContext()
     filenames: Content = (
         "D1998-05-03T08-25-00.BARO.ncdf",
         "D1998-05-03T16-45-00.BARO.ncdf",
@@ -43,7 +44,7 @@ def test_filter_02():
     )
     target = date(1998, 5, 4)
     # Act
-    response: Content = service.apply(target, filenames)
+    response: Content = service.apply(target, filenames, strategy=NamesByDate())
     # Assert
     assert response == (
         "D1998-05-03T16-45-00.BARO.ncdf",

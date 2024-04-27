@@ -71,7 +71,6 @@ class Dimensions(Enum):
     """Define physical dimensions."""
 
     ANGLE = auto()
-    DISTANCE = auto()
     LEVEL = auto()
     TIME = auto()
 

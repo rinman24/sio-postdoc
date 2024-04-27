@@ -42,9 +42,8 @@ YEAR: str = "2024"
 
 @pytest.fixture(scope="module")
 def service() -> Generator[ObservationManager, None, None]:
-    """Module level service for testing."""
+    """Yield a module level service for testing."""
     _service: ObservationManager = ObservationManager()
-    _service.formatting_context.strategy = YYYYMMDDdothhmmss()
     # Setup
     try:
         os.mkdir(TEMP_DIRECTORY)

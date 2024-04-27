@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Generator
 
 import numpy as np
 
@@ -16,7 +17,6 @@ from sio_postdoc.engine.transformation.contracts import (
 
 ONE_EIGHTY: int = 180
 SECONDS_PER_DAY: int = 86400
-SECONDS_PER_HOUR: int = 3600
 THREE_SIXTY: int = 360
 NINES: int = -999
 
@@ -46,8 +46,39 @@ class TransformationStrategy(ABC):
             variables=self._variables,
         )
 
+    def _add_single_variable(self, dataset: DataSet, req: VariableRequest) -> None:
+        self._variables[req.name] = Variable(
+            dtype=req.dtype,
+            long_name=req.long_name,
+            scale=req.scale,
+            units=req.units,
+            dimensions=req.dimensions,
+            values=self._extract_values(dataset, req),
+        )
+
+    def _extract_values(self, dataset: DataSet, req: VariableRequest) -> None:
+        """Extract the data from a `DataSet`."""
+        data: np.ndarray = dataset[req.variable][:].data
+        if req.units == Units.DEGREES:
+            return tuple(map(self._get_deg_min_sec, data))
+        elif req.units == Units.SECONDS:
+            seconds: list[int] = list(self._generate_values(data, req))
+            return self._monotonic_times(seconds)
+        return tuple(self._generate_values(data, req))
+
+    def _generate_values(
+        self, data: np.ndarray, req: VariableRequest
+    ) -> Generator[int, None, None]:
+        dimensions: int = len(data.shape)
+        if dimensions == 1:
+            for i in data:
+                yield self._convert_with_rails(i, req)
+        else:  # dimensions == 2
+            for row in data:
+                yield tuple(self._convert_with_rails(i, req) for i in row)
+
     @staticmethod
-    def get_deg_min_sec(angle: float) -> tuple[int, int, int]:
+    def _get_deg_min_sec(angle: float) -> tuple[int, int, int]:
         """Convert decimal degrees into degrees, minutes, and seconds.
 
         NOTE: This always returns a positve angle and InstrumentData.
@@ -71,46 +102,21 @@ class TransformationStrategy(ABC):
         degrees, minutes = divmod(minutes, 60)
         return (sign, int(degrees), int(minutes), round(seconds))
 
-    def extract_values(self, dataset: DataSet, req: VariableRequest) -> None:
-        """Extract the data from a `DataSet`."""
-        data: np.ndarray = dataset[req.variable][:].data
-        dimensions: int = len(data.shape)
-        if req.units == Units.DEGREES:
-            return tuple(map(self.get_deg_min_sec, data))
-        if dimensions == 1:
-            return tuple(
-                (
-                    req.dtype.min
-                    if i == req.flag
-                    else round(i * req.conversion_scale.value)
-                )
-                for i in data
-            )
-        else:  # dimensions == 2
-            return tuple(
-                tuple(
-                    (
-                        req.dtype.min
-                        if i == req.flag
-                        else round(i * req.conversion_scale.value)
-                    )
-                    for i in row
-                )
-                for row in data
-            )
+    @staticmethod
+    def _convert_with_rails(element: float, req: VariableRequest) -> tuple[int, ...]:
+        if element == req.flag:
+            return req.dtype.min
+        else:
+            value: float = element * req.conversion_scale.value
+            too_small: bool = value < req.dtype.min
+            too_large: bool = req.dtype.max < value
+            if too_small or too_large:
+                return req.dtype.min
+        return round(value)
 
-    def monotonic_times(times: list[float], units: str) -> tuple[int, ...]:
-        """TODO: Docstring."""
-        # Convert to seconds (potentially non-monotonic)
-        scale: int
-        match units:
-            case "hours":
-                scale = 3600
-            case "seconds":
-                scale = 1
-        seconds = [round(i * scale) for i in times]
-        # Convert to monotonic seconds
-        previous: float = float(-999)  # Large negative number
+    @staticmethod
+    def _monotonic_times(seconds: list[float]) -> tuple[int, ...]:
+        previous: float = float(NINES)  # Large negative number
         datum: int = 0  # Initially on same day
         monotonic_seconds: list[float] = []
         for item in seconds:
@@ -119,13 +125,3 @@ class TransformationStrategy(ABC):
             monotonic_seconds.append(int(datum + item))
             previous = item
         return tuple(monotonic_seconds)
-
-    def _add_single_variable(self, dataset: DataSet, req: VariableRequest) -> None:
-        self._variables[req.name] = Variable(
-            dtype=req.dtype,
-            long_name=req.long_name,
-            scale=req.scale,
-            units=req.units,
-            dimensions=req.dimensions,
-            values=self.extract_values(dataset, req),
-        )

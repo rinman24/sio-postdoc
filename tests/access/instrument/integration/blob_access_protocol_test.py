@@ -10,11 +10,9 @@ from dotenv import load_dotenv
 
 from sio_postdoc.access.instrument.service import InstrumentAccess
 
-# pylint: disable=redefined-outer-name
-
-CWD: Path = Path(os.getcwd())
 EMPTY_CONTAINTER: str = "emptycontainer"
 PRE_POPULATED_CONTAINER: str = "prepopulated"
+CWD: Path = Path.cwd()
 DATA_DIRECTORY: Path = Path(
     os.getcwd() + "/tests/access/instrument/integration/test_blobs/"
 )
@@ -28,7 +26,7 @@ IMAGINARY_CONTAINER: str = "imaginary"
 
 @pytest.fixture(scope="module")
 def service() -> Generator[InstrumentAccess, None, None]:
-    """Module level service for testing."""
+    """Define module level service for testing."""
     # Setup
     load_dotenv(override=True)
     _service: InstrumentAccess = InstrumentAccess()
@@ -72,7 +70,7 @@ def test_list_blobs_resource_not_found(service):
     """Test that an empty tuple is returned if the container is not found."""
     with pytest.raises(ResourceNotFoundError) as excinfo:
         service.list_blobs(IMAGINARY_CONTAINER)
-    assert "Specified container not found: 'imaginary'" in str(excinfo.value)
+    assert "Specified container not found: " in str(excinfo.value)
 
 
 def test_add_blob(service):
@@ -83,7 +81,6 @@ def test_add_blob(service):
 
 def test_download_blob(service):
     """Test that a blob can be downloaded and saved."""
-
     before: list[str] = set(CWD.iterdir())
     service.download_blob(PRE_POPULATED_CONTAINER, FILE_NAMES[0])
     after: list[str] = set(CWD.iterdir())

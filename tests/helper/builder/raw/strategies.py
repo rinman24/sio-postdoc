@@ -4,40 +4,40 @@ from abc import ABC, abstractmethod
 
 from numpy import infty, nan
 
-from sio_postdoc.access.instrument.types import Dataset, Variable
+from sio_postdoc.access import DataSet, Variable
 
 
 class RawDataHydrationStrategy(ABC):
     """Declare operations common to raw data creation."""
 
     def __init__(self) -> None:
-        """Create a new Dataset when you instantiate the object."""
-        self._dataset: Dataset
+        """Create a new DataSet when you instantiate the object."""
+        self._dataset: DataSet
 
     @property
-    def dataset(self) -> Dataset:
+    def dataset(self) -> DataSet:
         """Return the dataset property."""
         return self._dataset
 
     @dataset.setter
-    def dataset(self, dataset: Dataset) -> None:
+    def dataset(self, dataset: DataSet) -> None:
         self._dataset = dataset
 
     @abstractmethod
     def _add_attributes(self, filename: str) -> None:
-        """Add attributes to netCDF Dataset."""
+        """Add attributes to netCDF DataSet."""
 
     @abstractmethod
     def _add_dimensions(self, filename: str) -> None:
-        """Add dimensions to netCDF Dataset."""
+        """Add dimensions to netCDF DataSet."""
 
     @abstractmethod
     def _add_variables(self) -> None:
-        """Add variables to netCDF Dataset."""
+        """Add variables to netCDF DataSet."""
 
     def hydrate(self, filename: str) -> None:
-        """Hydrate SHEBA DABUL netCDF Dataset."""
-        self.dataset = Dataset(filename, "w", format="NETCDF4")
+        """Hydrate SHEBA DABUL netCDF DataSet."""
+        self.dataset = DataSet(filename, "w", format="NETCDF4")
         self._add_attributes(filename)
         self._add_dimensions(filename)
         self._add_variables()

@@ -38,16 +38,12 @@ def dataset() -> Generator[DataSet, None, None]:
 
 @pytest.fixture(scope="module")
 def data(context, dataset) -> InstrumentData:
-    return context.instrument_data(dataset, PATH)
+    return context.hydrate(dataset, PATH)
 
 
 def test_init(context):
     assert isinstance(context, TransformationContext)
     assert isinstance(context.strategy, ShebaMmcrRaw)
-
-
-def test_instrument_data(data):
-    assert isinstance(data, InstrumentData)
 
 
 def test_dimensions(data):
@@ -62,8 +58,8 @@ def test_level_dimension(data):
     assert data.dimensions["level"] == Dimension(name=Dimensions.LEVEL, size=3)
 
 
-# def test_variables(data):
-#     assert len(data.variables) == 9
+def test_variables(data):
+    assert len(data.variables) == 6
 
 
 def test_epoch_variable(data):

@@ -6,3 +6,4 @@ import netCDF4
 
 Contents = tuple[Path, ...]
 DataSet = netCDF4.Dataset
+Variable = netCDF4.Variable

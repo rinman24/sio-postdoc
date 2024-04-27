@@ -13,26 +13,17 @@ from azure.core.exceptions import (
 )
 from azure.storage.blob import BlobServiceClient
 
-from sio_postdoc.access.instrument.contexts.binary import NcdfContext
-from sio_postdoc.access.instrument.contexts.data import DataContext
-from sio_postdoc.access.instrument.strategies.data import ShebaDabulRaw
-from sio_postdoc.access.instrument.strategies.hardware import DabulHardware
-from sio_postdoc.access.instrument.strategies.location import MobileLocationStrategy
-
 
 class BlobAccess(Protocol):
     """Define protocol for Azure Blob Storage."""
 
     # pylint: disable=missing-function-docstring
     def create_container(self, name: str) -> str: ...
-    def add_blob(self, name: str, path: Path) -> None: ...
-    def list_blobs(self, name: str) -> tuple[str, ...]: ...
-    def download_blob(self, container: str, name: str) -> None: ...
-    def get_datasets(
-        self,
-        container: str,
-        names: tuple[nc.Dataset, ...],  # pylint: disable=no-member
-    ) -> None: ...
+    def add_blob(self, name: str, path: Path, directory: str = "") -> None: ...
+    def list_blobs(
+        self, container: str, name_starts_with: str | None = None
+    ) -> tuple[str, ...]: ...
+    def download_blob(self, container: str, name: str) -> str: ...
 
 
 @dataclasses.dataclass
@@ -55,6 +46,7 @@ class InstrumentAccess(BlobAccess):
     """Concrete implementation of Blob Access."""
 
     def __init__(self) -> None:
+        """Initialize `InstrumentAccess`."""
         self._account: Account = Account(
             name=os.environ["STORAGE_ACCOUNT_NAME"],
             key=os.environ["STORAGE_ACCOUNT_KEY"],
@@ -66,13 +58,6 @@ class InstrumentAccess(BlobAccess):
 
         self._blob_service: BlobServiceClient = (
             BlobServiceClient.from_connection_string(conn_str=self.connection_string)
-        )
-
-        self._data_context: DataContext = DataContext(ShebaDabulRaw())
-
-        self._ncdf_context: NcdfContext = NcdfContext(
-            location=MobileLocationStrategy(),
-            instrument=DabulHardware(),
         )
 
     @property
@@ -90,17 +75,7 @@ class InstrumentAccess(BlobAccess):
         """Return instance of Azure BlobServiceClient."""
         return self._blob_service
 
-    @property
-    def data_context(self) -> DataContext:
-        """Return instance of `DataContext`."""
-        return self._data_context
-
-    @property
-    def ncdf_context(self) -> NcdfContext:
-        """Return instance of `NcdfContext`."""
-        return self._ncdf_context
-
-    def create_container(self, name: str) -> None:
+    def create_container(self, name: str) -> str:
         """Create a new blob container."""
         message: str = "Success."
         try:
@@ -119,21 +94,29 @@ class InstrumentAccess(BlobAccess):
             with open(path, "rb") as data:
                 container.upload_blob(name=remote_name, data=data)
 
-    def list_blobs(self, name: str) -> tuple[str, ...]:
+    def list_blobs(
+        self, container: str, name_starts_with: str | None = None
+    ) -> tuple[str, ...]:
         """List the contents of the container."""
         blobs: tuple[str, ...]
         try:
-            with self.blob_service.get_container_client(name) as container:
+            with self.blob_service.get_container_client(container) as container:
                 blobs = tuple(
-                    sorted([str(blob.name) for blob in container.list_blobs()])
+                    sorted(
+                        [
+                            str(blob.name)
+                            for blob in container.list_blobs(name_starts_with)
+                        ]
+                    )
                 )
         except ResourceNotFoundError as exc:
             raise ResourceNotFoundError(
-                f"Specified container not found: '{name}'"
+                f"Specified container not found: '{container}'"
             ) from exc
         return blobs
 
-    def download_blob(self, container: str, name: str) -> None:
+    def download_blob(self, container: str, name: str) -> str:
+        """Download the blob with a given name from the container."""
         localname: str = name.split("/")[-1]
         with self.blob_service.get_blob_client(
             container=container, blob=name
@@ -141,3 +124,4 @@ class InstrumentAccess(BlobAccess):
             with open(localname, mode="wb") as blob:
                 download_stream = blob_client.download_blob()
                 blob.write(download_stream.readall())
+        return localname

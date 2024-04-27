@@ -6,18 +6,18 @@ from typing import Generator
 import pytest
 from numpy import allclose
 
-from sio_postdoc.access.instrument.types import Dataset
+from sio_postdoc.access import DataSet
 from tests.helper.builder.raw.context import RawDataContext
 from tests.helper.builder.raw.strategies import ShebaDabulRaw
 from tests.helper.builder.raw.types import Instrument, Observatory
 
 
 @pytest.fixture(scope="module")
-def dataset() -> Generator[Dataset, None, None]:
+def dataset() -> Generator[DataSet, None, None]:
     # Arrange
     data = RawDataContext(Observatory.SHEBA, Instrument.DABUL)
     data.hydrate()
-    dataset = Dataset(data.filename)
+    dataset = DataSet(data.filename)
     # Test
     yield dataset
     # Cleanup

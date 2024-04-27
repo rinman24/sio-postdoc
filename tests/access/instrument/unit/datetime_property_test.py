@@ -19,12 +19,12 @@ def date_time() -> DateTime:
     )
 
 
-BASE: int = 464836044
-INITIAL: datetime = datetime.fromtimestamp(BASE)
+UNIX: int = 464861244
+INITIAL: datetime = datetime.fromtimestamp(UNIX)
 
 
 def test_base_property(date_time: DateTime) -> None:
-    assert date_time.base == BASE
+    assert date_time.unix == UNIX
 
 
 def test_initial_property(date_time: DateTime) -> None:
