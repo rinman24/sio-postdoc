@@ -8,6 +8,7 @@ import sio_postdoc.utility.service as utility
 from sio_postdoc.engine import Dimensions, Units
 from sio_postdoc.engine.filtering import Content, Mask
 from sio_postdoc.engine.transformation.contracts import (
+    DateTime,
     Dimension,
     InstrumentData,
     Values,
@@ -30,18 +31,18 @@ class NamesByDate(AbstractDateStrategy):
     def apply(target: date, content: Content) -> Content:
         """TODO: Implement."""
         results: list[str] = []
-        start: datetime = datetime(
+        start: datetime = DateTime(
             year=target.year,
             month=target.month,
             day=target.day,
             hour=0,
             minute=0,
             second=0,
-        )
+        ).datetime
         end: datetime = start + timedelta(days=1)
         previous_entry: str = ""
         for entry in content:
-            current: datetime = utility.extract_datetime(entry).initial
+            current: datetime = utility.extract_datetime(entry).datetime
             if current == start:
                 results.append(entry)
             elif start < current < end:

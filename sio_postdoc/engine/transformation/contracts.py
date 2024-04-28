@@ -1,6 +1,6 @@
 """Instrument Access Contracts."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Union
 
 from pydantic import BaseModel
@@ -10,6 +10,7 @@ from sio_postdoc.engine import Dimensions, DType, Scales, Units
 Vector = tuple[int, ...]
 Matrix = tuple[Vector, ...]
 Values = Union[int, Vector, Matrix]
+EPOCH: datetime = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
 
 
 class DateTime(BaseModel):
@@ -23,23 +24,22 @@ class DateTime(BaseModel):
     second: int
 
     @property
-    def unix(self) -> int:
-        """Seconds since Unix Epoch."""
-        return int(
-            datetime(
-                year=self.year,
-                month=self.month,
-                day=self.day,
-                hour=self.hour,
-                minute=self.minute,
-                second=self.second,
-            ).timestamp()
+    def datetime(self) -> datetime:
+        """Return a `datetime`."""
+        return datetime(
+            year=self.year,
+            month=self.month,
+            day=self.day,
+            hour=self.hour,
+            minute=self.minute,
+            second=self.second,
+            tzinfo=timezone.utc,
         )
 
     @property
-    def initial(self) -> datetime:
-        """Return `datetime` of initial observation."""
-        return datetime.fromtimestamp(self.unix)
+    def unix(self) -> int:
+        """Seconds since Unix Epoch."""
+        return int((self.datetime - EPOCH).total_seconds())
 
 
 class Dimension(BaseModel):
@@ -61,10 +61,6 @@ class Variable(BaseModel):
     scale: Scales
     units: Units
     values: Values
-
-
-class HorizontalCoordinate(BaseModel):
-    """Define a horizontal coordinate."""
 
 
 class InstrumentData(BaseModel):

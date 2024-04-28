@@ -1,6 +1,6 @@
 """Test the various properties of `DateTime`."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -19,15 +19,12 @@ def date_time() -> DateTime:
     )
 
 
-UNIX: int = 464861244
-INITIAL: datetime = datetime.fromtimestamp(UNIX)
+UNIX: int = 464836044
 
 
-@pytest.mark.skip(reason="Fails on build server")
 def test_base_property(date_time: DateTime) -> None:
     assert date_time.unix == UNIX
 
 
-@pytest.mark.skip(reason="Fails on build server")
 def test_initial_property(date_time: DateTime) -> None:
-    assert date_time.initial == INITIAL
+    assert date_time.datetime == datetime(1984, 9, 24, 1, 7, 24, tzinfo=timezone.utc)

@@ -1,7 +1,7 @@
 """Test the creation of `InstrumentData` from raw SHEBA DABUL `Dataset`."""
 
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
 
@@ -11,6 +11,7 @@ from sio_postdoc.access import DataSet
 from sio_postdoc.engine import Dimensions, Scales, Units
 from sio_postdoc.engine.transformation.context.service import TransformationContext
 from sio_postdoc.engine.transformation.contracts import (
+    EPOCH,
     Dimension,
     DType,
     InstrumentData,
@@ -150,9 +151,10 @@ def test_epoch_variable(data):
     assert var.long_name == "Unix Epoch 1970 of Initial Timestamp"
     assert var.scale == Scales.ONE
     assert var.units == Units.SECONDS
-    assert var.values == 1221980400
-    # TODO: Add this to other tests
-    assert datetime.fromtimestamp(var.values) == datetime(2008, 9, 21, 0, 0)
+    assert var.values == 1221955200
+    assert EPOCH + timedelta(seconds=var.values) == datetime(
+        2008, 9, 21, 0, 0, tzinfo=timezone.utc
+    )
 
 
 def test_latitude(data):

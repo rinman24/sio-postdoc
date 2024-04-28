@@ -1,6 +1,7 @@
 """Test the creation of `InstrumentData` from raw SHEBA DABUL `Dataset`."""
 
 import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
 
@@ -10,6 +11,7 @@ from sio_postdoc.access import DataSet
 from sio_postdoc.engine import Dimensions, Scales, Units
 from sio_postdoc.engine.transformation.context.service import TransformationContext
 from sio_postdoc.engine.transformation.contracts import (
+    EPOCH,
     Dimension,
     DType,
     InstrumentData,
@@ -104,7 +106,6 @@ def test_depol_variable(data):
     )
 
 
-@pytest.mark.skip(reason="Fails on Build Server")
 def test_epoch_variable(data):
     var: Variable = data.variables["epoch"]
     assert len(var.dimensions) == 0
@@ -112,7 +113,10 @@ def test_epoch_variable(data):
     assert var.long_name == "Unix Epoch 1970 of Initial Timestamp"
     assert var.scale == Scales.ONE
     assert var.units == Units.SECONDS
-    assert var.values == 894438000
+    assert var.values == 894412800
+    assert EPOCH + timedelta(seconds=var.values) == datetime(
+        1998, 5, 6, 0, 0, tzinfo=timezone.utc
+    )
 
 
 def test_far_par_variable(data):
