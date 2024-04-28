@@ -71,6 +71,9 @@ class IndicesByDate(AbstractDateStrategy):
         masks: list[tuple[bool, ...]] = self._get_masks(
             target, content
         )  # TODO: Test this...
+        # If the masks are all false, then return None
+        if not any(any(m) for m in masks):
+            return None
         var_values: dict[str, Values] = defaultdict(list)
         # _get_not_time_indexed_values
         for mask, data in zip(masks, content):

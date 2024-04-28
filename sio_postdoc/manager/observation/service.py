@@ -85,8 +85,9 @@ class ObservationManager:
                 blobs,
                 strategy=NamesByDate(),
             )
+            if not selected:
+                continue
             # Generate a InstrumentData for each DataSet corresponding to the target date
-            # This is not that clear, what you want to do is download and generate
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
                     selected,
@@ -94,14 +95,17 @@ class ObservationManager:
                     strategy=ShebaDabulRaw(),
                 )
             )
+            if not results:  # check if the instrument data is empty
+                continue
             # Filter so only the target date exists in a single instance of `InstrumentData`
-            data: InstrumentData = self.filter_context.apply(
+            data: InstrumentData | None = self.filter_context.apply(
                 target,
                 results,
                 strategy=IndicesByDate(),
             )
+            if not data:
+                continue
             # Serialize the data.
-            # If you pass the target to the serialize method, you can create the filename there.
             filepath: Path = self.transformation_context.serialize(
                 target, data, request
             )
