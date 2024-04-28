@@ -110,7 +110,8 @@ class TransformationStrategy(ABC):
             value: float = element * req.conversion_scale.value
             too_small: bool = value < req.dtype.min
             too_large: bool = req.dtype.max < value
-            if too_small or too_large:
+            is_nan: bool = np.isnan(value)
+            if too_small or too_large or is_nan:
                 return req.dtype.min
         return round(value)
 
