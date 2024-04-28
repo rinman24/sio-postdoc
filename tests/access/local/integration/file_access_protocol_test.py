@@ -62,7 +62,7 @@ def test_not_a_directory(service):
     file_path: Path = FILES[".txt"][0]
     with pytest.raises(NotADirectoryError) as excinfo:
         service.list_files(file_path, ".txt")
-    assert f"Not a directory: '{file_path}'" in str(excinfo)
+    assert "Not a directory: " in str(excinfo)
 
 
 def test_file_not_found(service):

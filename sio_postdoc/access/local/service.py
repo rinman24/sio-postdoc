@@ -42,7 +42,7 @@ class LocalAccess(DiskAccess):
 
     def open_dataset(self, directory: Path, name: str) -> DataSet:
         """Return a `DataSet` in the specified directory with the specified filename."""
-        target: str = f"{directory}/{name}"
+        target: Path = directory / name
         try:
             return DataSet(target)
         except FileNotFoundError as exc:
