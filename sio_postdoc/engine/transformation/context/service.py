@@ -24,9 +24,13 @@ class TransformationContext:
         self, target: date, data: InstrumentData, request: DailyRequest
     ) -> None:
         """Use `InstrumentData` to write a `DataSet` to the `path`."""
-        filepath: Path = (
-            Path.cwd()
-            / f"D{target.year}-{str(target.month).zfill(2)}-{str(target.day).zfill(2)}.ncdf"
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{str(target.month).zfill(2)}"
+            f"-{str(target.day).zfill(2)}"
+            f"-{request.observatory.name.lower()}"
+            f"-{request.instrument.name.lower()}"
+            ".ncdf"
         )
         # Attributes
         dataset: DataSet = DataSet(filepath, "w", format="NETCDF4")
