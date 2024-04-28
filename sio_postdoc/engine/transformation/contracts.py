@@ -83,6 +83,6 @@ class VariableRequest(BaseModel):
     units: Units
     scale: Scales
     dtype: DType
-    flag: int
+    flag: int | float
     dimensions: tuple[Dimension, ...]
     conversion_scale: Scales = Scales.ONE

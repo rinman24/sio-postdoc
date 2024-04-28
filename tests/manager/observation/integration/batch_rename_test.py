@@ -8,7 +8,6 @@ from typing import Generator
 
 import pytest
 
-from sio_postdoc.engine.formatting.strategies import YYYYMMDDdothhmmss
 from sio_postdoc.manager.observation.service import ObservationManager
 
 Content = tuple[str, ...]

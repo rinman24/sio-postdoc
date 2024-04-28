@@ -60,6 +60,8 @@ class TransformationStrategy(ABC):
         """Extract the data from a `DataSet`."""
         data: np.ndarray = dataset[req.variable][:].data
         if req.units == Units.DEGREES:
+            if data.size == 1:
+                return self._get_deg_min_sec(float(data))
             return tuple(map(self._get_deg_min_sec, data))
         elif req.units == Units.SECONDS:
             seconds: list[int] = list(self._generate_values(data, req))
