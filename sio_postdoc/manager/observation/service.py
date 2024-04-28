@@ -80,6 +80,7 @@ class ObservationManager:
         )
         # Create a daily file for each day in the month
         for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
