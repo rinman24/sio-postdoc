@@ -113,7 +113,7 @@ class ObservationManager:
             self.instrument_access.add_blob(
                 name=request.observatory.name.lower(),
                 path=filepath,
-                directory=f"{request.instrument.name.lower()}/test_daily/{request.year}/",
+                directory=f"{request.instrument.name.lower()}/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
