@@ -79,7 +79,7 @@ class AbstractDateStrategy(ABC):
 
     @abstractmethod
     def extract_time(self, raw: str, year: str) -> DateTime:
-        """Delegated to strategies."""
+        """Delegate to strategies."""
 
     def format(self, raw: str, year: str) -> str:
         """Format the raw input."""
