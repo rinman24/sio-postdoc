@@ -15,7 +15,10 @@ from sio_postdoc.engine.formatting.strategies import YYYYMMDDdothhmmss
 from sio_postdoc.engine.transformation.context.service import TransformationContext
 from sio_postdoc.engine.transformation.contracts import InstrumentData
 from sio_postdoc.engine.transformation.strategies.base import TransformationStrategy
+from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
+from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
+from sio_postdoc.manager import Instrument, Observatory
 from sio_postdoc.manager.observation.contracts import DailyRequest
 
 Content = tuple[Path, ...]
@@ -88,15 +91,23 @@ class ObservationManager:
             )
             if not selected:
                 continue
+            # Select the Strategy
+            match (request.observatory, request.instrument):
+                case (Observatory.EUREKA, Instrument.AHSRL):
+                    strategy: TransformationStrategy = EurekaAhsrlRaw()
+                case (Observatory.SHEBA, Instrument.DABUL):
+                    strategy: TransformationStrategy = ShebaDabulRaw()
+                case (Observatory.SHEBA, Instrument.MMCR):
+                    strategy: TransformationStrategy = ShebaMmcrRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
                     selected,
                     request,
-                    strategy=ShebaDabulRaw(),
+                    strategy=strategy,
                 )
             )
-            if not results:  # check if the instrument data is empty
+            if not results:
                 continue
             # Filter so only the target date exists in a single instance of `InstrumentData`
             data: InstrumentData | None = self.filter_context.apply(
