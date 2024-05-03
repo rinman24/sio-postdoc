@@ -12,3 +12,11 @@ class DailyRequest(BaseModel):
     observatory: Observatory
     month: Month
     year: int
+
+
+class ObservatoryRequest(BaseModel):
+    """Encapsulate requests for the creation of daily files."""
+
+    observatory: Observatory
+    month: Month
+    year: int

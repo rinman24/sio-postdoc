@@ -1,9 +1,11 @@
 """Observation Manager Module."""
 
 import os
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
+
+import pandas as pd
 
 from sio_postdoc.access import DataSet
 from sio_postdoc.access.instrument.service import InstrumentAccess
@@ -16,22 +18,31 @@ from sio_postdoc.engine.formatting.service import FormattingContext
 from sio_postdoc.engine.formatting.strategies import YYYYMMDDdothhmmss
 from sio_postdoc.engine.transformation.context.service import TransformationContext
 from sio_postdoc.engine.transformation.contracts import (
+    DateTime,
     Dimension,
     InstrumentData,
     Variable,
 )
 from sio_postdoc.engine.transformation.service import TransformationEngine
-from sio_postdoc.engine.transformation.strategies.base import TransformationStrategy
+from sio_postdoc.engine.transformation.strategies.base import (
+    SECONDS_PER_DAY,
+    TransformationStrategy,
+)
 from sio_postdoc.engine.transformation.strategies.daily.sheba.dabul import (
     ShebaDabulDaily,
 )
 from sio_postdoc.engine.transformation.strategies.daily.sheba.mmcr import ShebaMmcrDaily
+from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
 from sio_postdoc.engine.transformation.window import GridWindow
 from sio_postdoc.manager import Instrument, Observatory
-from sio_postdoc.manager.observation.contracts import DailyRequest
+from sio_postdoc.manager.observation.contracts import DailyRequest, ObservatoryRequest
+
+OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
+STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
+MIN_ELEVATION: int = 500
 
 
 class ObservationManager:
@@ -224,6 +235,240 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
+
+    def merge_daily_masks(self, request: ObservatoryRequest) -> None:
+        """Merge daily masks for a given observatory, month and year."""
+        # Get a list of all the relevant blobs
+        # We know that we need to get two different instrument maps
+        instruments: dict[str, Instrument] = {}
+        match request.observatory:
+            case Observatory.SHEBA:
+                instruments["lidar"] = Instrument.DABUL
+                instruments["radar"] = Instrument.MMCR
+        blobs: dict[Instrument, tuple[str, ...]] = {
+            instrument: self.instrument_access.list_blobs(
+                container=request.observatory.name.lower(),
+                name_starts_with=f"{instrument.name.lower()}/masks/{request.year}/",
+            )
+            for instrument in instruments.values()
+        }
+        # Merge the masks for each day in the month
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: dict[Instrument, tuple[str, ...]] = {
+                instrument: self.filter_context.apply(
+                    target,
+                    blobs[instrument],
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                for instrument in instruments.values()
+            }
+            if not all(selected.values()):
+                continue
+            strategy: TransformationStrategy = Masks()
+            # Generate a InstrumentData for each DataSet corresponding to the target date
+            # results: dict[Instrument, tuple[InstrumentData, ...]] = {
+            #     instrument: tuple(
+            #         self._generate_data(
+            #             selected[instrument],
+            #             request,
+            #             strategy=strategy,
+            #         )
+            #     )
+            #     for instrument in instruments.values()
+            # }
+            # NOTE: You can quickly skip to here by using the following.
+            import pickle
+
+            with open("results.pkl", "rb") as file:
+                results = pickle.load(file)
+            if not all(results.values()):
+                continue
+            # There should only be one value in each result
+            data: dict[Instrument, InstrumentData] = {
+                instrument: results[instrument][0]
+                for instrument in instruments.values()
+            }
+            # Convert to DataFrames for processing
+            # NOTE: This could be done with a transformation strategy as well.
+            # TODO: Use a transformation strategy here.
+            dataframes: dict[Instrument, pd.DataFrame] = {
+                instrument: pd.DataFrame(
+                    data[instrument].variables["cloud_mask"].values,
+                    index=data[instrument].variables["offset"].values,
+                    columns=data[instrument].variables["range"].values,
+                )
+                for instrument in instruments.values()
+            }
+            # Set up the new merged mask
+            max_elevation: int = min(df.columns.max() for df in dataframes.values())
+            times: list[int] = list(range(0, SECONDS_PER_DAY + 1, STEPS["time"]))
+            elevations: list[int] = list(
+                range(0, max_elevation + 1, STEPS["elevation"])
+            )
+            mask: list[list[bool]] = [[False for _ in elevations] for _ in times]
+            for i, time in enumerate(times):
+                for j, elevation in enumerate(elevations):
+                    selected_times: dict[Instrument, list[bool]] = {
+                        key: [
+                            a and b
+                            for a, b in zip(
+                                time - OFFSETS["time"] <= value.index,
+                                value.index < time + OFFSETS["time"],
+                            )
+                        ]
+                        for key, value in dataframes.items()
+                    }
+                    selected_elevations: dict[Instrument, list[bool]] = {
+                        key: [
+                            a and b
+                            for a, b in zip(
+                                elevation - OFFSETS["elevation"] <= value.columns,
+                                value.columns < elevation + OFFSETS["elevation"],
+                            )
+                        ]
+                        for key, value in dataframes.items()
+                    }
+                    # Now you have the values to slice by
+                    values: dict[Instrument, pd.DataFrame] = {
+                        key: value.iloc[selected_times[key], selected_elevations[key]]
+                        for key, value in dataframes.items()
+                    }
+                    # Now that you have the values, you want to take the the mean of them
+                    # If one of them has a size of zero, then continue
+                    if any(v.size == 0 for v in values.values()):
+                        continue
+                    mask[i][j] = (
+                        1
+                        if sum(v.mean().mean() for v in values.values()) > 1 / 2
+                        else 0
+                    )
+            # Now, assume that you have a bunch of values for the combined cloud map
+            # The next thing you need to do is make this into a dataframe
+            mask: pd.DataFrame = pd.DataFrame(
+                mask,
+                index=times,
+                columns=elevations,
+            )
+            # Now that you have the mask, go through each time and find out how many clouds there
+            # are and the the elevations are.
+            previous: bool
+            current: bool
+            current_time: datetime
+            datetimes: list[datetime] = []
+            layers: list[int] = []
+            bases: list[int] = []
+            tops: list[int] = []
+            layer: int
+            for i, time in enumerate(times):
+                previous = False
+                current_time = datetime(
+                    year=target.year,
+                    month=target.month,
+                    day=target.day,
+                    tzinfo=timezone.utc,
+                ) + timedelta(seconds=time)
+                layer = 1
+                for j, elevation in enumerate(elevations[:-1]):
+                    if elevation < MIN_ELEVATION:
+                        continue
+                    current = mask[i][j]
+                    if not previous and current:
+                        datetimes.append(current_time)
+                        layers.append(layer)
+                        bases.append(elevation - OFFSETS["elevation"])
+                    if current and not mask[i][j + 1]:
+                        tops.append(elevation + OFFSETS["elevation"])
+                        layer += 1
+                    # Set previous to current
+                    previous = current
+                # Now, you're one away from the top, so go to the top and
+                current = mask[i][j + 1]
+                if not previous and current:
+                    datetimes.append(current_time)
+                    layers.append(layer)
+                    bases.append(elevation - OFFSETS["elevation"])
+                if current:
+                    tops.append(elevation + OFFSETS["elevation"])
+            # Now construct the instrument data that you can persist as a blob
+            dimensions: dict[str, Dimension] = {
+                "time": Dimension(name=Dimensions.TIME, size=len(times)),
+                "level": Dimension(name=Dimensions.LEVEL, size=len(elevations)),
+            }
+            variables: dict[str, Variable] = {
+                "epoch": Variable(
+                    dimensions=(),
+                    dtype=DType.I4,
+                    long_name="Unix Epoch 1970 of Initial Timestamp",
+                    scale=Scales.ONE,
+                    units=Units.SECONDS,
+                    values=DateTime(
+                        year=target.year,
+                        month=target.month,
+                        day=target.day,
+                        hour=0,
+                        minute=0,
+                        second=0,
+                    ).unix,
+                ),
+                "offset": Variable(
+                    dimensions=(dimensions["time"],),
+                    dtype=DType.I4,
+                    long_name="Seconds Since Initial Timestamp",
+                    scale=Scales.ONE,
+                    units=Units.SECONDS,
+                    values=tuple(times),
+                ),
+                "range": Variable(
+                    dimensions=(dimensions["level"],),
+                    dtype=DType.U2,
+                    long_name="Return Range",
+                    scale=Scales.ONE,
+                    units=Units.METERS,
+                    values=tuple(elevations),
+                ),
+                "cloud_mask": Variable(
+                    dimensions=(dimensions["time"], dimensions["level"]),
+                    dtype=DType.I4,
+                    long_name="Cloud Mask",
+                    scale=Scales.ONE,
+                    units=Units.NONE,
+                    values=tuple(tuple(mask.loc[i][:]) for i in mask.index),
+                ),
+            }
+            instrument_data: InstrumentData = InstrumentData(
+                dimensions=dimensions, variables=variables
+            )
+            # Serialize the data.
+            filepath: Path = self.transformation_context.serialize_mask(
+                target,
+                instrument_data,
+                request,
+                instrument=False,
+            )
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"combined_masks/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+        # Now that you've gone through the entire month, You can save your cloud data
+        # Pickle the data you got.
+        pickle_name: str = (
+            f"cloud-stats-{request.observatory}-{request.year}-{request.month.value}.pkl"
+        )
+        cloud_stats: pd.DataFrame = pd.DataFrame(
+            {
+                "datetimes": datetimes,
+                "layers": layers,
+                "bases": bases,
+                "tops": tops,
+            }
+        )
+        cloud_stats.to_pickle(pickle_name)
 
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
