@@ -22,8 +22,14 @@ class FilterContext:
     def strategy(self, strategy: AbstractDateStrategy) -> None:
         self._strategy = strategy
 
-    def apply(self, target: date, content: Any, strategy: AbstractDateStrategy) -> Any:
+    def apply(
+        self,
+        target: date,
+        content: Any,
+        strategy: AbstractDateStrategy,
+        **kwargs,
+    ) -> Any:
         """TODO: Docstring."""
         # TODO: You should address the signature of this method.
         self.strategy = strategy
-        return self.strategy.apply(target=target, content=content)
+        return self.strategy.apply(target=target, content=content, **kwargs)

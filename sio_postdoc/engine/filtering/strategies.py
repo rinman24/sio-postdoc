@@ -28,7 +28,7 @@ class NamesByDate(AbstractDateStrategy):
     """TODO: Docstring."""
 
     @staticmethod
-    def apply(target: date, content: Content) -> Content:
+    def apply(target: date, content: Content, time: bool = True) -> Content:
         """TODO: Implement."""
         results: list[str] = []
         start: datetime = DateTime(
@@ -42,7 +42,7 @@ class NamesByDate(AbstractDateStrategy):
         end: datetime = start + timedelta(days=1)
         previous_entry: str = ""
         for entry in content:
-            current: datetime = utility.extract_datetime(entry).datetime
+            current: datetime = utility.extract_datetime(entry, time=time).datetime
             if current == start:
                 results.append(entry)
             elif start < current < end:
@@ -63,20 +63,12 @@ class NamesByDate(AbstractDateStrategy):
 class IndicesByDate(AbstractDateStrategy):
     """TODO: Docstring."""
 
-    def apply(
-        self, target: date, content: tuple[InstrumentData, ...]
-    ) -> InstrumentData:
-        """Apply the filtering strategy."""
-        # TODO: Too many local variables. You need to break this up.
-        # Get the masks
-        masks: list[tuple[bool, ...]] = self._get_masks(
-            target, content
-        )  # TODO: Test this...
-        # If the masks are all false, then return None
-        if not any(any(m) for m in masks):
-            return None
+    @staticmethod
+    def _get_variables(
+        masks: list[tuple[bool, ...]], content: tuple[InstrumentData, ...]
+    ) -> dict[str, Values]:
         var_values: dict[str, Values] = defaultdict(list)
-        # _get_not_time_indexed_values
+        # Variables not indexed by time
         for mask, data in zip(masks, content):
             if not any(mask):
                 continue
@@ -86,7 +78,7 @@ class IndicesByDate(AbstractDateStrategy):
                 elif var.dimensions[0].name != Dimensions.TIME:
                     var_values[name] = var.values
             break  # stop going through the masks and data
-        # _get_time_indexed_values
+        # Variables indexed by time
         for mask, data in zip(masks, content):
             if not any(mask):
                 continue
@@ -112,10 +104,14 @@ class IndicesByDate(AbstractDateStrategy):
                 var_values[name] += list(
                     value for flag, value in zip(mask, var.values) if flag
                 )
-        # _get_data_dimensions
+        return var_values
+
+    @staticmethod
+    def _get_unique_dimensions(
+        data: InstrumentData, var_values: dict[str, Variable]
+    ) -> dict[str, Dimension]:
         data_dims: dict[str, Dimension] = {}
         for required in data.dimensions.keys():
-            # This looks a lot like a dictionary
             match required:
                 case "time":
                     name = Dimensions.TIME
@@ -129,7 +125,12 @@ class IndicesByDate(AbstractDateStrategy):
                 case _:
                     continue
             data_dims[required] = Dimension(name=name, size=size)
-        # _get_variable_dimensions
+        return data_dims
+
+    @staticmethod
+    def _get_dimensions(
+        data: InstrumentData, data_dims: dict[str, Dimension]
+    ) -> dict[str, Dimension]:
         var_dims: dict[str, tuple[Dimension, ...]] = {}
         for key, value in data.variables.items():
             current_dimensions: list[Dimension] = []
@@ -145,7 +146,24 @@ class IndicesByDate(AbstractDateStrategy):
                         continue
                 current_dimensions.append(data_dims[name])
             var_dims[key] = tuple(current_dimensions)
-        # So, now, how would you create the variables?
+        return var_dims
+
+    def apply(
+        self, target: date, content: tuple[InstrumentData, ...]
+    ) -> InstrumentData:
+        """Apply the filtering strategy."""
+        # Get the masks
+        data = content[0]
+        masks: list[tuple[bool, ...]] = self._get_masks(target, content)
+        # If the masks are all false, then return None
+        if not any(any(m) for m in masks):
+            return None
+        var_values: dict[str, Values] = self._get_variables(masks, content)
+        data_dims: dict[str, Dimension] = self._get_unique_dimensions(data, var_values)
+        var_dims: dict[str, tuple[Dimension, ...]] = self._get_dimensions(
+            data,
+            data_dims,
+        )
         variables: dict[str, Variable] = {
             key: Variable(
                 dimensions=var_dims[key],

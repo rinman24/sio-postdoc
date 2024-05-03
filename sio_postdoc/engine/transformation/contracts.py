@@ -82,3 +82,14 @@ class VariableRequest(BaseModel):
     flag: int | float
     dimensions: tuple[Dimension, ...]
     conversion_scale: Scales = Scales.ONE
+
+
+class MaskRequest(BaseModel):
+    """Request a binary cloud mask from a `DataSet`."""
+
+    values: tuple[tuple[int, ...], ...]
+    length: int
+    height: int
+    threshold: int
+    scale: int
+    dtype: DType

@@ -8,20 +8,30 @@ from typing import Generator
 from sio_postdoc.access import DataSet
 from sio_postdoc.access.instrument.service import InstrumentAccess
 from sio_postdoc.access.local.service import LocalAccess
+from sio_postdoc.engine import Dimensions, DType, Scales, Units
+from sio_postdoc.engine.filtering import Content
 from sio_postdoc.engine.filtering.context import FilterContext
 from sio_postdoc.engine.filtering.strategies import IndicesByDate, NamesByDate
 from sio_postdoc.engine.formatting.service import FormattingContext
 from sio_postdoc.engine.formatting.strategies import YYYYMMDDdothhmmss
 from sio_postdoc.engine.transformation.context.service import TransformationContext
-from sio_postdoc.engine.transformation.contracts import InstrumentData
+from sio_postdoc.engine.transformation.contracts import (
+    Dimension,
+    InstrumentData,
+    Variable,
+)
+from sio_postdoc.engine.transformation.service import TransformationEngine
 from sio_postdoc.engine.transformation.strategies.base import TransformationStrategy
+from sio_postdoc.engine.transformation.strategies.daily.sheba.dabul import (
+    ShebaDabulDaily,
+)
+from sio_postdoc.engine.transformation.strategies.daily.sheba.mmcr import ShebaMmcrDaily
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
+from sio_postdoc.engine.transformation.window import GridWindow
 from sio_postdoc.manager import Instrument, Observatory
 from sio_postdoc.manager.observation.contracts import DailyRequest
-
-Content = tuple[Path, ...]
 
 
 class ObservationManager:
@@ -33,6 +43,7 @@ class ObservationManager:
         self._filter_context: FilterContext = FilterContext()
         self._transformation_context: TransformationContext = TransformationContext()
         self._formatting_context: FormattingContext = FormattingContext()
+        self._transformation_engine: TransformationEngine = TransformationEngine()
         self._local_access: LocalAccess = LocalAccess()
 
     @property
@@ -49,6 +60,11 @@ class ObservationManager:
     def transformation_context(self) -> TransformationContext:
         """Return the private transformation context."""
         return self._transformation_context
+
+    @property
+    def transformation_engine(self) -> TransformationEngine:
+        """Return the private transformation engine."""
+        return self._transformation_engine
 
     @property
     def formatting_context(self) -> TransformationContext:
@@ -126,6 +142,85 @@ class ObservationManager:
                 name=request.observatory.name.lower(),
                 path=filepath,
                 directory=f"{request.instrument.name.lower()}/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def create_daily_masks(
+        self, request: DailyRequest, threshold: int, name: str
+    ) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"{request.instrument.name.lower()}/daily/{request.year}/",
+        )
+        # Create a daily file for each day in the month
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Set the strategy
+            strategy: TransformationStrategy
+            match (request.observatory, request.instrument):
+                case (Observatory.SHEBA, Instrument.DABUL):
+                    strategy = ShebaDabulDaily()
+                case (Observatory.SHEBA, Instrument.MMCR):
+                    strategy = ShebaMmcrDaily()
+            # Generate a InstrumentData for each DataSet corresponding to the target date
+            results: tuple[InstrumentData, ...] = tuple(
+                self._generate_data(
+                    selected,
+                    request,
+                    strategy=strategy,
+                )
+            )
+            if not results:
+                continue
+            # Filter so only the target date exists in a single instance of `InstrumentData`
+            data: InstrumentData = results[0]
+            if not data:
+                continue
+            # Now you want to apply the mask.
+            window = GridWindow(length=3, height=2)
+            mask = self.transformation_engine.get_mask(
+                data.variables[name].values,
+                window,
+                threshold,
+                scale=100,  # You need to change this.
+                dtype=DType.I2,
+            )
+            this_var = Variable(
+                dtype=DType.U1,
+                long_name="Radar Cloud Mask",
+                scale=Scales.ONE,
+                units=Units.NONE,
+                dimensions=(
+                    Dimension(
+                        name=Dimensions.TIME, size=len(data.variables[name].values)
+                    ),
+                    Dimension(
+                        name=Dimensions.LEVEL, size=len(data.variables[name].values[0])
+                    ),
+                ),
+                values=tuple(tuple(1 if value else 0 for value in row) for row in mask),
+            )
+            data.variables["cloud_mask"] = this_var
+            # Serialize the data.
+            filepath: Path = self.transformation_context.serialize(
+                target, data, request
+            )
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"{request.instrument.name.lower()}/masks/{request.year}/threshold_{threshold}/",
             )
             # Remove the file
             os.remove(filepath)
