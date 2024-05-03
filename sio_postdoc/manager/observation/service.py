@@ -1,6 +1,7 @@
 """Observation Manager Module."""
 
 import os
+import pickle
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
@@ -268,21 +269,19 @@ class ObservationManager:
                 continue
             strategy: TransformationStrategy = Masks()
             # Generate a InstrumentData for each DataSet corresponding to the target date
-            # results: dict[Instrument, tuple[InstrumentData, ...]] = {
-            #     instrument: tuple(
-            #         self._generate_data(
-            #             selected[instrument],
-            #             request,
-            #             strategy=strategy,
-            #         )
-            #     )
-            #     for instrument in instruments.values()
-            # }
+            results: dict[Instrument, tuple[InstrumentData, ...]] = {
+                instrument: tuple(
+                    self._generate_data(
+                        selected[instrument],
+                        request,
+                        strategy=strategy,
+                    )
+                )
+                for instrument in instruments.values()
+            }
             # NOTE: You can quickly skip to here by using the following.
-            import pickle
-
-            with open("results.pkl", "rb") as file:
-                results = pickle.load(file)
+            # with open("results.pkl", "rb") as file:
+            #     results = pickle.load(file)
             if not all(results.values()):
                 continue
             # There should only be one value in each result
@@ -336,16 +335,15 @@ class ObservationManager:
                         for key, value in dataframes.items()
                     }
                     # Now that you have the values, you want to take the the mean of them
-                    # If one of them has a size of zero, then continue
-                    if any(v.size == 0 for v in values.values()):
-                        continue
                     mask[i][j] = (
-                        1
-                        if sum(v.mean().mean() for v in values.values()) > 1 / 2
-                        else 0
+                        True
+                        if any(v.mean().mean() >= 1 / 2 for v in values.values())
+                        else False
                     )
             # Now, assume that you have a bunch of values for the combined cloud map
             # The next thing you need to do is make this into a dataframe
+            # with open("mask_list.pkl", "rb") as file:
+            #     mask = pickle.load(file)
             mask: pd.DataFrame = pd.DataFrame(
                 mask,
                 index=times,
@@ -356,11 +354,7 @@ class ObservationManager:
             previous: bool
             current: bool
             current_time: datetime
-            datetimes: list[datetime] = []
-            layers: list[int] = []
-            bases: list[int] = []
-            tops: list[int] = []
-            layer: int
+            cloud_extent = {}
             for i, time in enumerate(times):
                 previous = False
                 current_time = datetime(
@@ -369,28 +363,27 @@ class ObservationManager:
                     day=target.day,
                     tzinfo=timezone.utc,
                 ) + timedelta(seconds=time)
-                layer = 1
+                bases: list[int] = []
+                tops: list[int] = []
                 for j, elevation in enumerate(elevations[:-1]):
-                    if elevation < MIN_ELEVATION:
+                    if elevation <= MIN_ELEVATION:
                         continue
-                    current = mask[i][j]
+                    current = True if mask.loc[time, elevation] else False
+                    next_ = True if mask.iloc[i, j + 1] else False
                     if not previous and current:
-                        datetimes.append(current_time)
-                        layers.append(layer)
                         bases.append(elevation - OFFSETS["elevation"])
-                    if current and not mask[i][j + 1]:
+                    if current and not next_:
                         tops.append(elevation + OFFSETS["elevation"])
-                        layer += 1
                     # Set previous to current
-                    previous = current
+                    previous = True if current else False
                 # Now, you're one away from the top, so go to the top and
-                current = mask[i][j + 1]
+                current = True if mask.iloc[i, j + 1] else False
                 if not previous and current:
-                    datetimes.append(current_time)
-                    layers.append(layer)
                     bases.append(elevation - OFFSETS["elevation"])
                 if current:
                     tops.append(elevation + OFFSETS["elevation"])
+                # Now that we're ready to go to the next time, we should append the results
+                cloud_extent[current_time] = {"bases": bases, "tops": tops}
             # Now construct the instrument data that you can persist as a blob
             dimensions: dict[str, Dimension] = {
                 "time": Dimension(name=Dimensions.TIME, size=len(times)),
@@ -434,7 +427,9 @@ class ObservationManager:
                     long_name="Cloud Mask",
                     scale=Scales.ONE,
                     units=Units.NONE,
-                    values=tuple(tuple(mask.loc[i][:]) for i in mask.index),
+                    values=tuple(
+                        tuple(1 if j else 0 for j in mask.loc[i][:]) for i in mask.index
+                    ),
                 ),
             }
             instrument_data: InstrumentData = InstrumentData(
@@ -445,7 +440,6 @@ class ObservationManager:
                 target,
                 instrument_data,
                 request,
-                instrument=False,
             )
             # Add to blob storage
             self.instrument_access.add_blob(
@@ -455,20 +449,13 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
-        # Now that you've gone through the entire month, You can save your cloud data
-        # Pickle the data you got.
+        # Now you're done with all the times as well.
+        # Make sure you save the cloud_extent data
         pickle_name: str = (
-            f"cloud-stats-{request.observatory}-{request.year}-{request.month.value}.pkl"
+            f"cloud-stats-{request.observatory.name.lower()}-{request.year}-{str(request.month.value).zfill(2)}.pkl"
         )
-        cloud_stats: pd.DataFrame = pd.DataFrame(
-            {
-                "datetimes": datetimes,
-                "layers": layers,
-                "bases": bases,
-                "tops": tops,
-            }
-        )
-        cloud_stats.to_pickle(pickle_name)
+        with open(pickle_name, "wb") as file:
+            pickle.dump(cloud_extent, file)
 
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
