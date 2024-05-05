@@ -22,6 +22,7 @@ from sio_postdoc.engine.transformation.contracts import (
     DateTime,
     Dimension,
     InstrumentData,
+    MaskRequest,
     Variable,
 )
 from sio_postdoc.engine.transformation.service import TransformationEngine
@@ -37,9 +38,12 @@ from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
-from sio_postdoc.engine.transformation.window import GridWindow
-from sio_postdoc.manager import Instrument, Observatory
-from sio_postdoc.manager.observation.contracts import DailyRequest, ObservatoryRequest
+from sio_postdoc.manager.observation.contracts import (
+    DailyRequest,
+    Instrument,
+    Observatory,
+    ObservatoryRequest,
+)
 
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
@@ -199,15 +203,29 @@ class ObservationManager:
             data: InstrumentData = results[0]
             if not data:
                 continue
+            # Set the Window and threshold
+            strategy: TransformationStrategy
+            match (request.observatory, request.instrument):
+                case (Observatory.SHEBA, Instrument.DABUL):
+                    length: int = 3
+                    height: int = 3
+                    scale: int = 100  # You need to check this
+                    dtype: DType = DType.I2
+                case (Observatory.SHEBA, Instrument.MMCR):
+                    length: int = 3
+                    height: int = 2
+                    scale: int = 100
+                    dtype: DType = DType.I2
             # Now you want to apply the mask.
-            window = GridWindow(length=3, height=2)
-            mask = self.transformation_engine.get_mask(
-                data.variables[name].values,
-                window,
-                threshold,
-                scale=100,  # You need to change this.
-                dtype=DType.I2,
+            mask_request: MaskRequest = MaskRequest(
+                values=data.variables[name].values,
+                length=length,
+                height=height,
+                threshold=threshold,
+                scale=scale,
+                dtype=dtype,
             )
+            mask = self.transformation_engine.get_mask(mask_request)
             this_var = Variable(
                 dtype=DType.U1,
                 long_name="Radar Cloud Mask",
