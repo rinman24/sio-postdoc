@@ -10,3 +10,7 @@ NOTE: If you need to reinstall poetry on a mac:
 
 NOTE: Configure poetry to use in-project virtual envs:
   poetry config virtualenvs.in-project true
+
+
+When poetry is not installing on windows you need to run
+py -m pip install certifi
