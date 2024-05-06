@@ -36,6 +36,7 @@ from sio_postdoc.engine.transformation.strategies.daily.sheba.dabul import (
 from sio_postdoc.engine.transformation.strategies.daily.sheba.mmcr import ShebaMmcrDaily
 from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
+from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
 from sio_postdoc.manager.observation.contracts import (
@@ -130,6 +131,8 @@ class ObservationManager:
             match (request.observatory, request.instrument):
                 case (Observatory.EUREKA, Instrument.AHSRL):
                     strategy: TransformationStrategy = EurekaAhsrlRaw()
+                case (Observatory.EUREKA, Instrument.MMCR):
+                    strategy: TransformationStrategy = EurekaMmcrRaw()
                 case (Observatory.SHEBA, Instrument.DABUL):
                     strategy: TransformationStrategy = ShebaDabulRaw()
                 case (Observatory.SHEBA, Instrument.MMCR):
