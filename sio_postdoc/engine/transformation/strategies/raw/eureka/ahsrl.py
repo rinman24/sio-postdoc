@@ -34,10 +34,10 @@ class EurekaAhsrlRaw(TransformationStrategy):
             name=Dimensions.LEVEL,
             size=dataset.dimensions["altitude"].size,
         )
-        self._dimensions["angle"] = Dimension(
-            name=Dimensions.ANGLE,
-            size=4,
-        )
+        # self._dimensions["angle"] = Dimension(
+        #     name=Dimensions.ANGLE,
+        #     size=4,
+        # )
 
     def _add_variables(self, dataset: DataSet, path: Path) -> None:
         """Use a `DataSet` to set the state of `_variables`."""
@@ -46,8 +46,8 @@ class EurekaAhsrlRaw(TransformationStrategy):
         self._add_cross_counts(dataset)
         self._add_depol(dataset)
         self._add_epoch(path)
-        self._add_latitude(dataset)
-        self._add_longitude(dataset)
+        # self._add_latitude(dataset)
+        # self._add_longitude(dataset)
         self._add_molecular_counts(dataset)
         self._add_offset(dataset)
         self._add_range(dataset)
@@ -125,31 +125,31 @@ class EurekaAhsrlRaw(TransformationStrategy):
             values=value,
         )
 
-    def _add_latitude(self, dataset: DataSet) -> None:
-        value_request: VariableRequest = VariableRequest(
-            variable="latitude",
-            name="latitude",
-            long_name="Platform Latitude [North]",
-            units=Units.DEGREES,
-            scale=Scales.ONE,
-            dtype=DType.U1,
-            flag=NINES,
-            dimensions=(),
-        )
-        self._add_single_variable(dataset, value_request)
+    # def _add_latitude(self, dataset: DataSet) -> None:
+    #     value_request: VariableRequest = VariableRequest(
+    #         variable="latitude",
+    #         name="latitude",
+    #         long_name="Platform Latitude [North]",
+    #         units=Units.DEGREES,
+    #         scale=Scales.ONE,
+    #         dtype=DType.U1,
+    #         flag=NINES,
+    #         dimensions=(),
+    #     )
+    #     self._add_single_variable(dataset, value_request)
 
-    def _add_longitude(self, dataset: DataSet) -> None:
-        value_request: VariableRequest = VariableRequest(
-            variable="longitude",
-            name="longitude",
-            long_name="Platform Longitude [East]",
-            units=Units.DEGREES,
-            scale=Scales.ONE,
-            dtype=DType.U1,
-            flag=NINES,
-            dimensions=(),
-        )
-        self._add_single_variable(dataset, value_request)
+    # def _add_longitude(self, dataset: DataSet) -> None:
+    #     value_request: VariableRequest = VariableRequest(
+    #         variable="longitude",
+    #         name="longitude",
+    #         long_name="Platform Longitude [East]",
+    #         units=Units.DEGREES,
+    #         scale=Scales.ONE,
+    #         dtype=DType.U1,
+    #         flag=NINES,
+    #         dimensions=(),
+    #     )
+    #     self._add_single_variable(dataset, value_request)
 
     def _add_molecular_counts(self, dataset: DataSet) -> None:
         value_request: VariableRequest = VariableRequest(
