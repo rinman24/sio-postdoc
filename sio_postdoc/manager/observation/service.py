@@ -48,6 +48,9 @@ from sio_postdoc.manager.observation.contracts import (
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
 MIN_ELEVATION: int = 500
+MASK_TYPE: DType = DType.I1
+
+Mask = tuple[tuple[int, ...], ...]
 
 
 class ObservationManager:
@@ -162,9 +165,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    def create_daily_masks(
-        self, request: DailyRequest, threshold: int, name: str
-    ) -> None:
+    def create_daily_masks(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
@@ -205,17 +206,20 @@ class ObservationManager:
                 continue
             # Set the Window and threshold
             strategy: TransformationStrategy
+            length: int = 3
+            scale: int = 100
+            dtype: DType = DType.I2
             match (request.observatory, request.instrument):
                 case (Observatory.SHEBA, Instrument.DABUL):
-                    length: int = 3
                     height: int = 3
-                    scale: int = 100  # You need to check this
-                    dtype: DType = DType.I2
+                    long_name: str = "Lidar Cloud Mask"
+                    name: str = "far_par"
+                    threshold: int = 55
                 case (Observatory.SHEBA, Instrument.MMCR):
-                    length: int = 3
                     height: int = 2
-                    scale: int = 100
-                    dtype: DType = DType.I2
+                    long_name: str = "Radar Cloud Mask"
+                    name: str = "refl"
+                    threshold: int = -5
             # Now you want to apply the mask.
             mask_request: MaskRequest = MaskRequest(
                 values=data.variables[name].values,
@@ -225,10 +229,10 @@ class ObservationManager:
                 scale=scale,
                 dtype=dtype,
             )
-            mask = self.transformation_engine.get_mask(mask_request)
+            mask: Mask = self.transformation_engine.get_mask(mask_request)
             this_var = Variable(
-                dtype=DType.U1,
-                long_name="Radar Cloud Mask",
+                dtype=MASK_TYPE,
+                long_name=long_name,
                 scale=Scales.ONE,
                 units=Units.NONE,
                 dimensions=(
@@ -239,7 +243,7 @@ class ObservationManager:
                         name=Dimensions.LEVEL, size=len(data.variables[name].values[0])
                     ),
                 ),
-                values=tuple(tuple(1 if value else 0 for value in row) for row in mask),
+                values=mask,
             )
             data.variables["cloud_mask"] = this_var
             # Serialize the data.

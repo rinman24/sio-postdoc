@@ -154,7 +154,7 @@ class IndicesByDate(AbstractDateStrategy):
         """Apply the filtering strategy."""
         # Get the masks
         data = content[0]
-        masks: list[tuple[bool, ...]] = self._get_masks(target, content)
+        masks: list[tuple[int, ...]] = self._get_masks(target, content)
         # If the masks are all false, then return None
         if not any(any(m) for m in masks):
             return None
@@ -184,7 +184,7 @@ class IndicesByDate(AbstractDateStrategy):
     @staticmethod
     def _get_masks(
         target: date, content: tuple[InstrumentData, ...]
-    ) -> list[tuple[bool, ...]]:
+    ) -> tuple[tuple[int, ...], ...]:
         masks: list[Mask] = []
         for data in content:
             initial: datetime = datetime.fromtimestamp(data.variables["epoch"].values)
@@ -198,4 +198,4 @@ class IndicesByDate(AbstractDateStrategy):
                     for offset in data.variables["offset"].values
                 )
             )
-        return masks
+        return tuple(masks)

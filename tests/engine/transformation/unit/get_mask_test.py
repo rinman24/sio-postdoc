@@ -32,16 +32,16 @@ def test_get_mask_large(engine):
         dtype=DType.U1,
     )
     assert engine.get_mask(request) == (
-        (False, False, False, False, False, False, False, False, False, False),
-        (False, False, True, True, False, False, False, False, False, False),
-        (False, False, True, True, False, False, False, False, True, True),
-        (False, False, True, True, False, False, False, False, True, True),
-        (False, False, True, True, False, False, False, False, True, True),
-        (False, False, False, False, False, False, True, True, False, False),
-        (False, False, False, False, False, False, True, True, True, False),
-        (True, True, False, False, False, False, True, True, True, False),
-        (True, True, False, False, False, False, False, True, True, False),
-        (True, True, False, False, False, False, False, False, False, False),
+        (0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+        (0, 0, 1, 1, 0, 0, 0, 0, 0, 0),
+        (0, 0, 1, 1, 0, 0, 0, 0, 1, 1),
+        (0, 0, 1, 1, 0, 0, 0, 0, 1, 1),
+        (0, 0, 1, 1, 0, 0, 0, 0, 1, 1),
+        (0, 0, 0, 0, 0, 0, 1, 1, 0, 0),
+        (0, 0, 0, 0, 0, 0, 1, 1, 1, 0),
+        (1, 1, 0, 0, 0, 0, 1, 1, 1, 0),
+        (1, 1, 0, 0, 0, 0, 0, 1, 1, 0),
+        (1, 1, 0, 0, 0, 0, 0, 0, 0, 0),
     )
 
 
@@ -61,9 +61,9 @@ def test_get_mask_small(engine):
         dtype=DType.U1,
     )
     assert engine.get_mask(request) == (
-        (False, False, False, False),
-        (False, True, True, False),
-        (False, True, True, False),
-        (False, True, True, False),
-        (False, False, False, False),
+        (0, 0, 0, 0),
+        (0, 1, 1, 0),
+        (0, 1, 1, 0),
+        (0, 1, 1, 0),
+        (0, 0, 0, 0),
     )

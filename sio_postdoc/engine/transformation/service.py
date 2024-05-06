@@ -1,10 +1,12 @@
 """Encapsulate the `TransformationEngine`."""
 
+from sio_postdoc.engine import DType
 from sio_postdoc.engine.transformation.contracts import MaskRequest
 from sio_postdoc.engine.transformation.window import GridWindow
 
-Mask = tuple[tuple[bool, ...]]
-Values = tuple[tuple[int, ...]]
+MASK_TYPE: DType = DType.I1
+
+Mask = tuple[tuple[int, ...], ...]
 
 
 class TransformationEngine:
@@ -12,9 +14,10 @@ class TransformationEngine:
 
     def get_mask(self, request: MaskRequest) -> Mask:
         """Derive a mask based on the threashold."""
+        mask_value: int
         window: GridWindow = GridWindow(length=request.length, height=request.height)
         mask: Mask = [
-            [False for _ in range(len(request.values[0]))]
+            [0 for _ in range(len(request.values[0]))]
             for _ in range(len(request.values))
         ]
         horizontal: tuple[int, int] = (
@@ -31,25 +34,26 @@ class TransformationEngine:
                 current_values: tuple[int, ...] = tuple(
                     request.values[i][j] for i, j in window.members()
                 )
-                # If the threshold is negative, flip min to max
-                if request.threshold < 0:
-                    current_values = tuple(
-                        request.dtype.max if v == request.dtype.min else v
-                        for v in current_values
+                if any(v == request.dtype.min for v in current_values):
+                    mask_value = MASK_TYPE.min
+                elif request.threshold < 0:
+                    mask_value = (
+                        1
+                        if all(
+                            v / request.scale < request.threshold
+                            for v in current_values
+                        )
+                        else 0
                     )
-                else:
-                    current_values = tuple(
-                        request.dtype.min if v == request.dtype.max else v
-                        for v in current_values
+                else:  # 0 <= request.threshold
+                    mask_value = (
+                        1
+                        if all(
+                            request.threshold < v / request.scale
+                            for v in current_values
+                        )
+                        else 0
                     )
-                # Else, flip max to min
-                if request.threshold < 0:
-                    if any(
-                        v / request.scale > request.threshold for v in current_values
-                    ):
-                        continue
-                elif any(v / request.scale < request.threshold for v in current_values):
-                    continue
                 for i, j in window.members():
-                    mask[i][j] = True
+                    mask[i][j] = mask_value
         return tuple(tuple(element) for element in mask)
