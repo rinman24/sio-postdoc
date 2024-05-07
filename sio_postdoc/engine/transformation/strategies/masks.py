@@ -91,8 +91,8 @@ class Masks(TransformationStrategy):
             long_name="Cloud Mask",
             units=Units.NONE,
             scale=Scales.ONE,
-            dtype=DType.I4,
-            flag=NINES,
+            dtype=DType.I1,
+            flag=DType.I1.min,
             dimensions=(self._dimensions["time"], self._dimensions["level"]),
         )
         self._add_single_variable(dataset, value_request)

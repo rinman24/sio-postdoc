@@ -1,8 +1,7 @@
 """Observation Manager Module."""
 
 import os
-import pickle
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Generator
 
@@ -50,6 +49,7 @@ OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
 MIN_ELEVATION: int = 500
 MASK_TYPE: DType = DType.I1
+ONE_HALF: float = 1 / 2
 
 Mask = tuple[tuple[int, ...], ...]
 
@@ -265,7 +265,6 @@ class ObservationManager:
     def merge_daily_masks(self, request: ObservatoryRequest) -> None:
         """Merge daily masks for a given observatory, month and year."""
         # Get a list of all the relevant blobs
-        # We know that we need to get two different instrument maps
         instruments: dict[str, Instrument] = {}
         match request.observatory:
             case Observatory.SHEBA:
@@ -319,11 +318,11 @@ class ObservationManager:
             # TODO: Use a transformation strategy here.
             dataframes: dict[Instrument, pd.DataFrame] = {
                 instrument: pd.DataFrame(
-                    data[instrument].variables["cloud_mask"].values,
-                    index=data[instrument].variables["offset"].values,
-                    columns=data[instrument].variables["range"].values,
+                    instrument_data.variables["cloud_mask"].values,
+                    index=instrument_data.variables["offset"].values,
+                    columns=instrument_data.variables["range"].values,
                 )
-                for instrument in instruments.values()
+                for instrument, instrument_data in data.items()
             }
             # Set up the new merged mask
             max_elevation: int = min(df.columns.max() for df in dataframes.values())
@@ -331,42 +330,135 @@ class ObservationManager:
             elevations: list[int] = list(
                 range(0, max_elevation + 1, STEPS["elevation"])
             )
-            mask: list[list[bool]] = [[False for _ in elevations] for _ in times]
+            mask: list[list[int]] = [[0 for _ in elevations] for _ in times]
             for i, time in enumerate(times):
+                selected_times: dict[Instrument, list[bool]] = {
+                    key: [
+                        a and b
+                        for a, b in zip(
+                            time - OFFSETS["time"] <= df.index,
+                            df.index < time + OFFSETS["time"],
+                        )
+                    ]
+                    for key, df in dataframes.items()
+                }
                 for j, elevation in enumerate(elevations):
-                    selected_times: dict[Instrument, list[bool]] = {
-                        key: [
+                    if elevation < MIN_ELEVATION:
+                        continue
+                    selected_elevations: dict[Instrument, list[bool]] = {}
+                    values: dict[Instrument, pd.DataFrame] = {}
+                    sizes: dict[Instrument, int] = {}
+                    means: dict[Instrument, float] = {}
+                    for inst, df in dataframes.items():
+                        selected_elevations[inst] = [
                             a and b
                             for a, b in zip(
-                                time - OFFSETS["time"] <= value.index,
-                                value.index < time + OFFSETS["time"],
+                                elevation - OFFSETS["elevation"] <= df.columns,
+                                df.columns < elevation + OFFSETS["elevation"],
                             )
                         ]
-                        for key, value in dataframes.items()
-                    }
-                    selected_elevations: dict[Instrument, list[bool]] = {
-                        key: [
-                            a and b
-                            for a, b in zip(
-                                elevation - OFFSETS["elevation"] <= value.columns,
-                                value.columns < elevation + OFFSETS["elevation"],
-                            )
+                        values[inst] = df.iloc[
+                            selected_times[inst], selected_elevations[inst]
                         ]
-                        for key, value in dataframes.items()
-                    }
-                    # Now you have the values to slice by
-                    values: dict[Instrument, pd.DataFrame] = {
-                        key: value.iloc[selected_times[key], selected_elevations[key]]
-                        for key, value in dataframes.items()
-                    }
-                    # Now that you have the values, you want to take the the mean of them
+                        sizes[inst] = values[inst].size
+                        means[inst] = values[inst].mean().mean()
+                    # Now set the value of the flags
+                    CLOUD = DType.I1.min
+                    NO_CLOUD = DType.I1.min
+                    if not any(sizes.values()):
+                        mask[i][j] = -6  # Missing all data
+                        continue
+                    elif all(DType.I1.min in df.values for df in values.values()):
+                        if not any(
+                            ONE_HALF <= df.replace(DType.I1.min, 0).mean().mean()
+                            for df in values.values()
+                        ):
+                            mask[i][j] = 0
+                            continue
+                        for instrument, df in values.items():
+                            if ONE_HALF <= df.replace(DType.I1.min, 0).mean().mean():
+                                match instrument:
+                                    case (
+                                        Instrument.AHSRL
+                                        | Instrument.DABUL
+                                        | Instrument.MPL
+                                    ):
+                                        # This is when the lidar is greater than 0.5 while the radar has flags
+                                        mask[i][j] = 1
+                                    case Instrument.MMCR:
+                                        # This is when the radar is greater than 0.5 while the lidar has flags
+                                        mask[i][j] = 2
+                                break
+                        continue
+                    elif not all(sizes.values()):  # At least one is empty
+                        for instrument, size in sizes.items():
+                            if not size:
+                                match instrument:
+                                    case (
+                                        Instrument.AHSRL
+                                        | Instrument.DABUL
+                                        | Instrument.MPL
+                                    ):
+                                        # Cloud detected by radar with EMPTY lidar signal
+                                        CLOUD = 4
+                                        # No cloud detected by radar with EMPTY lidar signal
+                                        NO_CLOUD = -4
+                                    case Instrument.MMCR:
+                                        # Cloud detected by lidar with EMPTY radar signal
+                                        CLOUD = 5
+                                        # No cloud detected by lidar with EMPTY radar signal
+                                        NO_CLOUD = -5
+                                break
+                    elif any(DType.I1.min in df.values for df in values.values()):
+                        # The Flag is in at lease one
+                        for instrument, df in values.items():
+                            if DType.I1.min in df.values:
+                                match instrument:
+                                    case (
+                                        Instrument.AHSRL
+                                        | Instrument.DABUL
+                                        | Instrument.MPL
+                                    ):
+                                        # Cloud detected by radar with both signals available
+                                        CLOUD = 2
+                                        # No cloud detected by radar with both signals available
+                                        NO_CLOUD = -2
+                                    case Instrument.MMCR:
+                                        # Cloud detected by lidar with both signals available
+                                        CLOUD = 1
+                                        # No cloud detected by lidar with both signals available
+                                        NO_CLOUD = -1
+                                break
+                    elif all(ONE_HALF <= i for i in means.values()):
+                        # Then both of the signals say there is a cloud
+                        mask[i][j] = 3
+                        continue
+                    elif any(ONE_HALF <= i for i in means.values()):
+                        # Then only one is saying there is a value
+                        for instrument, df in values.items():
+                            if means[instrument] < ONE_HALF:
+                                match instrument:
+                                    case (
+                                        Instrument.AHSRL
+                                        | Instrument.DABUL
+                                        | Instrument.MPL
+                                    ):
+                                        # Lidar less than 1/2 but not radar
+                                        mask[i][j] = 2
+                                    case Instrument.MMCR:
+                                        # Radar less than 1/2 but not lidar
+                                        mask[i][j] = 1
+                                break
+                        continue
+                    else:  # all means are less than 0.5 (Clear by both)
+                        mask[i][j] = -3
+                        continue
                     mask[i][j] = (
-                        True
-                        if any(v.mean().mean() >= 1 / 2 for v in values.values())
-                        else False
+                        CLOUD
+                        if any(ONE_HALF <= v.mean().mean() for v in values.values())
+                        else NO_CLOUD
                     )
-            # Now, assume that you have a bunch of values for the combined cloud map
-            # The next thing you need to do is make this into a dataframe
+            # NOTE: SPEED THINGS UP
             # with open("mask_list.pkl", "rb") as file:
             #     mask = pickle.load(file)
             mask: pd.DataFrame = pd.DataFrame(
@@ -376,39 +468,54 @@ class ObservationManager:
             )
             # Now that you have the mask, go through each time and find out how many clouds there
             # are and the the elevations are.
-            previous: bool
-            current: bool
-            current_time: datetime
-            cloud_extent = {}
-            for i, time in enumerate(times):
-                previous = False
-                current_time = datetime(
-                    year=target.year,
-                    month=target.month,
-                    day=target.day,
-                    tzinfo=timezone.utc,
-                ) + timedelta(seconds=time)
-                bases: list[int] = []
-                tops: list[int] = []
-                for j, elevation in enumerate(elevations[:-1]):
-                    if elevation <= MIN_ELEVATION:
-                        continue
-                    current = True if mask.loc[time, elevation] else False
-                    next_ = True if mask.iloc[i, j + 1] else False
-                    if not previous and current:
-                        bases.append(elevation - OFFSETS["elevation"])
-                    if current and not next_:
-                        tops.append(elevation + OFFSETS["elevation"])
-                    # Set previous to current
-                    previous = True if current else False
-                # Now, you're one away from the top, so go to the top and
-                current = True if mask.iloc[i, j + 1] else False
-                if not previous and current:
-                    bases.append(elevation - OFFSETS["elevation"])
-                if current:
-                    tops.append(elevation + OFFSETS["elevation"])
-                # Now that we're ready to go to the next time, we should append the results
-                cloud_extent[current_time] = {"bases": bases, "tops": tops}
+            # previous: bool
+            # current: bool
+            # current_time: datetime
+            # cloud_extent = {}
+            # for i, time in enumerate(times):
+            #     previous = False
+            #     current_time = datetime(
+            #         year=target.year,
+            #         month=target.month,
+            #         day=target.day,
+            #         tzinfo=timezone.utc,
+            #     ) + timedelta(seconds=time)
+            #     bases: list[int] = []
+            #     base_ids: list[int] = []
+            #     tops: list[int] = []
+            #     top_ids: list[int] = []
+            #     for j, elevation in enumerate(elevations[:-1]):
+            #         if elevation <= MIN_ELEVATION:
+            #             continue
+            #         # If the values are 4 or 5 then radar or lidar was missing
+            #         # If the value is 1, 2, or 3, then it is a true cloud
+            #         valid: set[int] = set([1, 2, 3])
+            #         current = True if mask.loc[time, elevation] in valid else False
+            #         # current = True if mask.loc[time, elevation] else False
+            #         next_ = True if mask.iloc[i, j + 1] in valid else False
+            #         if not previous and current:
+            #             bases.append(elevation - OFFSETS["elevation"])
+            #             base_ids.append(mask.iloc[i, j])
+            #         if current and not next_:
+            #             tops.append(elevation + OFFSETS["elevation"])
+            #             top_ids.append(mask.iloc[i, j])
+            #         # Set previous to current
+            #         previous = True if current else False
+            #     # Now, you're one away from the top, so go to the top and
+            #     current = True if mask.iloc[i, j + 1] in valid else False
+            #     if not previous and current:
+            #         bases.append(elevation - OFFSETS["elevation"])
+            #         base_ids.append(mask.iloc[i, j + 1])
+            #     if current:
+            #         tops.append(elevation + OFFSETS["elevation"])
+            #         top_ids.append(mask.iloc[i, j + 1])
+            #     # Now that we're ready to go to the next time, we should append the results
+            #     cloud_extent[current_time] = {
+            #         "bases": bases,
+            #         "tops": tops,
+            #         "base_ids": base_ids,
+            #         "top_ids": top_ids,
+            #     }
             # Now construct the instrument data that you can persist as a blob
             dimensions: dict[str, Dimension] = {
                 "time": Dimension(name=Dimensions.TIME, size=len(times)),
@@ -448,13 +555,11 @@ class ObservationManager:
                 ),
                 "cloud_mask": Variable(
                     dimensions=(dimensions["time"], dimensions["level"]),
-                    dtype=DType.I4,
+                    dtype=DType.I1,
                     long_name="Cloud Mask",
                     scale=Scales.ONE,
                     units=Units.NONE,
-                    values=tuple(
-                        tuple(1 if j else 0 for j in mask.loc[i][:]) for i in mask.index
-                    ),
+                    values=tuple(tuple(j for j in mask.loc[i][:]) for i in mask.index),
                 ),
             }
             instrument_data: InstrumentData = InstrumentData(
@@ -476,11 +581,11 @@ class ObservationManager:
             os.remove(filepath)
         # Now you're done with all the times as well.
         # Make sure you save the cloud_extent data
-        pickle_name: str = (
-            f"cloud-stats-{request.observatory.name.lower()}-{request.year}-{str(request.month.value).zfill(2)}.pkl"
-        )
-        with open(pickle_name, "wb") as file:
-            pickle.dump(cloud_extent, file)
+        # pickle_name: str = (
+        #     f"cloud-stats-{request.observatory.name.lower()}-{request.year}-{str(request.month.value).zfill(2)}.pkl"
+        # )
+        # with open(pickle_name, "wb") as file:
+        #     pickle.dump(cloud_extent, file)
 
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
