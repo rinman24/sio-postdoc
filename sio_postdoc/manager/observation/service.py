@@ -273,7 +273,7 @@ class ObservationManager:
             self.instrument_access.add_blob(
                 name=request.observatory.name.lower(),
                 path=filepath,
-                directory=f"{request.instrument.name.lower()}/masks/{request.year}/threshold_{threshold}/",
+                directory=f"{request.instrument.name.lower()}/masks/{request.year}/threshold_{threshold.value}/",
             )
             # Remove the file
             os.remove(filepath)
