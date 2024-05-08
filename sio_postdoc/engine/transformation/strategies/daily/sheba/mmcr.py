@@ -20,6 +20,9 @@ NINES: int = -999
 class ShebaMmcrDaily(TransformationStrategy):
     """Engine logic for daily SHEBA DABUL data."""
 
+    # NOTE: This is just the strategy to get what is needed for the masks
+    # TODO: Rename this to DailyMmcrMask
+
     def _add_dimensions(self, dataset: DataSet, path: Path) -> None:
         """Use a `InstrumentData` to set the state of `_dimensions`."""
         self._dimensions["time"] = Dimension(
@@ -34,11 +37,11 @@ class ShebaMmcrDaily(TransformationStrategy):
     def _add_variables(self, dataset: DataSet, path: Path) -> None:
         """Use a `DataSet` to set the state of `_variables`."""
         self._add_epoch(path)
-        self._add_mean_dopp_vel(dataset)
+        # self._add_mean_dopp_vel(dataset)
         self._add_offset(dataset)
         self._add_range(dataset)
         self._add_refl(dataset)
-        self._add_spec_width(dataset)
+        # self._add_spec_width(dataset)
 
     def _add_epoch(self, path: Path) -> None:
         extracted: DateTime = utility.extract_datetime(path.name, time=False)

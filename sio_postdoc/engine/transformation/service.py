@@ -1,7 +1,9 @@
 """Encapsulate the `TransformationEngine`."""
 
+from typing import Callable
+
 from sio_postdoc.engine import DType
-from sio_postdoc.engine.transformation.contracts import MaskRequest
+from sio_postdoc.engine.transformation.contracts import Direction, MaskRequest
 from sio_postdoc.engine.transformation.window import GridWindow
 
 MASK_TYPE: DType = DType.I1
@@ -14,7 +16,6 @@ class TransformationEngine:
 
     def get_mask(self, request: MaskRequest) -> Mask:
         """Derive a mask based on the threashold."""
-        mask_value: int
         window: GridWindow = GridWindow(length=request.length, height=request.height)
         mask: Mask = [
             [0 for _ in range(len(request.values[0]))]
@@ -28,6 +29,12 @@ class TransformationEngine:
             window.padding["bottom"],
             len(request.values[0]) - window.padding["top"],
         )
+        # Set up the threshold direciton
+        match request.threshold.direction:
+            case Direction.LESS_THAN:
+                mask_method: Callable = self._max_threshold_mask
+            case Direction.GREATER_THAN:
+                mask_method: Callable = self._min_threshold_mask
         for x in range(horizontal[0], horizontal[1]):
             for y in range(vertical[0], vertical[1]):
                 window.position = (x, y)
@@ -35,25 +42,23 @@ class TransformationEngine:
                     request.values[i][j] for i, j in window.members()
                 )
                 if any(v == request.dtype.min for v in current_values):
-                    mask_value = MASK_TYPE.min
-                elif request.threshold < 0:
-                    mask_value = (
-                        1
-                        if all(
-                            v / request.scale < request.threshold
-                            for v in current_values
-                        )
-                        else 0
-                    )
-                else:  # 0 <= request.threshold
-                    mask_value = (
-                        1
-                        if all(
-                            request.threshold < v / request.scale
-                            for v in current_values
-                        )
-                        else 0
+                    mask_value: int = MASK_TYPE.min
+                else:
+                    mask_value: int = mask_method(
+                        request.scale, request.threshold.value, current_values
                     )
                 for i, j in window.members():
                     mask[i][j] = mask_value
         return tuple(tuple(element) for element in mask)
+
+    @staticmethod
+    def _max_threshold_mask(
+        scale: int, threshold: int, current_values: tuple[int, ...]
+    ) -> int:
+        return 1 if all(v / scale < threshold for v in current_values) else 0
+
+    @staticmethod
+    def _min_threshold_mask(
+        scale: int, threshold: int, current_values: tuple[int, ...]
+    ) -> int:
+        return 1 if all(threshold < v / scale for v in current_values) else 0

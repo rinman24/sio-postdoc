@@ -20,8 +20,10 @@ from sio_postdoc.engine.transformation.context.service import TransformationCont
 from sio_postdoc.engine.transformation.contracts import (
     DateTime,
     Dimension,
+    Direction,
     InstrumentData,
     MaskRequest,
+    Threshold,
     Variable,
 )
 from sio_postdoc.engine.transformation.service import TransformationEngine
@@ -50,6 +52,7 @@ STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
 MIN_ELEVATION: int = 500
 MASK_TYPE: DType = DType.I1
 ONE_HALF: float = 1 / 2
+VERTICAL_RAIL: int = -10
 
 Mask = tuple[tuple[int, ...], ...]
 
@@ -193,6 +196,10 @@ class ObservationManager:
                     strategy = ShebaDabulDaily()
                 case (Observatory.SHEBA, Instrument.MMCR):
                     strategy = ShebaMmcrDaily()
+                case (Observatory.EUREKA, Instrument.MMCR):
+                    # NOTE: You can use the single MmcrDaily Strategy
+                    # TODO: Rename this from ShebaMmcrDaily to MmcrDaily
+                    strategy = ShebaMmcrDaily()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
@@ -208,21 +215,31 @@ class ObservationManager:
             if not data:
                 continue
             # Set the Window and threshold
-            strategy: TransformationStrategy
             length: int = 3
             scale: int = 100
             dtype: DType = DType.I2
             match (request.observatory, request.instrument):
+                case (Observatory.EUREKA, Instrument.MMCR):
+                    height: int = 2
+                    long_name: str = "Radar Cloud Mask"
+                    name: str = "refl"
+                    threshold: Threshold = Threshold(
+                        value=10, direction=Direction.LESS_THAN
+                    )
                 case (Observatory.SHEBA, Instrument.DABUL):
                     height: int = 3
                     long_name: str = "Lidar Cloud Mask"
                     name: str = "far_par"
-                    threshold: int = 55
+                    threshold: Threshold = Threshold(
+                        value=55, direction=Direction.GREATER_THAN
+                    )
                 case (Observatory.SHEBA, Instrument.MMCR):
                     height: int = 2
                     long_name: str = "Radar Cloud Mask"
                     name: str = "refl"
-                    threshold: int = -5
+                    threshold: Threshold = Threshold(
+                        value=10, direction=Direction.LESS_THAN
+                    )
             # Now you want to apply the mask.
             mask_request: MaskRequest = MaskRequest(
                 values=data.variables[name].values,
@@ -233,7 +250,7 @@ class ObservationManager:
                 dtype=dtype,
             )
             mask: Mask = self.transformation_engine.get_mask(mask_request)
-            this_var = Variable(
+            data.variables["cloud_mask"] = Variable(
                 dtype=MASK_TYPE,
                 long_name=long_name,
                 scale=Scales.ONE,
@@ -248,7 +265,6 @@ class ObservationManager:
                 ),
                 values=mask,
             )
-            data.variables["cloud_mask"] = this_var
             # Serialize the data.
             filepath: Path = self.transformation_context.serialize(
                 target, data, request
@@ -263,7 +279,10 @@ class ObservationManager:
             os.remove(filepath)
 
     def merge_daily_masks(self, request: ObservatoryRequest) -> None:
-        """Merge daily masks for a given observatory, month and year."""
+        """Merge daily masks for a given observatory, month and year.
+
+        TODO: The logic belogs in an engine (Transformation).
+        """
         # Get a list of all the relevant blobs
         instruments: dict[str, Instrument] = {}
         match request.observatory:

@@ -1,6 +1,7 @@
 """Instrument Access Contracts."""
 
 from datetime import datetime, timezone
+from enum import Enum, auto
 from typing import Union
 
 from pydantic import BaseModel
@@ -84,12 +85,55 @@ class VariableRequest(BaseModel):
     conversion_scale: Scales = Scales.ONE
 
 
+class Direction(Enum):
+    """Define directions for thresholds.
+
+    Specifies whether valid values less than or greater than the threshold.
+    """
+
+    LESS_THAN = auto()
+    GREATER_THAN = auto()
+
+
+class Threshold(BaseModel):
+    """Container for a threshold."""
+
+    value: int
+    direction: Direction
+
+
 class MaskRequest(BaseModel):
     """Request a binary cloud mask from a `DataSet`."""
 
     values: tuple[tuple[int, ...], ...]
     length: int
     height: int
-    threshold: int
+    threshold: Threshold
     scale: int
     dtype: DType
+
+
+class MaskCode(BaseModel):
+    """Container for mask codes for bases and tops of masked objects."""
+
+    bottom: int
+    top: int
+
+
+class VerticalTransition(BaseModel):
+    """Container for the base of a masked object."""
+
+    elevation: int  # meters
+    code: MaskCode
+
+
+class VerticalExtent(BaseModel):
+    """Container for the vertical extent of masked objects."""
+
+    # NOTE: Each datetime could have several bases and tops
+    # So there is one datetime with these
+    # And then you keep a list of these things.
+
+    datetimes: tuple[datetime, ...]
+    bases: tuple[VerticalTransition, ...]  # meters
+    tops: tuple[VerticalTransition, ...]  # meters
