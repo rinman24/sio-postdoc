@@ -127,13 +127,9 @@ class VerticalTransition(BaseModel):
     code: MaskCode
 
 
-class VerticalExtent(BaseModel):
-    """Container for the vertical extent of masked objects."""
+class VerticalLayers(BaseModel):
+    """Container for the vertical extent of masked objects at a given time."""
 
-    # NOTE: Each datetime could have several bases and tops
-    # So there is one datetime with these
-    # And then you keep a list of these things.
-
-    datetimes: tuple[datetime, ...]
+    datetime: datetime
     bases: tuple[VerticalTransition, ...]  # meters
     tops: tuple[VerticalTransition, ...]  # meters

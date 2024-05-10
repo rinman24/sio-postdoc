@@ -1,7 +1,8 @@
 """Observation Manager Module."""
 
 import os
-from datetime import date, datetime, timedelta
+import pickle
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
 
@@ -22,9 +23,12 @@ from sio_postdoc.engine.transformation.contracts import (
     Dimension,
     Direction,
     InstrumentData,
+    MaskCode,
     MaskRequest,
     Threshold,
     Variable,
+    VerticalLayers,
+    VerticalTransition,
 )
 from sio_postdoc.engine.transformation.service import TransformationEngine
 from sio_postdoc.engine.transformation.strategies.base import (
@@ -485,56 +489,6 @@ class ObservationManager:
                 index=times,
                 columns=elevations,
             )
-            # Now that you have the mask, go through each time and find out how many clouds there
-            # are and the the elevations are.
-            # previous: bool
-            # current: bool
-            # current_time: datetime
-            # cloud_extent = {}
-            # for i, time in enumerate(times):
-            #     previous = False
-            #     current_time = datetime(
-            #         year=target.year,
-            #         month=target.month,
-            #         day=target.day,
-            #         tzinfo=timezone.utc,
-            #     ) + timedelta(seconds=time)
-            #     bases: list[int] = []
-            #     base_ids: list[int] = []
-            #     tops: list[int] = []
-            #     top_ids: list[int] = []
-            #     for j, elevation in enumerate(elevations[:-1]):
-            #         if elevation <= MIN_ELEVATION:
-            #             continue
-            #         # If the values are 4 or 5 then radar or lidar was missing
-            #         # If the value is 1, 2, or 3, then it is a true cloud
-            #         valid: set[int] = set([1, 2, 3])
-            #         current = True if mask.loc[time, elevation] in valid else False
-            #         # current = True if mask.loc[time, elevation] else False
-            #         next_ = True if mask.iloc[i, j + 1] in valid else False
-            #         if not previous and current:
-            #             bases.append(elevation - OFFSETS["elevation"])
-            #             base_ids.append(mask.iloc[i, j])
-            #         if current and not next_:
-            #             tops.append(elevation + OFFSETS["elevation"])
-            #             top_ids.append(mask.iloc[i, j])
-            #         # Set previous to current
-            #         previous = True if current else False
-            #     # Now, you're one away from the top, so go to the top and
-            #     current = True if mask.iloc[i, j + 1] in valid else False
-            #     if not previous and current:
-            #         bases.append(elevation - OFFSETS["elevation"])
-            #         base_ids.append(mask.iloc[i, j + 1])
-            #     if current:
-            #         tops.append(elevation + OFFSETS["elevation"])
-            #         top_ids.append(mask.iloc[i, j + 1])
-            #     # Now that we're ready to go to the next time, we should append the results
-            #     cloud_extent[current_time] = {
-            #         "bases": bases,
-            #         "tops": tops,
-            #         "base_ids": base_ids,
-            #         "top_ids": top_ids,
-            #     }
             # Now construct the instrument data that you can persist as a blob
             dimensions: dict[str, Dimension] = {
                 "time": Dimension(name=Dimensions.TIME, size=len(times)),
@@ -598,13 +552,117 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
-        # Now you're done with all the times as well.
-        # Make sure you save the cloud_extent data
-        # pickle_name: str = (
-        #     f"cloud-stats-{request.observatory.name.lower()}-{request.year}-{str(request.month.value).zfill(2)}.pkl"
-        # )
-        # with open(pickle_name, "wb") as file:
-        #     pickle.dump(cloud_extent, file)
+
+    def extract_daily_extents(self, request: ObservatoryRequest) -> None:
+        """Extract daily cloud extent from combined masks for a given observatory, month and year.
+
+        TODO: The logic belogs in an engine (Transformation).
+        """
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"combined_masks/{request.year}/",
+        )
+        # Extract the data for each day
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target, blobs, strategy=NamesByDate(), time=False
+            )
+            if not selected:
+                continue
+            # Generate a InstrumentData of the Mask
+            results: tuple[InstrumentData, ...] = tuple(
+                self._generate_data(
+                    selected,
+                    request,
+                    strategy=Masks(),
+                )
+            )
+            if not results:
+                continue
+            # There should only be one value in the result
+            data: InstrumentData = results[0]
+            # Convert to DataFrames for processing
+            # NOTE: This could be done with a transformation strategy as well.
+            # TODO: Use a transformation strategy here.
+            dataframe: pd.DataFrame = pd.DataFrame(
+                data.variables["cloud_mask"].values,
+                index=data.variables["offset"].values,
+                columns=data.variables["range"].values,
+            )
+            # NOTE: This looks like an internal method.
+            # NOTE: Or a method that belongs in the engine.
+            base_time: datetime = datetime(
+                target.year, target.month, target.day, tzinfo=timezone.utc
+            )
+            result: list[VerticalLayers] = []
+            for i, offset in enumerate(dataframe.index):
+                below: int = VERTICAL_RAIL
+                bases: list[VerticalLayers] = []
+                tops: list[VerticalLayers] = []
+                for j, elevation in enumerate(dataframe.columns[:-1]):
+                    if elevation < MIN_ELEVATION:
+                        continue
+                    current: int = int(dataframe.iloc[i, j])
+                    above: int = int(dataframe.iloc[i, j + 1])
+                    if below <= 0 < current:
+                        bases.append(
+                            VerticalTransition(
+                                elevation=elevation - OFFSETS["elevation"],
+                                code=MaskCode(bottom=below, top=current),
+                            )
+                        )
+                    if above <= 0 < current:
+                        tops.append(
+                            VerticalTransition(
+                                elevation=elevation + OFFSETS["elevation"],
+                                code=MaskCode(bottom=current, top=above),
+                            )
+                        )
+                    # But before moving on, set below to current
+                    below = int(current)
+                # Now, you're one away from the top
+                current = dataframe.iloc[i, j + 1]
+                if 0 < current:
+                    tops.append(
+                        VerticalTransition(
+                            elevation=elevation + OFFSETS["elevation"],
+                            code=MaskCode(bottom=current, top=VERTICAL_RAIL),
+                        )
+                    )
+                    if below <= 0:
+                        bases.append(
+                            VerticalTransition(
+                                elevation=elevation - OFFSETS["elevation"],
+                                code=MaskCode(bottom=below, top=current),
+                            )
+                        )
+                # Now that you are done with the time slice create VerticalLayers
+                result.append(
+                    VerticalLayers(
+                        datetime=base_time + timedelta(seconds=offset),
+                        bases=tuple(bases),
+                        tops=tuple(tops),
+                    )
+                )
+            # Searalize via pkl
+            filepath: Path = Path(
+                f"D{request.year}"
+                f"-{str(request.month.value).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-cloud-stats-{request.observatory.name.lower()}.pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(tuple(result), file)
+            # Persist blob
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"vertical_extent/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
 
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
