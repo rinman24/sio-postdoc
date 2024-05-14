@@ -599,8 +599,8 @@ class ObservationManager:
             result: list[VerticalLayers] = []
             for i, offset in enumerate(dataframe.index):
                 below: int = VERTICAL_RAIL
-                bases: list[VerticalLayers] = []
-                tops: list[VerticalLayers] = []
+                bases: list[VerticalTransition] = []
+                tops: list[VerticalTransition] = []
                 for j, elevation in enumerate(dataframe.columns[:-1]):
                     if elevation < MIN_ELEVATION:
                         continue
@@ -664,6 +664,157 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    # def make_fig_3_bases(self, request: ObservatoryRequest) -> None:
+    #     """Extract fractioin of the time that lidar detected the base."""
+    #     # Get a list of all the relevant blobs
+    #     blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+    #         container=request.observatory.name.lower(),
+    #         name_starts_with=f"vertical_extent/{request.year}/",
+    #     )
+    #     # Extract the data for each day
+    #     total: int = 0
+    #     lidar: int = 0
+    #     radar: int = 0
+    #     both: int = 0
+    #     for target in self._dates_in_month(request.year, request.month.value):
+    #         print(target)
+    #         selected: tuple[str, ...] = self.filter_context.apply(
+    #             target, blobs, strategy=NamesByDate(), time=False
+    #         )
+    #         if not selected:
+    #             continue
+    #         # Read the pickle file
+    #         layers: tuple[VerticalLayers, ...] = self._read_pickle(selected[0], request)
+    #         if not layers:
+    #             continue
+    #         for time_slice in layers:
+    #             total += 1
+    #             try:
+    #                 match time_slice.bases[0].code.top:
+    #                     case 1:
+    #                         lidar += 1
+    #                     case 2:
+    #                         radar += 1
+    #                     case 3:
+    #                         both += 1
+    #             except IndexError:
+    #                 continue
+    #         # Now that you have gone through all of the times,
+    #         # You need to save the total, lidar, radar, and both
+    #         # Then you can start to make the plot
+    #     return {"total": total, "both": both, "lidar": lidar, "radar": radar}
+    #     # # Searalize via pkl
+    #     # filepath: Path = Path(
+    #     #     f"D{request.year}"
+    #     #     f"-{str(request.month.value).zfill(2)}"
+    #     #     f"-{str(target.day).zfill(2)}"
+    #     #     f"-cloud-stats-{request.observatory.name.lower()}.pkl"
+    #     # )
+    #     # with open(filepath, "wb") as file:
+    #     #     pickle.dump(tuple(result), file)
+    #     # # Persist blob
+    #     # self.instrument_access.add_blob(
+    #     #     name=request.observatory.name.lower(),
+    #     #     path=filepath,
+    #     #     directory=f"vertical_extent/{request.year}/",
+    #     # )
+    #     # # Remove the file
+    #     # os.remove(filepath)
+
+    # def make_fig_3_tops(self, request: ObservatoryRequest) -> None:
+    #     """Extract fractioin of the time that lidar detected the base."""
+    #     # Get a list of all the relevant blobs
+    #     blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+    #         container=request.observatory.name.lower(),
+    #         name_starts_with=f"vertical_extent/{request.year}/",
+    #     )
+    #     # Extract the data for each day
+    #     total: int = 0
+    #     lidar: int = 0
+    #     radar: int = 0
+    #     both: int = 0
+    #     for target in self._dates_in_month(request.year, request.month.value):
+    #         print(target)
+    #         selected: tuple[str, ...] = self.filter_context.apply(
+    #             target, blobs, strategy=NamesByDate(), time=False
+    #         )
+    #         if not selected:
+    #             continue
+    #         # Read the pickle file
+    #         layers: tuple[VerticalLayers, ...] = self._read_pickle(selected[0], request)
+    #         if not layers:
+    #             continue
+    #         for time_slice in layers:
+    #             total += 1
+    #             try:
+    #                 match time_slice.tops[0].code.bottom:
+    #                     case 1:
+    #                         lidar += 1
+    #                     case 2:
+    #                         radar += 1
+    #                     case 3:
+    #                         both += 1
+    #             except IndexError:
+    #                 continue
+    #         # Now that you have gone through all of the times,
+    #         # You need to save the total, lidar, radar, and both
+    #         # Then you can start to make the plot
+    #     return {"total": total, "both": both, "lidar": lidar, "radar": radar}
+
+    # def make_fig_4_layers(self, request: ObservatoryRequest) -> None:
+    #     """Extract fractioin of the time that lidar detected the base."""
+    #     # Get a list of all the relevant blobs
+    #     blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+    #         container=request.observatory.name.lower(),
+    #         name_starts_with=f"vertical_extent/{request.year}/",
+    #     )
+    #     # Extract the data for each day
+    #     zero = 0
+    #     one = 0
+    #     two = 0
+    #     three = 0
+    #     four = 0
+    #     five = 0
+    #     for target in self._dates_in_month(request.year, request.month.value):
+    #         print(target)
+    #         selected: tuple[str, ...] = self.filter_context.apply(
+    #             target, blobs, strategy=NamesByDate(), time=False
+    #         )
+    #         if not selected:
+    #             continue
+    #         # Read the pickle file
+    #         layers: tuple[VerticalLayers, ...] = self._read_pickle(selected[0], request)
+    #         if not layers:
+    #             continue
+    #         for time_slice in layers:
+    #             layers = len(time_slice.bases)
+    #             match layers:
+    #                 case 0:
+    #                     zero += 1
+    #                 case 1:
+    #                     one += 1
+    #                 case 2:
+    #                     two += 1
+    #                 case 3:
+    #                     three += 1
+    #                 case 4:
+    #                     four += 1
+    #                 case 5:
+    #                     five += 1
+    #                 case _:
+    #                     five += 1
+    #         # Now that you have gone through all of the times,
+    #         # You need to save the total, lidar, radar, and both
+    #         # Then you can start to make the plot
+    #     return {
+    #         "zero": zero,
+    #         "one": one,
+    #         "two": two,
+    #         "three": three,
+    #         "four": four,
+    #         "five": five,
+    #     }
+
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
         current = datetime(year, month, 1)
@@ -677,14 +828,26 @@ class ObservationManager:
         request: DailyRequest,
         strategy: TransformationStrategy,
     ) -> Generator[InstrumentData, None, None]:
-        cwd: Path = Path.cwd()
         self.transformation_context.strategy = strategy
         for name in selected:
             filename = self.instrument_access.download_blob(
                 container=request.observatory.name.lower(),
                 name=name,
             )
-            filepath: Path = cwd / filename
+            filepath: Path = Path.cwd() / filename
             with DataSet(filename) as dataset:
                 yield self.transformation_context.hydrate(dataset, filepath)
             os.remove(filepath)
+
+    # def _read_pickle(
+    #     self, name: str, request: ObservatoryRequest
+    # ) -> tuple[VerticalLayers, ...]:
+    #     filename = self.instrument_access.download_blob(
+    #         container=request.observatory.name.lower(),
+    #         name=name,
+    #     )
+    #     filepath: Path = Path.cwd() / filename
+    #     with open(filepath, "rb") as file:
+    #         result = pickle.load(file)
+    #     os.remove(filepath)
+    #     return result
