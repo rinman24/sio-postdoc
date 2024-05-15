@@ -6,6 +6,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
 
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 from sio_postdoc.access import DataSet
@@ -39,12 +41,17 @@ from sio_postdoc.engine.transformation.strategies.daily.sheba.dabul import (
     ShebaDabulDaily,
 )
 from sio_postdoc.engine.transformation.strategies.daily.sheba.mmcr import ShebaMmcrDaily
+from sio_postdoc.engine.transformation.strategies.daily.utqiagvik.kazr import (
+    UtqiagvikKazrDaily,
+)
 from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
-from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import UtqiagvikKazrRaw
+from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
+    UtqiagvikKazrRaw,
+)
 from sio_postdoc.manager.observation.contracts import (
     DailyRequest,
     Instrument,
@@ -817,6 +824,110 @@ class ObservationManager:
     #         "four": four,
     #         "five": five,
     #     }
+
+    def create_daily_layer_plots(self, request: DailyRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"{request.instrument.name.lower()}/daily_30smplcmask1zwang/{request.year}/",
+        )
+        # Create a daily file for each day in the month
+        monthly_datetimes: list[datetime] = []
+        monthly_layers: list[list[np.nan | int]] = []
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            if target.day > 1:
+                continue
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Select the Strategy
+            match (request.observatory, request.instrument):
+                case (Observatory.UTQIAGVIK, Instrument.KAZR):
+                    strategy: TransformationStrategy = UtqiagvikKazrDaily()
+            # Generate a InstrumentData for each DataSet corresponding to the target date
+            results: tuple[InstrumentData, ...] = tuple(
+                self._generate_data(
+                    selected,
+                    request,
+                    strategy=strategy,
+                )
+            )
+            if not results:
+                continue
+            # Filter so only the target date exists in a single instance of `InstrumentData`
+            # There should only be one Instrument data
+            data: InstrumentData = results[0]
+            if not data:
+                continue
+            # You are just going to do this for every time
+            times: list[int] = list(data.variables["offset"].values)
+            elevations: list[int] = list(data.variables["range"].values)
+            default_values: list[list[int]] = [
+                [np.nan for _ in elevations] for _ in times
+            ]
+            layers: pd.DataFrame = pd.DataFrame(
+                default_values, index=times, columns=elevations
+            )
+            for i, time in enumerate(layers.index):
+                monthly_datetimes.append(
+                    datetime(target.year, target.month, target.day)
+                    + timedelta(seconds=time)
+                )
+                base_elevations = data.variables["cloud_layer_base_height"].values[i]
+                top_elevations = data.variables["cloud_layer_top_height"].values[i]
+                if not any(base_elevations) and not any(top_elevations):
+                    monthly_layers.append(layers.iloc[i, :])
+                    continue
+                layer = 1
+                for base, top in zip(base_elevations, top_elevations):
+                    if not base and not top:
+                        break
+                    layers.iloc[
+                        i, (base <= layers.columns) & (layers.columns <= top)
+                    ] = layer
+                    layer += 1
+                # Now that you are done with the layers
+                monthly_layers.append(layers.iloc[i, :])
+        monthly_df: pd.DataFrame = pd.DataFrame(
+            monthly_layers, index=monthly_datetimes, columns=list(layers.columns)
+        )
+        # Plot the results
+        plt.matshow(
+            monthly_df.T,
+            aspect="auto",
+            origin="lower",
+            extent=[
+                monthly_df.index.min(),
+                monthly_df.index.max(),
+                monthly_df.columns.min() / 1000,
+                monthly_df.columns.max() / 1000,
+            ],
+        )
+        plt.colorbar()
+        plt.gca().xaxis.tick_bottom()
+        plt.xlabel("Timestamp, [UTC]")
+        plt.ylabel("Range, [km]")
+        plt.title(
+            f"Cloud Layers, {request.observatory.name.capitalize()} ({request.month.name.capitalize()}. {request.year})"
+        )
+        plt.savefig(
+            f"{request.month.name.capitalize()}-{request.year}.png", bbox_inches="tight"
+        )
+        # Searalize via pkl
+        filepath: Path = Path(
+            f"D{request.year}"
+            f"-{str(request.month.value).zfill(2)}"
+            f"-{str(target.day).zfill(2)}"
+            f"-cloud-layers-numbered-{request.observatory.name.lower()}.pkl"
+        )
+        monthly_df.to_pickle(filepath)
 
     @staticmethod
     def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:

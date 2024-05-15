@@ -51,7 +51,9 @@ def manager() -> ObservationManager:
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_format_dir(manager):
-    directory: Path = Path("C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\kazr\\2019\\nsaarsclkazr1kolliasC1.c0.20190101.000000.nc")
+    directory: Path = Path(
+        "C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\kazr\\2019\\nsaarsclkazr1kolliasC1.c0.20190101.000000.nc"
+    )
     manager.format_dir(directory=directory, suffix=".nc", year="2019")
 
 
@@ -75,3 +77,14 @@ def test_create_daily_masks(manager):
         year=1997,
     )
     manager.create_daily_masks(request, threshold=-5, name="refl")
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_daily_layer_plots(manager):
+    request = DailyRequest(
+        instrument=Instrument.KAZR,
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.JAN,
+        year=2019,
+    )
+    manager.create_daily_layer_plots(request)
