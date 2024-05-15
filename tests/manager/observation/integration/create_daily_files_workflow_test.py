@@ -12,6 +12,9 @@ from sio_postdoc.manager.observation.service import ObservationManager
 # load_dotenv(override=True)
 # manager = ObservationManager()
 
+# directory: Path = Path("C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\mpl\\2019")
+# manager.format_dir(directory=directory, suffix=".cdf", year="2019")
+
 # request = ObservatoryRequest(
 #     observatory=Observatory.SHEBA,
 #     month=Month.SEP,
@@ -48,17 +51,17 @@ def manager() -> ObservationManager:
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_format_dir(manager):
-    directory: Path = Path("/Users/richardinman/Code/sio-postdoc/KAZR-TEST")
-    manager.format_dir(directory=directory, suffix=".nc", year="2023")
+    directory: Path = Path("C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\kazr\\2019\\nsaarsclkazr1kolliasC1.c0.20190101.000000.nc")
+    manager.format_dir(directory=directory, suffix=".nc", year="2019")
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_create_daily_files(manager):
     request = DailyRequest(
-        instrument=Instrument.AHSRL,
-        observatory=Observatory.EUREKA,
-        month=Month.AUG,
-        year=2005,
+        instrument=Instrument.KAZR,
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.JAN,
+        year=2019,
     )
     manager.create_daily_files(request)
 

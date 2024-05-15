@@ -119,6 +119,9 @@ class IndicesByDate(AbstractDateStrategy):
                 case "level":
                     name = Dimensions.LEVEL
                     size = len(var_values["range"])
+                case "layer":
+                    name = Dimensions.LAYER
+                    size = 10
                 case "angle":
                     name = Dimensions.ANGLE
                     size = 4
@@ -138,6 +141,8 @@ class IndicesByDate(AbstractDateStrategy):
                 match dimension.name:
                     case Dimensions.TIME:
                         name: str = "time"
+                    case Dimensions.LAYER:
+                        name: str = "layer"
                     case Dimensions.LEVEL:
                         name: str = "level"
                     case Dimensions.ANGLE:

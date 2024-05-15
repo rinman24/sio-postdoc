@@ -44,6 +44,7 @@ from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import Eureka
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
+from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import UtqiagvikKazrRaw
 from sio_postdoc.manager.observation.contracts import (
     DailyRequest,
     Instrument,
@@ -144,6 +145,8 @@ class ObservationManager:
                     strategy: TransformationStrategy = ShebaDabulRaw()
                 case (Observatory.SHEBA, Instrument.MMCR):
                     strategy: TransformationStrategy = ShebaMmcrRaw()
+                case (Observatory.UTQIAGVIK, Instrument.KAZR):
+                    strategy: TransformationStrategy = UtqiagvikKazrRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(

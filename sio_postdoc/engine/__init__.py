@@ -71,6 +71,7 @@ class Dimensions(Enum):
     """Define physical dimensions."""
 
     ANGLE = auto()
+    LAYER = auto()
     LEVEL = auto()
     TIME = auto()
 

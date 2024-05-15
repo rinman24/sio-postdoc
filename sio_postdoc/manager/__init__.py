@@ -8,6 +8,7 @@ class Instrument(Enum):
 
     AHSRL = auto()
     DABUL = auto()
+    KAZR = auto()
     MMCR = auto()
     MPL = auto()
 
