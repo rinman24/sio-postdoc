@@ -837,8 +837,6 @@ class ObservationManager:
         monthly_layers: list[list[np.nan | int]] = []
         for target in self._dates_in_month(request.year, request.month.value):
             print(target)
-            if target.day > 1:
-                continue
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,

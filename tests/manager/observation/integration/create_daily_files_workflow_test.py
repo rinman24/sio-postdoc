@@ -12,6 +12,16 @@ from sio_postdoc.manager.observation.service import ObservationManager
 # load_dotenv(override=True)
 # manager = ObservationManager()
 
+# for month in [Month.AUG, Month.SEP, Month.OCT, Month.NOV, Month.DEC]:
+#     request = DailyRequest(
+#         instrument=Instrument.KAZR,
+#         observatory=Observatory.UTQIAGVIK,
+#         month=month,
+#         year=2019,
+#     )
+#     manager.create_daily_layer_plots(request)
+
+
 # directory: Path = Path("C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\mpl\\2019")
 # manager.format_dir(directory=directory, suffix=".cdf", year="2019")
 
@@ -79,7 +89,7 @@ def test_create_daily_masks(manager):
     manager.create_daily_masks(request, threshold=-5, name="refl")
 
 
-@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+# @pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_create_daily_layer_plots(manager):
     request = DailyRequest(
         instrument=Instrument.KAZR,
