@@ -5,12 +5,39 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from sio_postdoc.manager import Instrument, Month, Observatory
-from sio_postdoc.manager.observation.contracts import DailyRequest, ObservatoryRequest
+from sio_postdoc.manager import Instrument, Month, Observatory, Product
+from sio_postdoc.manager.observation.contracts import (
+    DailyProductRequest,
+    DailyRequest,
+    ObservatoryRequest,
+)
 from sio_postdoc.manager.observation.service import ObservationManager
 
 # load_dotenv(override=True)
 # manager = ObservationManager()
+
+# for month in [
+#     Month.JAN,
+#     Month.FEB,
+#     Month.MAR,
+#     Month.APR,
+#     Month.MAY,
+#     Month.JUN,
+#     Month.JUL,
+#     Month.AUG,
+#     Month.SEP,
+#     Month.OCT,
+#     Month.NOV,
+#     Month.DEC,
+# ]:
+#     request = DailyProductRequest(
+#         product=Product.ARSCLKAZR1KOLLIAS,
+#         observatory=Observatory.UTQIAGVIK,
+#         month=month,
+#         year=2023,
+#     )
+#     manager.create_daily_product_files(request)
+
 
 # for month in [Month.AUG, Month.SEP, Month.OCT, Month.NOV, Month.DEC]:
 #     request = DailyRequest(
@@ -79,6 +106,17 @@ def test_create_daily_files(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_daily_product_files(manager):
+    request = DailyProductRequest(
+        product=Product.MPLCMASKML,
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.JAN,
+        year=2023,
+    )
+    manager.create_daily_product_files(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_create_daily_masks(manager):
     request = DailyRequest(
         instrument=Instrument.MMCR,
@@ -89,7 +127,7 @@ def test_create_daily_masks(manager):
     manager.create_daily_masks(request, threshold=-5, name="refl")
 
 
-# @pytest.mark.skip(reason="Used for User Acceptance Testing.")
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_create_daily_layer_plots(manager):
     request = DailyRequest(
         instrument=Instrument.KAZR,

@@ -21,6 +21,14 @@ class Observatory(Enum):
     UTQIAGVIK = auto()
 
 
+class Product(Enum):
+    """Data Products names."""
+
+    ARSCLKAZR1KOLLIAS = auto()
+    MPLCMASKML = auto()
+    INTEPOLATEDSONDE = auto()
+
+
 class Month(Enum):
     """Instrument names."""
 

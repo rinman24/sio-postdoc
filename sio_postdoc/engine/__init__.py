@@ -62,6 +62,7 @@ class Units(Enum):
     DEGREES = auto()
     METERS = auto()
     METERS_PER_SECOND = auto()
+    GRAMS_PER_METER_SQUARE = auto()
     NONE = auto()
     SECONDS = auto()
     UNSPECIFIED = auto()

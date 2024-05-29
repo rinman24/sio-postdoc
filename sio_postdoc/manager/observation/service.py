@@ -47,16 +47,21 @@ from sio_postdoc.engine.transformation.strategies.daily.utqiagvik.kazr import (
 from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
+from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
+    ArsclKazr1KolliasRaw,
+)
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
     UtqiagvikKazrRaw,
 )
 from sio_postdoc.manager.observation.contracts import (
+    DailyProductRequest,
     DailyRequest,
     Instrument,
     Observatory,
     ObservatoryRequest,
+    Product,
 )
 
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
@@ -181,6 +186,58 @@ class ObservationManager:
                 name=request.observatory.name.lower(),
                 path=filepath,
                 directory=f"{request.instrument.name.lower()}/daily_30smplcmask1zwang/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def create_daily_product_files(self, request: DailyProductRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"{request.product.name.lower()}/raw/{request.year}/",
+        )
+        # Create a daily file for each day in the month
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+            )
+            if not selected:
+                continue
+            # Select the Strategy
+            match (request.observatory, request.product):
+                case (Observatory.UTQIAGVIK, Product.ARSCLKAZR1KOLLIAS):
+                    strategy: TransformationStrategy = ArsclKazr1KolliasRaw()
+            # Generate a InstrumentData for each DataSet corresponding to the target date
+            results: tuple[InstrumentData, ...] = tuple(
+                self._generate_data(
+                    selected,
+                    request,
+                    strategy=strategy,
+                )
+            )
+            if not results:
+                continue
+            # Filter so only the target date exists in a single instance of `InstrumentData`
+            data: InstrumentData | None = self.filter_context.apply(
+                target,
+                results,
+                strategy=IndicesByDate(),
+            )
+            if not data:
+                continue
+            # Serialize the data.
+            filepath: Path = self.transformation_context.serialize(
+                target, data, request
+            )
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"{request.product.name.lower()}/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
