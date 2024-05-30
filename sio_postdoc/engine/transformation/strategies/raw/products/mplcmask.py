@@ -106,6 +106,7 @@ class MplCmaskMlRaw(TransformationStrategy):
             long_name="Linear Depolarization Ratio",
             units=Units.NONE,
             scale=Scales.THOUSAND,
+            conversion_scale=Scales.THOUSAND,
             dtype=DType.I2,
             flag=NINES,
             dimensions=(self._dimensions["time"], self._dimensions["level"]),
