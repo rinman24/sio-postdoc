@@ -50,6 +50,12 @@ from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaM
 from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
     ArsclKazr1KolliasRaw,
 )
+from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
+    MplCmaskMlRaw,
+)
+from sio_postdoc.engine.transformation.strategies.raw.products.sonde import (
+    InterpolatedSondeRaw,
+)
 from sio_postdoc.engine.transformation.strategies.raw.sheba.dabul import ShebaDabulRaw
 from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
@@ -211,6 +217,10 @@ class ObservationManager:
             match (request.observatory, request.product):
                 case (Observatory.UTQIAGVIK, Product.ARSCLKAZR1KOLLIAS):
                     strategy: TransformationStrategy = ArsclKazr1KolliasRaw()
+                case (Observatory.UTQIAGVIK, Product.MPLCMASKML):
+                    strategy: TransformationStrategy = MplCmaskMlRaw()
+                case (Observatory.UTQIAGVIK, Product.INTERPOLATEDSONDE):
+                    strategy: TransformationStrategy = InterpolatedSondeRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(

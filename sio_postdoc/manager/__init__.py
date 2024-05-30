@@ -26,7 +26,7 @@ class Product(Enum):
 
     ARSCLKAZR1KOLLIAS = auto()
     MPLCMASKML = auto()
-    INTEPOLATEDSONDE = auto()
+    INTERPOLATEDSONDE = auto()
 
 
 class Month(Enum):

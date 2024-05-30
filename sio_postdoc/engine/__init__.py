@@ -66,6 +66,8 @@ class Units(Enum):
     NONE = auto()
     SECONDS = auto()
     UNSPECIFIED = auto()
+    CELCIUS = auto()
+    PERCENT = auto()
 
 
 class Dimensions(Enum):
