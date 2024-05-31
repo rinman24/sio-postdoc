@@ -86,6 +86,17 @@ MASK_TYPE: DType = DType.I1
 ONE_HALF: float = 1 / 2
 VERTICAL_RAIL: int = -10
 
+PHASE_LIQUID = 5
+PHASE_MIXED_LIQUID = 4
+PHASE_MIXED = 3
+PHASE_MIXED_ICE = 2
+PHASE_ICE = 1
+
+RAIN = 4
+LIQUID = 3
+MIXED = 2
+ICE = 1
+
 Mask = tuple[tuple[int, ...], ...]
 
 
@@ -478,6 +489,298 @@ class ObservationManager:
                 name=request.observatory.name.lower(),
                 path=filepath,
                 directory=f"resampled_frames/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def create_daily_layers_and_phases(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"resampled_frames/daily/{request.year}/",
+        )
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Rather than yield the instrument data, you just want to unpickle the dataframes
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                frames = pickle.load(file)
+            os.remove(filepath)
+            # Now we should have the combined frames
+            steps: dict[str, pd.DataFrame] = {}
+            # Step 1 ------------------------------------------------------------------------
+            steps["1"] = frames["depol"].copy(deep=True)
+            steps["1"][frames["depol"] < 0.1] = LIQUID
+            steps["1"][0.1 <= frames["depol"]] = ICE
+            # Step 2 ------------------------------------------------------------------------
+            # Make a copy
+            steps["2"] = steps["1"].copy(deep=True)
+            # Classify mixed-phase
+            steps["2"][
+                (steps["1"] == LIQUID)  # Lidar detected liquid
+                & (frames["temp"] < 0)  # Below freezing
+                & (-17 <= frames["refl"])  # High reflectivity
+            ] = MIXED
+            steps["2"][
+                (steps["1"] == LIQUID)  # Lidar detected liquid
+                & (frames["temp"] < 0)  # Below freezing
+                & (1 <= frames["mean_dopp_vel"])  # High velocity
+            ] = MIXED
+            # Classify Rain
+            steps["2"][
+                (steps["1"] == LIQUID)  # Lidar detected liquid
+                & (0 <= frames["temp"])  # Above freezing
+                & (-17 <= frames["refl"])  # High reflectivity
+            ] = RAIN
+            steps["2"][
+                (steps["1"] == LIQUID)  # Lidar detected liquid
+                & (0 <= frames["temp"])  # Above freezing
+                & (1 <= frames["mean_dopp_vel"])  # High velocity
+            ] = RAIN
+            # Step 3 ------------------------------------------------------------------------
+            # Make a copy
+            steps["3"] = steps["2"].copy(deep=True)
+            # Reclassify snow and rain based on reflectivity greater than 5
+            steps["3"][
+                (frames["temp"] < 0)  # Below freezing
+                & (5 <= frames["refl"])  # High reflectivity
+            ] = ICE
+            steps["3"][
+                (0 <= frames["temp"])  # Above freezing
+                & (5 <= frames["refl"])  # High reflectivity
+            ] = RAIN
+            # Reclassify rain when velocity is greater than 2.5 and temperature is above freezing
+            steps["3"][
+                (0 <= frames["temp"])  # Above freezing
+                & (2.5 <= frames["mean_dopp_vel"])  # High velocity
+            ] = RAIN
+            # Step 4 ------------------------------------------------------------------------
+            # Make a copy for step 4
+            steps["4"] = steps["3"].copy(deep=True)
+            # First set all of the values that are in the mask to rain
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (0 <= frames["temp"])  # Above freezing
+                & (frames["radar_mask"] == 1)  # Pixels viewed by radar
+            ] = RAIN
+            # Now cut in with drizzle
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (0 <= frames["temp"])  # Above freezing
+                & (frames["refl"] < 5)  # Mid reflectivity
+                & (frames["mean_dopp_vel"] < 2.5)  # Mid velocity
+            ] = RAIN
+            # Finally cut in with liquid
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (0 <= frames["temp"])  # Above freezing
+                & (frames["refl"] < -17)  # Low reflectivity
+                & (frames["mean_dopp_vel"] < 1)  # Low velocity
+            ] = LIQUID
+            # Differentiate between snow and ice below freezing using reflectivity at narrow widths.
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (frames["spec_width"] < 0.4)  # Narrow widths
+                & (frames["refl"] < 5)  # Low reflecitvity
+            ] = ICE
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (frames["spec_width"] < 0.4)  # Narrow widths
+                & (5 <= frames["refl"])  # High reflecitvity
+            ] = ICE
+            # Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity at elevated widths.
+            # First set everything to snow
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (0.4 <= frames["spec_width"])  # Extended widths
+            ] = ICE
+            # Now cut in with mixed-phase
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (0.4 <= frames["spec_width"])  # Extended widths
+                & (frames["refl"] < 5)  # Mid reflecitvity
+            ] = MIXED
+            # Finally cut in with liquid
+            steps["4"][
+                (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (0.4 <= frames["spec_width"])  # Extended widths
+                & (frames["refl"] < -17)  # Low reflecitvity
+                & (frames["mean_dopp_vel"] < 1)  # Low velocity
+            ] = LIQUID
+            # Lidar Occulation Zone
+            # Start with a dataframe of all zeros
+            # NOTE: the Occulation Zone is Step -1
+            steps["occulation_zone"] = steps["4"].copy(deep=True)
+            for col in steps["occulation_zone"].columns:
+                steps["occulation_zone"][col].values[:] = 0
+            # Find the radar tops
+            steps["radar_tops"] = steps["4"].copy(deep=True)
+            steps["radar_tops"].iloc[:, :-1] = (
+                frames["radar_mask"].iloc[:, :-1].values
+                - frames["radar_mask"].iloc[:, 1:].values
+            )
+            steps["radar_tops"].iloc[:, -1] = 0
+            # Find the lidar tops
+            steps["lidar_tops"] = steps["4"].copy(deep=True)
+            steps["lidar_tops"].iloc[:, :-1] = (
+                frames["lidar_mask"].iloc[:, :-1].values
+                - frames["lidar_mask"].iloc[:, 1:].values
+            )
+            steps["lidar_tops"].iloc[:, -1] = 0
+            # Find Lidar Occulation Levels and Radar Tops
+            lidar_occulation_levels = steps["lidar_tops"].T.apply(
+                lambda series: series[series == 1].index.max()
+            )
+            radar_tops_levels = steps["radar_tops"].T.apply(
+                lambda series: series[series == 1].index.tolist()
+            )
+            for i, t in enumerate(steps["lidar_tops"].index):
+                for radar_top in radar_tops_levels[t]:
+                    base = lidar_occulation_levels[t]
+                    if 0 <= radar_top - base <= 750:
+                        # then set the values in the given location between these values to 1
+                        steps["occulation_zone"].loc[t, base:radar_top] = 1
+            # Use occulation zone to Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity regardless of spectral width.
+            # First set everything to snow
+            steps["4"][
+                (steps["occulation_zone"] == 1)  # In occulation zone
+                & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+            ] = ICE
+            # Now cut in with mixed-phase
+            steps["4"][
+                (steps["occulation_zone"] == 1)  # In occulation zone
+                & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (frames["refl"] < 5)  # Mid reflecitvity
+            ] = MIXED
+            # Finally cut in with liquid
+            steps["4"][
+                (steps["occulation_zone"] == 1)  # In occulation zone
+                & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
+                & (frames["temp"] < 0)  # Below freezing
+                & (frames["refl"] < -17)  # Low reflecitvity
+                & (frames["mean_dopp_vel"] < 1)  # Low velocity
+            ] = LIQUID
+            # Step 5 ------------------------------------------------------------------------
+            # Absolute Temperature Rules
+            # TODO: You are here
+            # Make a copy for step 5
+            steps["5"] = steps["4"].copy(deep=True)
+            # Find all the locations where step 4 is in both of the masks is below -40
+            # Below - 40 you can only have ice or snow and you can differentiate show using reflectivity > 5
+            steps["5"][
+                (frames["temp"] < -40)  # Below homogeneous freezing
+                & (steps["5"] == RAIN)
+            ] = ICE
+            steps["5"][
+                (frames["temp"] < -40)  # Below homogeneous freezing
+                & (steps["5"] == LIQUID)
+            ] = ICE
+            steps["5"][
+                (frames["temp"] < -40)  # Below homogeneous freezing
+                & (steps["5"] == MIXED)
+            ] = ICE
+            # Above zero you can only have rain, drizzle, or liquid.
+            # You can differentiate these with doppler velocity and reflectivity.
+            steps["5"][
+                (0 <= frames["temp"]) & (steps["5"] == MIXED)  # Above freezing
+            ] = LIQUID
+            steps["5"][
+                (0 <= frames["temp"]) & (steps["5"] == ICE)  # Above freezing
+            ] = LIQUID
+            # Step 6 ------------------------------------------------------------------------
+            # Make a copy for step 6
+            # steps["6"] = steps["5"].copy(deep=True)
+            # Identify layers and phases
+            # SKIP Step 6 and 7 for now...
+            # layers_and_phases = steps["6"].T.apply(self._identify_layers_and_phases)
+            # # Add liquid if the lwp is greater than 25 but no liquid in the column
+            # for row in frames["mwr_lwp"].index:
+            #     lwp = frames["mwr_lwp"].loc[row, "mwr_lwp"]
+            #     if 25 <= lwp:
+            #         # Has a liquid layer been identified?
+            #         # NOTE: This is where you're at and it is difficult to see right now
+            #         try:
+            #             max_phase = max(
+            #                 max(layer["phases"]) for layer in layers_and_phases[row]
+            #             )
+            #         except ValueError:
+            #             max_phase = 0
+            #         if max_phase < 3:
+            #             # Then a liquid must be specified.
+            #             lidar_tops = steps["lidar_tops"].loc[row, :]
+            #             base = lidar_tops[lidar_tops == -1].index.min() - 45
+            #             if np.isnan(base):
+            #                 # Then use the radar base
+            #                 radar_tops = steps["radar_tops"].loc[row, :]
+            #                 base = radar_tops[radar_tops == -1].index.min() - 45
+            #                 if np.isnan(base):
+            #                     continue
+            #             # Now we have a base
+            #             # Is there a top within 500 m
+            #             measured_top = [
+            #                 i["top"]
+            #                 for i in layers_and_phases[row]
+            #                 if 0 <= i["top"] - base < 500
+            #             ]
+            #             if measured_top:
+            #                 top = measured_top[0]
+            #             else:
+            #                 # We need to calculate the thickness
+            #                 thickness = lwp / 0.2
+            #                 top = base + thickness + 45
+            #             # Now that we have a base and a top
+            #             # We want to classify everything above the base and below the top as liquid
+            #             steps["6"].loc[
+            #                 row,
+            #                 (base < steps["6"].columns) & (steps["6"].columns < top),
+            #             ] = LIQUID
+            #     elif lwp < 0:
+            #         # Then all liquid containing elements below freezing are set to ice
+            #         steps["6"].loc[
+            #             row,
+            #             (frames["temp"].loc[row, :] < 0)
+            #             & (MIXED <= steps["6"].loc[row, :]),
+            #         ] = ICE
+            # Now that we are done with all of the steps
+            # pickle the frames
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-mask_steps"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(steps, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"mask_steps/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
@@ -970,6 +1273,74 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
+
+    @staticmethod
+    def _identify_layers_and_phases(series: pd.Series):
+        # So, when you come into here, you want to make it easy for yourself
+        # to summarize the layers as well as the phases
+        # You may need to use this two times.
+        below = np.nan
+        in_layer = False
+        results = []  # Results starts out as just an empty list
+        for pointer, index in enumerate(series.index[:-1]):
+            # Note, when you are making the phases you want to keep track of the layers
+            # You may need to update this...
+            center = series[index]
+            above = series.iloc[pointer + 1]
+            if np.isnan(below) and not np.isnan(center):
+                base = index - 45
+                layers = []  # As soon as we come in, we create a new layer list
+                in_layer = True
+                current_phase = center
+                current_base = base
+            if in_layer:
+                if current_phase != center:
+                    # Then we have a new phase
+                    # When we have a new phase we need to
+                    # Close off the previous one and start a new one
+                    current_top = index + 45
+                    layers.append(
+                        {
+                            "base": current_base,
+                            "top": current_top,
+                            "depth": current_top - current_base,
+                            "phase": current_phase,
+                        }
+                    )
+                    current_base = current_top
+                    current_phase = center
+            if np.isnan(above) and not np.isnan(center):
+                current_top = index + 45
+                # phases = set(phases)
+                in_layer = False
+                # Add the layer information
+                layers.append(
+                    {
+                        "base": current_base,
+                        "top": current_top,
+                        "depth": current_top - current_base,
+                        "phase": current_phase,
+                    }
+                )
+                # Now that you have closed this layer, you want to append layers to results
+                results.append(layers)
+            # Update the below before moving on
+            below = center
+        # Now that you've gone through all except the last one, handle the edge
+        # TODO: You need to mess with the last one as well.
+        # index = series.index[-1]  # Use the last index
+        # center = series[index]  # Center on the top
+        # if not np.isnan(center):
+        #     top = index + 45
+        #     if np.isnan(below):
+        #         base = index - 45
+        #         phases = []
+        #     phases.append(int(center))
+        #     # Add the layer information
+        #     results.append(
+        #         {"base": base, "top": top, "depth": top - base, "phases": set(phases)}
+        #     )
+        return results
 
     # def make_fig_3_bases(self, request: ObservatoryRequest) -> None:
     #     """Extract fractioin of the time that lidar detected the base."""
