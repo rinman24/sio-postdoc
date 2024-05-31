@@ -37,6 +37,15 @@ from sio_postdoc.engine.transformation.strategies.base import (
     SECONDS_PER_DAY,
     TransformationStrategy,
 )
+from sio_postdoc.engine.transformation.strategies.daily.products.arscl import (
+    ArsclKazr1Kollias,
+)
+from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import (
+    MplCmaskMl,
+)
+from sio_postdoc.engine.transformation.strategies.daily.products.sonde import (
+    InterpolatedSonde,
+)
 from sio_postdoc.engine.transformation.strategies.daily.sheba.dabul import (
     ShebaDabulDaily,
 )
@@ -248,6 +257,227 @@ class ObservationManager:
                 name=request.observatory.name.lower(),
                 path=filepath,
                 directory=f"{request.product.name.lower()}/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def create_daily_resampled_merged_files(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        products = ["arsclkazr1kollias", "mplcmaskml", "interpolatedsonde"]
+        blobs: dict[str, tuple[str, ...]] = {
+            product: self.instrument_access.list_blobs(
+                container=request.observatory.name.lower(),
+                name_starts_with=f"{product}/daily/{request.year}/",
+            )
+            for product in products
+        }
+        # Create a daily file for each day in the month
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: dict[str, tuple[str] | tuple] = {
+                product: self.filter_context.apply(
+                    target,
+                    blobs[product],
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                for product in products
+            }
+            if not all(selected.values()):
+                continue
+            # Because you need to set the strategy, you need to go through each product
+            frames = {}
+            for product in products:
+                # Select the Strategy
+                match (request.observatory, product):
+                    case (Observatory.UTQIAGVIK, "arsclkazr1kollias"):
+                        strategy: TransformationStrategy = ArsclKazr1Kollias()
+                        # with open("arscl_instrument_data.pkl", "rb") as file:
+                        #     results = pickle.load(file)
+                    case (Observatory.UTQIAGVIK, "mplcmaskml"):
+                        strategy: TransformationStrategy = MplCmaskMl()
+                        # with open("mplcmaskml_instrument_data.pkl", "rb") as file:
+                        #     results = pickle.load(file)
+                    case (Observatory.UTQIAGVIK, "interpolatedsonde"):
+                        strategy: TransformationStrategy = InterpolatedSonde()
+                        # with open(
+                        #     "interpolatedsonde_instrument_data.pkl", "rb"
+                        # ) as file:
+                        #     results = pickle.load(file)
+                # Generate a InstrumentData for each DataSet corresponding to the target date
+                results: tuple[InstrumentData, ...] = tuple(
+                    self._generate_data(
+                        selected[product],
+                        request,
+                        strategy=strategy,
+                    )
+                )
+                if not results:
+                    continue
+                # There is only one per day
+                data: InstrumentData = results[0]
+                if not data:
+                    continue
+                # Now that you have the instrument data, you want to construct the dataframes
+                if product == "arsclkazr1kollias":
+                    frames["radar_mask"] = pd.DataFrame(
+                        data.variables["radar_mask"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["refl"] = pd.DataFrame(
+                        data.variables["refl"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["mean_dopp_vel"] = pd.DataFrame(
+                        data.variables["mean_dopp_vel"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["spec_width"] = pd.DataFrame(
+                        data.variables["spec_width"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["spec_width"] = pd.DataFrame(
+                        data.variables["spec_width"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["mwr_lwp"] = pd.DataFrame(
+                        data.variables["mwr_lwp"].values,
+                        index=data.variables["offset"].values,
+                        columns=["mwr_lwp"],
+                    )
+                elif product == "mplcmaskml":
+                    frames["lidar_mask"] = pd.DataFrame(
+                        data.variables["lidar_mask"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["depol"] = pd.DataFrame(
+                        data.variables["depol"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                elif product == "interpolatedsonde":
+                    frames["temp"] = pd.DataFrame(
+                        data.variables["temp"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                    frames["rh"] = pd.DataFrame(
+                        data.variables["rh"].values,
+                        index=data.variables["offset"].values,
+                        columns=data.variables["range"].values,
+                    )
+                # Now we have all of the dataframes
+                if product == "arsclkazr1kollias":
+                    # Radar Mask
+                    flag_ = data.variables["radar_mask"].dtype.min
+                    scale = data.variables["radar_mask"].scale.value
+                    frames["radar_mask"].replace(flag_, 0, inplace=True)
+                    frames["radar_mask"] = frames["radar_mask"] / scale
+                    frames["radar_mask"].replace(2, 1, inplace=True)
+                    frames["radar_mask"] = self._reformat(
+                        frames["radar_mask"], method="mode"
+                    )
+                    # Reflectivity
+                    flag_ = data.variables["refl"].dtype.min
+                    scale = data.variables["refl"].scale.value
+                    frames["refl"].replace(flag_, np.nan, inplace=True)
+                    frames["refl"] = frames["refl"] / scale
+                    frames["refl"] = self._reformat(
+                        frames["refl"],
+                        method="mean",
+                    )
+                    frames["refl"][frames["radar_mask"] == 0] = np.nan
+                    # Mean Doppler Velocity
+                    flag_ = data.variables["mean_dopp_vel"].dtype.min
+                    scale = data.variables["mean_dopp_vel"].scale.value
+                    frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
+                    frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
+                    frames["mean_dopp_vel"] = self._reformat(
+                        frames["mean_dopp_vel"],
+                        method="mean",
+                    )
+                    frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
+                    # Spectral Width
+                    flag_ = data.variables["spec_width"].dtype.min
+                    scale = data.variables["spec_width"].scale.value
+                    frames["spec_width"].replace(flag_, np.nan, inplace=True)
+                    frames["spec_width"] = frames["spec_width"] / scale
+                    frames["spec_width"] = self._reformat(
+                        frames["spec_width"],
+                        method="mean",
+                    )
+                    frames["spec_width"][frames["radar_mask"] == 0] = np.nan
+                    # MWR LWP
+                    flag_ = data.variables["mwr_lwp"].dtype.min
+                    scale = data.variables["mwr_lwp"].scale.value
+                    frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
+                    frames["mwr_lwp"] = frames["mwr_lwp"] / scale
+                    frames["mwr_lwp"] = self._reformat_1D(
+                        frames["mwr_lwp"],
+                        method="mean",
+                    )
+                elif product == "mplcmaskml":
+                    # Lidar Mask
+                    flag_ = data.variables["lidar_mask"].dtype.min
+                    scale = data.variables["lidar_mask"].scale.value
+                    frames["lidar_mask"].replace(flag_, 0, inplace=True)
+                    frames["lidar_mask"] = frames["lidar_mask"] / scale
+                    frames["lidar_mask"] = self._reformat(
+                        frames["lidar_mask"], method="mode"
+                    )
+                    # Depolarization Ratio
+                    flag_ = data.variables["depol"].dtype.min
+                    scale = data.variables["depol"].scale.value
+                    frames["depol"].replace(flag_, np.nan, inplace=True)
+                    frames["depol"] = frames["depol"] / scale
+                    frames["depol"] = self._reformat(
+                        frames["depol"],
+                        method="mean",
+                    )
+                    frames["depol"][frames["lidar_mask"] == 0] = np.nan
+                elif product == "interpolatedsonde":
+                    # Temperature
+                    flag_ = data.variables["temp"].dtype.min
+                    scale = data.variables["temp"].scale.value
+                    frames["temp"].replace(flag_, np.nan, inplace=True)
+                    frames["temp"] = frames["temp"] / scale
+                    frames["temp"] = self._reformat(
+                        frames["temp"],
+                        method="mean",
+                    )
+                    # Relative Humidity
+                    flag_ = data.variables["rh"].dtype.min
+                    scale = data.variables["rh"].scale.value
+                    frames["rh"].replace(flag_, np.nan, inplace=True)
+                    frames["rh"] = frames["rh"] / scale
+                    frames["rh"] = self._reformat(
+                        frames["rh"],
+                        method="mean",
+                    )
+            # Now we should have all of the reformatted data that we want to seralize
+            # pickle the frames.
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-resampled_frames"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(frames, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"resampled_frames/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
@@ -1017,6 +1247,58 @@ class ObservationManager:
             with DataSet(filename) as dataset:
                 yield self.transformation_context.hydrate(dataset, filepath)
             os.remove(filepath)
+
+    @staticmethod
+    def _resample(df: pd.DataFrame, base: int, transpose: bool, method: str):
+        if transpose:
+            df = df.T
+        df["new_column"] = [base * round(i / base) for i in df.index]
+        match method:
+            case "mode":
+                df = df.groupby("new_column").agg(lambda x: min(pd.Series.mode(x)))
+            case "mean":
+                df = df.groupby("new_column").mean()
+            case _:
+                raise ValueError("invalid method")
+        if transpose:
+            df = df.T
+        return df
+
+    @staticmethod
+    def _reindex(df: pd.DataFrame, method: str):
+        match method:
+            case "time":
+                df = df.reindex(
+                    [i for i in range(0, 60 * 60 * 24 + 1, 60)], method="ffill"
+                )
+            case "height":
+                df = df.T
+                df = df.reindex([i for i in range(0, 17501, 90)], method="ffill")
+                df = df.T
+            case _:
+                raise ValueError("invalid method: try 'time' or 'height'")
+        return df
+
+    def _reformat(self, df: pd.DataFrame, method: str):
+        print("resample time")
+        df = self._resample(df, 60, transpose=False, method=method)
+        print("resample height")
+        df = self._resample(df, 90, transpose=True, method=method)
+
+        print("reindex time")
+        df = self._reindex(df, "time")
+        print("reindex height")
+        df = self._reindex(df, "height")
+        return df
+
+    def _reformat_1D(self, df: pd.DataFrame, method: str):
+        print("resample time")
+        df = self._resample(df, 60, transpose=False, method=method)
+
+        print("reindex time")
+        df = self._reindex(df, "time")
+
+        return df
 
     # def _read_pickle(
     #     self, name: str, request: ObservatoryRequest
