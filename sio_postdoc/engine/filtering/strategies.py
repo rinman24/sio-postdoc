@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import sio_postdoc.utility.service as utility
 from sio_postdoc.engine import Dimensions, Units
@@ -191,8 +191,11 @@ class IndicesByDate(AbstractDateStrategy):
         target: date, content: tuple[InstrumentData, ...]
     ) -> tuple[tuple[int, ...], ...]:
         masks: list[Mask] = []
+        epoch: datetime = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
         for data in content:
-            initial: datetime = datetime.fromtimestamp(data.variables["epoch"].values)
+            initial: datetime = epoch + timedelta(
+                seconds=data.variables["epoch"].values
+            )
             masks.append(
                 tuple(
                     (
