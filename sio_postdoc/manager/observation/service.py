@@ -93,6 +93,13 @@ MIXED: int = 3
 ICE: int = 2
 SNOW: int = 1
 
+NEW_LIQUID: int = 5
+MIXED_LIQUID: int = 4
+MIXED_ICE: int = 2
+NEW_ICE: int = 1
+
+MINUTES_PER_DAY: int = int(24 * 60)
+
 Mask = tuple[tuple[int, ...], ...]
 
 
@@ -873,6 +880,339 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
+
+    def reclassify_mixed_columns(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"mask_steps/daily/{request.year}/",
+        )
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Unpickle the dataframes [steps]
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                steps = pickle.load(file)
+            os.remove(filepath)
+            reference = steps["8"]
+            # Start with a copy
+            phase_map = steps["8"].copy(deep=True)
+            # Reclassify phases and layers
+            phase_map[reference == ICE] = NEW_ICE
+            phase_map[reference == SNOW] = NEW_ICE
+            phase_map[reference == LIQUID] = NEW_LIQUID
+            phase_map[reference == DRIZZLE] = NEW_LIQUID
+            phase_map[reference == RAIN] = NEW_LIQUID
+            layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+            # Now check the reclassification
+            for time in phase_map.index:
+                for layer in layers_and_phases[time]:
+                    if 2 <= len(layer):
+                        # First find mixed-ice (under liquid or mixed-phase)
+                        new_phase = None
+                        for i in range(len(layer)):
+                            above = None
+                            if i == 0:
+                                # Then you can only look above
+                                above = layer[i + 1]["phase"]
+                            elif i == len(layer) - 1:
+                                # We don't look below
+                                continue
+                            else:
+                                # You look above and below
+                                above = layer[i + 1]["phase"]
+                            phase = layer[i]["phase"]
+                            # Look for mixed Ice
+                            if (phase == NEW_ICE) and (above == MIXED):
+                                new_phase = MIXED_ICE
+                            elif (phase == NEW_ICE) and (above == NEW_LIQUID):
+                                new_phase = MIXED_ICE
+                            # Set new phase if required
+                            if new_phase:
+                                base = layer[i]["base"]
+                                top = layer[i]["top"]
+                                phase_map.loc[
+                                    time,
+                                    (base < phase_map.columns)
+                                    & (phase_map.columns < top),
+                                ] = new_phase
+                        # Now find the mixed liquid in the same layer
+                        if new_phase:
+                            # Then all of the liquid goes to mixed liquid
+                            for i in range(len(layer)):
+                                if layer[i]["phase"] == NEW_LIQUID:
+                                    base = layer[i]["base"]
+                                    top = layer[i]["top"]
+                                    phase_map.loc[
+                                        time,
+                                        (base < phase_map.columns)
+                                        & (phase_map.columns < top),
+                                    ] = MIXED_LIQUID
+            # Now save the results
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-reclassified_phases"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(phase_map, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"reclassified_phases/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def create_monthly_phase_summary(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        # The issue that we're having is that we don't know what the indexes are until we get to the
+        # first day
+        # So, for now, we just need to make the series
+        for target in self._dates_in_month(request.year, request.month.value):
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Unpickle the dataframes [steps]
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                phase_map = pickle.load(file)
+            os.remove(filepath)
+            # Now we should have the combined steps
+            # Create a dict of dataframes to hold the results
+            index: list[datetime.date] = list(
+                self._dates_in_month(request.year, request.month.value)
+            )
+            columns: list[int] = phase_map.columns.to_list()
+            phases: dict[str, pd.DataFrame] = {
+                key: pd.DataFrame(np.nan, index=index, columns=columns)
+                for key in [
+                    "ice",
+                    "mixed_ice",
+                    "mixed",
+                    "mixed_liquid",
+                    "liquid",
+                    "all_mixed",
+                    "total",
+                    "clear",
+                ]
+            }
+            break
+        # Now that you have the series with the correct index
+        # You can produce the summary counts
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Unpickle the dataframes [steps]
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                phase_map = pickle.load(file)
+            os.remove(filepath)
+            # Now we are going to go through each day and compile
+            # Set zero for all the phases in this day
+            for phase in phases:
+                phases[phase].loc[target, :] = 0
+            for time in phase_map.index:
+                this_slice = phase_map.loc[time, :]
+                if all(np.isnan(this_slice)):
+                    continue
+                phases["ice"].loc[target, this_slice == NEW_ICE] += 1
+                phases["mixed_ice"].loc[target, this_slice == MIXED_ICE] += 1
+                phases["mixed"].loc[target, this_slice == MIXED] += 1
+                phases["mixed_liquid"].loc[target, this_slice == MIXED_LIQUID] += 1
+                phases["liquid"].loc[target, this_slice == NEW_LIQUID] += 1
+                phases["all_mixed"].loc[
+                    target, (1 < this_slice) & (this_slice < 5)
+                ] += 1
+                phases["total"].loc[target, 0 < this_slice] += 1
+                phases["clear"].loc[target, this_slice == 0] += 1
+            # Now we are done with all of the days in a month
+            # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{str(target.month).zfill(2)}"
+            f"-{request.observatory.name.lower()}"
+            "-daily_phase_counts"
+            ".pkl"
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(phases, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory=f"phase_counts/monthly/{request.year}/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def create_annual_phase_summary(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        # The issue that we're having is that we don't know what the indexes are until we get to the
+        # first day
+        # So, for now, we just need to make the series
+        for target in self._dates_in_month(request.year, 1):
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Unpickle the dataframes [steps]
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                phase_map = pickle.load(file)
+            os.remove(filepath)
+            # Now we should have the combined steps
+            # Create a dict of dataframes to hold the results
+            # The index is a group of five days at a time.
+            index: list[int] = list(range(1, int(365 / 5) + 1))
+            columns: list[int] = phase_map.columns.to_list()
+            phases: dict[str, pd.DataFrame] = {
+                key: pd.DataFrame(0, index=index, columns=columns)
+                for key in [
+                    "ice",
+                    "mixed_ice",
+                    "mixed",
+                    "mixed_liquid",
+                    "liquid",
+                    "all_mixed",
+                    "total",
+                    "clear",
+                ]
+            }
+            break
+        # Now that you have the series with the correct index
+        # You can produce the summary counts
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                day_of_year: int = target.timetuple().tm_yday
+                week_group: int = round((day_of_year + 2) / 5)
+                if int(365 / 5) < week_group:
+                    continue
+                print(target, day_of_year, week_group)
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+                # Now we are going to go through each day and compile
+                for time in phase_map.index:
+                    this_slice = phase_map.loc[time, :]
+                    if all(np.isnan(this_slice)):
+                        continue
+                    phases["ice"].loc[week_group, this_slice == NEW_ICE] += 1
+                    phases["mixed_ice"].loc[week_group, this_slice == MIXED_ICE] += 1
+                    phases["mixed"].loc[week_group, this_slice == MIXED] += 1
+                    phases["mixed_liquid"].loc[
+                        week_group, this_slice == MIXED_LIQUID
+                    ] += 1
+                    phases["liquid"].loc[week_group, this_slice == NEW_LIQUID] += 1
+                    phases["all_mixed"].loc[
+                        week_group, (1 < this_slice) & (this_slice < 5)
+                    ] += 1
+                    phases["total"].loc[week_group, 0 < this_slice] += 1
+                    phases["clear"].loc[week_group, this_slice == 0] += 1
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-week_group_phase_counts"
+            ".pkl"
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(phases, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="phase_counts/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
 
     def create_monthly_elevation_by_phase(self, request: ObservatoryRequest) -> None:
         """TODO: Docstring."""
