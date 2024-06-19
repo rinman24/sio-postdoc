@@ -19,6 +19,7 @@ class Observatory(Enum):
     EUREKA = auto()
     SHEBA = auto()
     UTQIAGVIK = auto()
+    OLIKTOK = auto()
 
 
 class Product(Enum):

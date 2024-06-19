@@ -19,7 +19,7 @@ manager = ObservationManager()
 # Here is how you process several years of raw data
 # STEP 1: run the months in parallel
 # YEARS = [2020, 2021, 2022]
-# OBSERVATORY = Observatory.UTQIAGVIK
+# OBSERVATORY = Observatory.OLIKTOK
 # products = [Product.ARSCLKAZR1KOLLIAS, Product.INTERPOLATEDSONDE, Product.MPLCMASKML]
 # for year in YEARS:
 #     for month in [Month.JAN]:
