@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 from typing import Protocol
 
-import netCDF4 as nc
 from azure.core.exceptions import (
     HttpResponseError,
     ResourceExistsError,

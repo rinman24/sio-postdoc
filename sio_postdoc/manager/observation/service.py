@@ -100,6 +100,37 @@ NEW_ICE: int = 1
 
 MINUTES_PER_DAY: int = int(24 * 60)
 
+SHUPE = {
+    "depol": {
+        "ice": 0.1,
+    },
+    "refl": {
+        "low": -17,
+        "high": 5,
+    },
+    "mean_dopp_vel": {
+        "low": 1,
+        "high": 2.5,
+    },
+    "spec_width": {
+        "low": 0.4,
+    },
+    "occultation": {
+        "low": 500,
+        "high": 750,
+        "lwp": 25,
+    },
+    "freezing": {
+        "nominal": 0,
+        "homogeneous": -40,
+    },
+    "window": {
+        "buffer": 3,
+        "clear": 14,
+        "match": 7,
+    }
+}
+
 Mask = tuple[tuple[int, ...], ...]
 
 
@@ -159,6 +190,7 @@ class ObservationManager:
         )
         self.local_access.rename_files(current, new)
 
+    # NOTE: Most likely depreciated.
     def create_daily_files(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -529,49 +561,49 @@ class ObservationManager:
             steps: dict[str, pd.DataFrame] = {}
             # Step 1 ------------------------------------------------------------------------
             steps["1"] = frames["depol"].copy(deep=True)
-            steps["1"][frames["depol"] < 0.1] = LIQUID
-            steps["1"][0.1 <= frames["depol"]] = ICE
+            steps["1"][frames["depol"] < SHUPE["depol"]["ice"]] = LIQUID
+            steps["1"][SHUPE["depol"]["ice"] <= frames["depol"]] = ICE
             # Step 2 ------------------------------------------------------------------------
             # Make a copy
             steps["2"] = steps["1"].copy(deep=True)
             # Classify mixed-phase
             steps["2"][
                 (steps["1"] == LIQUID)  # Lidar detected liquid
-                & (frames["temp"] < 0)  # Below freezing
-                & (-17 <= frames["refl"])  # High reflectivity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["refl"]["low"] <= frames["refl"])
             ] = MIXED
             steps["2"][
                 (steps["1"] == LIQUID)  # Lidar detected liquid
-                & (frames["temp"] < 0)  # Below freezing
-                & (1 <= frames["mean_dopp_vel"])  # High velocity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["mean_dopp_vel"]["low"] <= frames["mean_dopp_vel"])
             ] = MIXED
             # Classify Drizzle
             steps["2"][
                 (steps["1"] == LIQUID)  # Lidar detected liquid
-                & (0 <= frames["temp"])  # Above freezing
-                & (-17 <= frames["refl"])  # High reflectivity
+                & (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (SHUPE["refl"]["low"] <= frames["refl"])
             ] = DRIZZLE
             steps["2"][
                 (steps["1"] == LIQUID)  # Lidar detected liquid
-                & (0 <= frames["temp"])  # Above freezing
-                & (1 <= frames["mean_dopp_vel"])  # High velocity
+                & (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (SHUPE["mean_dopp_vel"]["low"] <= frames["mean_dopp_vel"])
             ] = DRIZZLE
             # Step 3 ------------------------------------------------------------------------
             # Make a copy
             steps["3"] = steps["2"].copy(deep=True)
             # Reclassify snow and rain based on reflectivity greater than 5
             steps["3"][
-                (frames["temp"] < 0)  # Below freezing
-                & (5 <= frames["refl"])  # High reflectivity
+                (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["refl"]["high"] <= frames["refl"])
             ] = SNOW
             steps["3"][
-                (0 <= frames["temp"])  # Above freezing
-                & (5 <= frames["refl"])  # High reflectivity
+                (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (SHUPE["refl"]["high"] <= frames["refl"])
             ] = RAIN
             # Reclassify rain when velocity is greater than 2.5 and temperature is above freezing
             steps["3"][
-                (0 <= frames["temp"])  # Above freezing
-                & (2.5 <= frames["mean_dopp_vel"])  # High velocity
+                (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (SHUPE["mean_dopp_vel"]["high"] <= frames["mean_dopp_vel"])
             ] = RAIN
             # Step 4 ------------------------------------------------------------------------
             # Make a copy for step 4
@@ -579,57 +611,57 @@ class ObservationManager:
             # First set all of the values that are in the mask to rain
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (0 <= frames["temp"])  # Above freezing
+                & (SHUPE["freezing"]["nominal"] <= frames["temp"])
                 & (frames["radar_mask"] == 1)  # Pixels viewed by radar
             ] = RAIN
             # Now cut in with drizzle
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (0 <= frames["temp"])  # Above freezing
-                & (frames["refl"] < 5)  # Mid reflectivity
-                & (frames["mean_dopp_vel"] < 2.5)  # Mid velocity
+                & (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (frames["refl"] < SHUPE["refl"]["high"])
+                & (frames["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["high"])
             ] = DRIZZLE
             # Finally cut in with liquid
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (0 <= frames["temp"])  # Above freezing
-                & (frames["refl"] < -17)  # Low reflectivity
+                & (SHUPE["freezing"]["nominal"] <= frames["temp"])
+                & (frames["refl"] < SHUPE["refl"]["low"])
                 & (frames["mean_dopp_vel"] < 1)  # Low velocity
             ] = LIQUID
             # Differentiate between snow and ice below freezing using reflectivity at narrow widths.
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (frames["spec_width"] < 0.4)  # Narrow widths
-                & (frames["refl"] < 5)  # Low reflecitvity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (frames["spec_width"] < SHUPE["spec_width"]["low"])
+                & (frames["refl"] < SHUPE["refl"]["high"])
             ] = ICE
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (frames["spec_width"] < 0.4)  # Narrow widths
-                & (5 <= frames["refl"])  # High reflecitvity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (frames["spec_width"] < SHUPE["spec_width"]["low"])
+                & (SHUPE["refl"]["high"] <= frames["refl"])
             ] = SNOW
             # Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity at elevated widths.
             # First set everything to snow
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (0.4 <= frames["spec_width"])  # Extended widths
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["spec_width"]["low"] <= frames["spec_width"])
             ] = SNOW
             # Now cut in with mixed-phase
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (0.4 <= frames["spec_width"])  # Extended widths
-                & (frames["refl"] < 5)  # Mid reflecitvity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["spec_width"]["low"] <= frames["spec_width"])
+                & (frames["refl"] < SHUPE["refl"]["high"])
             ] = MIXED
             # Finally cut in with liquid
             steps["4"][
                 (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (0.4 <= frames["spec_width"])  # Extended widths
-                & (frames["refl"] < -17)  # Low reflecitvity
-                & (frames["mean_dopp_vel"] < 1)  # Low velocity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (SHUPE["spec_width"]["low"] <= frames["spec_width"])
+                & (frames["refl"] < SHUPE["refl"]["low"])
+                & (frames["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["low"])
             ] = LIQUID
             # Lidar Occulation Zone
             # Start with a dataframe of all zeros
@@ -661,7 +693,7 @@ class ObservationManager:
             for i, t in enumerate(steps["lidar_tops"].index):
                 for radar_top in radar_tops_levels[t]:
                     base = lidar_occulation_levels[t]
-                    if 0 <= radar_top - base <= 750:
+                    if 0 <= radar_top - base <= SHUPE["occultation"]["high"]:
                         # then set the values in the given location between these values to 1
                         steps["occulation_zone"].loc[t, base:radar_top] = 1
             # Use occulation zone to Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity regardless of spectral width.
@@ -669,22 +701,22 @@ class ObservationManager:
             steps["4"][
                 (steps["occulation_zone"] == 1)  # In occulation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
             ] = SNOW
             # Now cut in with mixed-phase
             steps["4"][
                 (steps["occulation_zone"] == 1)  # In occulation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (frames["refl"] < 5)  # Mid reflecitvity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (frames["refl"] < SHUPE["refl"]["high"])
             ] = MIXED
             # Finally cut in with liquid
             steps["4"][
                 (steps["occulation_zone"] == 1)  # In occulation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
-                & (frames["temp"] < 0)  # Below freezing
-                & (frames["refl"] < -17)  # Low reflecitvity
-                & (frames["mean_dopp_vel"] < 1)  # Low velocity
+                & (frames["temp"] < SHUPE["freezing"]["nominal"])
+                & (frames["refl"] < SHUPE["refl"]["low"])
+                & (frames["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["low"])
             ] = LIQUID
             # Step 5 ------------------------------------------------------------------------
             # Absolute Temperature Rules
@@ -694,28 +726,28 @@ class ObservationManager:
             # Find all the locations where step 4 is in both of the masks is below -40
             # Below - 40 you can only have ice or snow and you can differentiate show using reflectivity > 5
             steps["5"][
-                (frames["temp"] < -40)  # Below homogeneous freezing
+                (frames["temp"] < SHUPE["freezing"]["homogeneous"])
                 & (steps["5"] == RAIN)
             ] = SNOW
             steps["5"][
-                (frames["temp"] < -40)  # Below homogeneous freezing
+                (frames["temp"] < SHUPE["freezing"]["homogeneous"])
                 & (steps["5"] == LIQUID)
             ] = ICE
             steps["5"][
-                (frames["temp"] < -40)  # Below homogeneous freezing
+                (frames["temp"] < SHUPE["freezing"]["homogeneous"])
                 & (steps["5"] == MIXED)
             ] = ICE
             # Above zero you can only have rain, drizzle, or liquid.
             # You can differentiate these with doppler velocity and reflectivity.
             steps["5"][
-                (0 <= frames["temp"])  # Above freezing
+                (SHUPE["freezing"]["nominal"] <= frames["temp"])
                 & (steps["5"] == MIXED)  # Mixed-Phase
             ] = LIQUID
             steps["5"][
-                (0 <= frames["temp"]) & (steps["5"] == ICE)  # Above freezing  # Ice
+                (SHUPE["freezing"]["nominal"] <= frames["temp"]) & (steps["5"] == ICE)
             ] = LIQUID
             steps["5"][
-                (0 <= frames["temp"]) & (steps["5"] == SNOW)  # Above freezing  # Snow
+                (SHUPE["freezing"]["nominal"] <= frames["temp"]) & (steps["5"] == SNOW)
             ] = RAIN
             # Step 6 ------------------------------------------------------------------------
             # Make a copy for step 6
@@ -725,7 +757,7 @@ class ObservationManager:
             # Add liquid if the lwp is greater than 25 but no liquid in the column
             for row in frames["mwr_lwp"].index:
                 lwp = frames["mwr_lwp"].loc[row, "mwr_lwp"]
-                if 25 <= lwp:
+                if SHUPE["occultation"]["lwp"] <= lwp:
                     this_column = layers_and_phases[row]
                     if all(
                         phase["phase"] <= ICE
@@ -750,7 +782,7 @@ class ObservationManager:
                                 tops.append(layer[-1]["top"])
                         top = None
                         for this_top in tops:
-                            if 0 < this_top - base <= 500:
+                            if 0 < this_top - base <= SHUPE["occultation"]["low"]:
                                 top = this_top
                                 break
                         if not top:
@@ -767,7 +799,7 @@ class ObservationManager:
                     # Then all liquid containing elements below freezing are set to ice
                     steps["6"].loc[
                         row,
-                        (frames["temp"].loc[row, :] < 0)  # Below freezing
+                        (frames["temp"].loc[row, :] < SHUPE["freezing"]["nominal"])
                         & (MIXED <= steps["6"].loc[row, :]),
                     ] = ICE
             # Step 7 ------------------------------------------------------------------------
@@ -781,17 +813,22 @@ class ObservationManager:
             for i, index in enumerate(steps["7"].index):
                 if i % 250 == 0:
                     print(i / times * 100)
-                if (i < 3) or (times - 3 - 1 < i):
+                if (i < SHUPE["window"]["buffer"]) or (times - SHUPE["window"]["buffer"] - 1 < i):
                     steps["7"].loc[index, :] = steps["6"].loc[index, :].values
                     # Or you can just pass
                     continue
                 for j, column in enumerate(steps["7"].columns):
-                    if (j < 3) or (elevations - 3 - 1 < j):
+                    if (j < SHUPE["window"]["buffer"]) or (elevations - SHUPE["window"]["buffer"] - 1 < j):
                         steps["7"].loc[:, column] = steps["6"].loc[:, column].values
                         continue
                     # If we haven't continued, then we know that we can grab all the values
-                    values = steps["6"].iloc[i - 3 : i + 3 + 1, j - 3 : j + 3 + 1]
-                    if values.count().sum() < 14:
+                    values = (
+                        steps["6"].iloc[
+                            i - SHUPE["window"]["buffer"] : i + SHUPE["window"]["buffer"] + 1,
+                            j - SHUPE["window"]["buffer"] : j + SHUPE["window"]["buffer"] + 1
+                        ]
+                    )
+                    if values.count().sum() < SHUPE["window"]["clear"]:
                         # Then we want to classify the central one as clear
                         # But step 7 is already all nan
                         # so we just continue
@@ -808,7 +845,7 @@ class ObservationManager:
                             )
                         except KeyError:
                             match_center_count = 0
-                        if 7 < match_center_count:
+                        if SHUPE["window"]["match"] < match_center_count:
                             steps["7"].loc[index, column] = center
                         else:
                             # Use the mode
@@ -1214,6 +1251,432 @@ class ObservationManager:
         # Remove the file
         os.remove(filepath)
 
+    def create_annual_phase_summary_by_temp(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        temperature_blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"resampled_frames/daily/{request.year}/",
+        )
+        # The issue that we're having is that we don't know what the indexes are until we get to the
+        # first day
+        # So, for now, we just need to make the series
+        for target in self._dates_in_month(request.year, 1):
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target,
+                blobs,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            if not selected:
+                continue
+            # Now that I have the blob (pkl) I need to download it
+            # There is only one in each selected
+            name: str = selected[0]
+            filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=name,
+            )
+            # Unpickle the dataframes [steps]
+            filepath: Path = Path.cwd() / filename
+            with open(filepath, "rb") as file:
+                phase_map = pickle.load(file)
+            os.remove(filepath)
+            # Now we should have the combined steps
+            # Create a dict of dataframes to hold the results
+            # The index is a group of five days at a time.
+            index: list[int] = list(range(1, 12 + 1))
+            columns: list[int] = phase_map.columns.to_list()
+            phases: dict[str, dict[str, pd.DataFrame]] = {
+                phase: {
+                    temp: pd.DataFrame(0, index=index, columns=columns)
+                    for temp in range(-40, 5 + 1, 5)
+                }
+                for phase in [
+                    "ice",
+                    "mixed_ice",
+                    "mixed",
+                    "mixed_liquid",
+                    "liquid",
+                    "all_mixed",
+                    "total",
+                    "clear",
+                ]
+            }
+            counts: pd.Series = pd.Series(0, index=index)
+            break
+        # Now that you have the series with the correct index
+        # You can produce the summary counts
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                # Download the phase map ---------------------------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+                # Download the frame with the temperatures ----------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    temperature_blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    frames = pickle.load(file)
+                os.remove(filepath)
+
+                # Now that we know we have a file, the total counts can be updated
+                counts[month] += 24 * 60
+
+                # Now we are going to go through each day and compile
+                for time in phase_map.index:
+                    this_slice = phase_map.loc[time, :]
+                    if all(np.isnan(this_slice)):
+                        continue
+                    for temp in range(-40, 5 + 1, 5):
+                        upper = temp
+                        lower = temp - 5
+                        if temp == -40:
+                            lower = -273
+                        elif temp == 5:
+                            upper = 100
+                        # Here is where we also need the temps to filter by
+                        temp_slice = frames["temp"].loc[time, :]
+                        phases["ice"][temp].loc[
+                            month,
+                            (this_slice == NEW_ICE)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["mixed_ice"][temp].loc[
+                            month,
+                            (this_slice == MIXED_ICE)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["mixed"][temp].loc[
+                            month,
+                            (this_slice == MIXED)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["mixed_liquid"][temp].loc[
+                            month,
+                            (this_slice == MIXED_LIQUID)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["liquid"][temp].loc[
+                            month,
+                            (this_slice == NEW_LIQUID)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["all_mixed"][temp].loc[
+                            month,
+                            (1 < this_slice)
+                            & (this_slice < 5)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+                        phases["total"][temp].loc[
+                            month,
+                            (0 < this_slice)
+                            & (lower < temp_slice)
+                            & (temp_slice <= upper),
+                        ] += 1
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-monthly_phase_counts_by_temp"
+            ".pkl"
+        )
+        result = {
+            "phases": phases,
+            "counts": counts,
+        }
+        with open(filepath, "wb") as file:
+            pickle.dump(result, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="phase_counts_by_temp/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def create_annual_phase_summary_for_report(
+        self, request: ObservatoryRequest
+    ) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        temperature_blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"resampled_frames/daily/{request.year}/",
+        )
+        index: list[int] = list(range(1, 12 + 1))
+        counts: pd.Series = pd.Series(0, index=index)
+        year_data = []
+        month_data = []
+        temp_data = []
+        phase_data = []
+        base_data = []
+        top_data = []
+        depth_data = []
+        # Now start building results
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                # Download the phase map ---------------------------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+                # Download the frame with the temperatures ----------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    temperature_blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                try:
+                    with open(filepath, "rb") as file:
+                        frames = pickle.load(file)
+                    os.remove(filepath)
+                except FileNotFoundError:
+                    print("Skipping the file that was not found")
+                    continue
+
+                # Now that we know we have a file, the total counts can be updated
+                counts[month] += 24 * 60
+
+                layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+                # Now we are going to go through each day and compile
+                for time in layers_and_phases.index:
+                    this_temp_slice = frames["temp"].loc[time, :]
+                    for layer in layers_and_phases[time]:
+                        for phase_layer in layer:
+                            base = phase_layer["base"]
+                            top = phase_layer["top"]
+                            depth = phase_layer["depth"]
+                            # Now append the data
+                            year_data.append(request.year)
+                            month_data.append(month)
+                            base_data.append(base)
+                            top_data.append(top)
+                            depth_data.append(depth)
+                            match phase_layer["phase"]:
+                                case 1 | 2:
+                                    phase_data.append("liquid")  # These are switched
+                                case 3:
+                                    phase_data.append("mixed")
+                                case 4 | 5:
+                                    phase_data.append("ice")  # These are switched
+                            # You also need to get the average temp
+                            avg_temp = this_temp_slice.loc[
+                                (base < this_temp_slice.index)
+                                & (this_temp_slice.index < top)
+                            ].mean()
+                            temp_data.append(avg_temp)
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-report_fig_01"
+            ".pkl"
+        )
+        result = pd.DataFrame(
+            {
+                "year": year_data,
+                "month": month_data,
+                "base": base_data,
+                "top": top_data,
+                "depth": depth_data,
+                "temp": temp_data,
+                "phase": phase_data,
+            }
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(result, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="report_fig/01/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def create_annual_phase_summary_for_report_2(
+        self, request: ObservatoryRequest
+    ) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        index: list[int] = list(range(1, 12 + 1))
+        counts: pd.Series = pd.Series(0, index=index)
+        # Now that you have the series with the correct index
+        # You can produce the summary counts
+        year_data = []
+        month_data = []
+        phase_data = []
+        fraction_data = []
+        # Things to interate over
+        # Now start building results
+        for month in range(1, 13):
+            ice = 0
+            mixed = 0
+            liquid = 0
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                # Download the phase map ---------------------------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+
+                # Now that we know we have a file, the total counts can be updated
+                counts[month] += 24 * 60
+
+                # layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+                # Now we are going to go through each day and compile
+                for time in phase_map.index:
+                    this_slice = phase_map.loc[time, :]
+                    if any(this_slice.isin([1, 2])):
+                        ice += 1
+                    if any(this_slice.isin([3])):
+                        mixed += 1
+                    if any(this_slice.isin([4, 5])):
+                        liquid += 1
+            # ice
+            phase_data.append("ice")
+            fraction_data.append(ice / counts[month])
+            year_data.append(request.year)
+            month_data.append(month)
+            # mixed
+            phase_data.append("mixed")
+            fraction_data.append(mixed / counts[month])
+            year_data.append(request.year)
+            month_data.append(month)
+            # liquid
+            phase_data.append("liquid")
+            fraction_data.append(liquid / counts[month])
+            year_data.append(request.year)
+            month_data.append(month)
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-report_fig_02"
+            ".pkl"
+        )
+        result = pd.DataFrame(
+            {
+                "year": year_data,
+                "month": month_data,
+                "phase": phase_data,
+                "fraction": fraction_data,
+            }
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(result, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="report_fig/02/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    # NOTE: Most likely depreciated
     def create_monthly_elevation_by_phase(self, request: ObservatoryRequest) -> None:
         """TODO: Docstring."""
         # Get a list of all the relevant blobs
@@ -1281,6 +1744,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    # NOTE: Most likely depreciated
     def create_daily_masks(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -1388,6 +1852,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    # NOTE: Most likely depreciated
     def merge_daily_masks(self, request: ObservatoryRequest) -> None:
         """Merge daily masks for a given observatory, month and year.
 

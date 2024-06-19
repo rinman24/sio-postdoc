@@ -60,12 +60,8 @@ def test_level_dimension(data):
     assert data.dimensions["level"] == Dimension(name=Dimensions.LEVEL, size=3)
 
 
-def test_degrees_dimension(data):
-    assert data.dimensions["angle"] == Dimension(name=Dimensions.ANGLE, size=4)
-
-
 # def test_variables(data):
-#     assert len(data.variables) == 9
+#     assert len(data.variables) == 8
 
 
 def test_counts_lo_variable(data):
@@ -157,6 +153,7 @@ def test_epoch_variable(data):
     )
 
 
+@pytest.mark.skip(reason="Depreciated, no angels")
 def test_latitude(data):
     var: Variable = data.variables["latitude"]
     assert len(var.dimensions) == 0
@@ -167,6 +164,7 @@ def test_latitude(data):
     assert var.values == (1, 79, 59, 25)
 
 
+@pytest.mark.skip(reason="Depreciated, no angels")
 def test_longitude(data):
     var: Variable = data.variables["longitude"]
     assert len(var.dimensions) == 0
