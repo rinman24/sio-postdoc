@@ -128,7 +128,7 @@ SHUPE = {
         "buffer": 3,
         "clear": 14,
         "match": 7,
-    }
+    },
 }
 
 Mask = tuple[tuple[int, ...], ...]
@@ -276,6 +276,12 @@ class ObservationManager:
                     strategy: TransformationStrategy = MplCmaskMlRaw()
                 case (Observatory.UTQIAGVIK, Product.INTERPOLATEDSONDE):
                     strategy: TransformationStrategy = InterpolatedSondeRaw()
+                case (Observatory.OLIKTOK, Product.ARSCLKAZR1KOLLIAS):
+                    strategy: TransformationStrategy = ArsclKazr1KolliasRaw()
+                case (Observatory.OLIKTOK, Product.MPLCMASKML):
+                    strategy: TransformationStrategy = MplCmaskMlRaw()
+                case (Observatory.OLIKTOK, Product.INTERPOLATEDSONDE):
+                    strategy: TransformationStrategy = InterpolatedSondeRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
@@ -339,18 +345,16 @@ class ObservationManager:
                 match (request.observatory, product):
                     case (Observatory.UTQIAGVIK, "arsclkazr1kollias"):
                         strategy: TransformationStrategy = ArsclKazr1Kollias()
-                        # with open("arscl_instrument_data.pkl", "rb") as file:
-                        #     results = pickle.load(file)
                     case (Observatory.UTQIAGVIK, "mplcmaskml"):
                         strategy: TransformationStrategy = MplCmaskMl()
-                        # with open("mplcmaskml_instrument_data.pkl", "rb") as file:
-                        #     results = pickle.load(file)
                     case (Observatory.UTQIAGVIK, "interpolatedsonde"):
                         strategy: TransformationStrategy = InterpolatedSonde()
-                        # with open(
-                        #     "interpolatedsonde_instrument_data.pkl", "rb"
-                        # ) as file:
-                        #     results = pickle.load(file)
+                    case (Observatory.OLIKTOK, "arsclkazr1kollias"):
+                        strategy: TransformationStrategy = ArsclKazr1Kollias()
+                    case (Observatory.OLIKTOK, "mplcmaskml"):
+                        strategy: TransformationStrategy = MplCmaskMl()
+                    case (Observatory.OLIKTOK, "interpolatedsonde"):
+                        strategy: TransformationStrategy = InterpolatedSonde()
                 # Generate a InstrumentData for each DataSet corresponding to the target date
                 results: tuple[InstrumentData, ...] = tuple(
                     self._generate_data(
@@ -813,21 +817,29 @@ class ObservationManager:
             for i, index in enumerate(steps["7"].index):
                 if i % 250 == 0:
                     print(i / times * 100)
-                if (i < SHUPE["window"]["buffer"]) or (times - SHUPE["window"]["buffer"] - 1 < i):
+                if (i < SHUPE["window"]["buffer"]) or (
+                    times - SHUPE["window"]["buffer"] - 1 < i
+                ):
                     steps["7"].loc[index, :] = steps["6"].loc[index, :].values
                     # Or you can just pass
                     continue
                 for j, column in enumerate(steps["7"].columns):
-                    if (j < SHUPE["window"]["buffer"]) or (elevations - SHUPE["window"]["buffer"] - 1 < j):
+                    if (j < SHUPE["window"]["buffer"]) or (
+                        elevations - SHUPE["window"]["buffer"] - 1 < j
+                    ):
                         steps["7"].loc[:, column] = steps["6"].loc[:, column].values
                         continue
                     # If we haven't continued, then we know that we can grab all the values
-                    values = (
-                        steps["6"].iloc[
-                            i - SHUPE["window"]["buffer"] : i + SHUPE["window"]["buffer"] + 1,
-                            j - SHUPE["window"]["buffer"] : j + SHUPE["window"]["buffer"] + 1
-                        ]
-                    )
+                    values = steps["6"].iloc[
+                        i
+                        - SHUPE["window"]["buffer"] : i
+                        + SHUPE["window"]["buffer"]
+                        + 1,
+                        j
+                        - SHUPE["window"]["buffer"] : j
+                        + SHUPE["window"]["buffer"]
+                        + 1,
+                    ]
                     if values.count().sum() < SHUPE["window"]["clear"]:
                         # Then we want to classify the central one as clear
                         # But step 7 is already all nan
@@ -2483,6 +2495,7 @@ class ObservationManager:
     #         "five": five,
     #     }
 
+    # NOTE: Most likely depreciated
     def create_daily_layer_plots(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
