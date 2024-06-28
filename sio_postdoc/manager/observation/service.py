@@ -129,6 +129,9 @@ SHUPE = {
         "clear": 14,
         "match": 7,
     },
+    "persistence": {
+        "thresh": 30,
+    },
 }
 
 Mask = tuple[tuple[int, ...], ...]
@@ -1545,11 +1548,11 @@ class ObservationManager:
                             depth_data.append(depth)
                             match phase_layer["phase"]:
                                 case 1 | 2:
-                                    phase_data.append("liquid")  # These are switched
+                                    phase_data.append("ice")
                                 case 3:
                                     phase_data.append("mixed")
                                 case 4 | 5:
-                                    phase_data.append("ice")  # These are switched
+                                    phase_data.append("liquid")
                             # You also need to get the average temp
                             avg_temp = this_temp_slice.loc[
                                 (base < this_temp_slice.index)
@@ -1687,6 +1690,175 @@ class ObservationManager:
         )
         # Remove the file
         os.remove(filepath)
+
+    def create_annual_phase_duration_for_report(
+        self, request: ObservatoryRequest
+    ) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        index: list[int] = list(range(1, 12 + 1))
+        counts: pd.Series = pd.Series(0, index=index)
+        # Now that you have the series with the correct index
+        # You can produce the summary counts
+        year_data = []
+        month_data = []
+        phase_data = []
+        duration_data = []
+        phase_ids = {"ice": [1, 2], "mixed": [3], "liquid": [4, 5]}
+        # Things to interate over
+        # Now start building results
+        for month in range(1, 13):
+            # Initial state
+            count = {"ice": 0, "mixed": 0, "liquid": 0}
+            in_cloud = {"ice": False, "mixed": False, "liquid": False}
+            persistence = {"ice": 0, "mixed": 0, "liquid": 0}
+            gap = {"ice": 0, "mixed": 0, "liquid": 0}
+            in_gap = {"ice": False, "mixed": False, "liquid": False}
+
+            # For each month in the year
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                # Download the phase map ---------------------------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+
+                # Now that we know we have a file, the total counts can be updated
+                counts[month] += 24 * 60
+
+                # layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+                # Now we are going to go through each day and compile
+                for time in phase_map.index:
+                    this_slice = phase_map.loc[time, :]
+                    for phase in count.keys():
+                        if any(this_slice.isin(phase_ids[phase])):
+                            if in_cloud[phase]:
+                                if in_gap[phase]:
+                                    # I think this line is the issue,
+                                    persistence[phase] += gap[phase]
+                                    in_gap[phase] = False
+                                    gap[phase] = 0
+                                persistence[phase] += 1
+                            else:  # Not in cloud
+                                count[phase] += 1
+                                if count[phase] == SHUPE["persistence"]["thresh"]:
+                                    in_cloud[phase] = True
+                                    persistence[phase] = count[phase]
+                        elif in_gap[phase]:
+                            gap[phase] += 1
+                            if gap[phase] > SHUPE["persistence"]["thresh"]:
+                                year_data.append(request.year)
+                                month_data.append(month)
+                                phase_data.append(phase)
+                                duration_data.append(persistence[phase])
+                                # Reset everything
+                                count[phase] = 0
+                                in_cloud[phase] = False
+                                gap[phase] = 0
+                                in_gap[phase] = False
+                                persistence[phase] = 0
+                        elif in_cloud[phase]:
+                            in_gap[phase] = True
+                            gap[phase] = 1
+                        else:  # No gap and no cloud
+                            count[phase] = 0
+            for phase in count.keys():
+                if in_cloud[phase]:
+                    year_data.append(request.year)
+                    month_data.append(month)
+                    phase_data.append(phase)
+                    duration_data.append(persistence[phase])
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-report_fig_03"
+            ".pkl"
+        )
+        result = pd.DataFrame(
+            {
+                "year": year_data,
+                "month": month_data,
+                "phase": phase_data,
+                "duration": duration_data,
+            }
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(result, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="report_fig/03/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def _persistence(self, data) -> int:
+        """NOTE: This is just an example of what the algorithm should look like."""
+        # Initialize the parameters ---------------------------------------------
+        count = 0
+        in_cloud: bool = False
+        persistence = 0
+        gap = 0
+        in_gap = False
+        result = []
+        # Iterate through each data point ---------------------------------------
+        for d in data:
+            if d == 1:
+                if in_cloud:
+                    if in_gap:
+                        persistence += gap
+                        in_gap = False
+                        gap = 0
+                    persistence += 1
+                else:  # Not in cloud
+                    count += 1
+                    if count == SHUPE["persistence"]["thresh"]:
+                        # We found 30 mins of a cloud and can start logging
+                        in_cloud = True
+                        persistence = count
+            elif in_gap:
+                gap += 1
+                if gap > SHUPE["persistence"]["thresh"]:
+                    # Now we know we were in a gap that got longer than 30
+                    # This is the end of a duration of a cloud
+                    result.append(persistence)
+                    # Reset everything
+                    count = 0
+                    in_cloud = False
+                    gap = 0
+                    in_gap = False
+            elif in_cloud:
+                in_gap = True
+                gap = 1
+            else:  # No gap and no cloud
+                count = 0
+        if in_cloud:
+            result.append(persistence)
+        return result
 
     # NOTE: Most likely depreciated
     def create_monthly_elevation_by_phase(self, request: ObservatoryRequest) -> None:
