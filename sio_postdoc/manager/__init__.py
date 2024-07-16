@@ -25,6 +25,7 @@ class Observatory(Enum):
 class Product(Enum):
     """Data Products names."""
 
+    ARSCL1CLOTH = auto()
     ARSCLKAZR1KOLLIAS = auto()
     MPLCMASKML = auto()
     INTERPOLATEDSONDE = auto()

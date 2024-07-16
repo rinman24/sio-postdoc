@@ -57,6 +57,7 @@ from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
 from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
+    Arscl1ClothRaw,
     ArsclKazr1KolliasRaw,
 )
 from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
@@ -272,19 +273,17 @@ class ObservationManager:
             if not selected:
                 continue
             # Select the Strategy
-            match (request.observatory, request.product):
-                case (Observatory.UTQIAGVIK, Product.ARSCLKAZR1KOLLIAS):
-                    strategy: TransformationStrategy = ArsclKazr1KolliasRaw()
-                case (Observatory.UTQIAGVIK, Product.MPLCMASKML):
-                    strategy: TransformationStrategy = MplCmaskMlRaw()
-                case (Observatory.UTQIAGVIK, Product.INTERPOLATEDSONDE):
-                    strategy: TransformationStrategy = InterpolatedSondeRaw()
-                case (Observatory.OLIKTOK, Product.ARSCLKAZR1KOLLIAS):
-                    strategy: TransformationStrategy = ArsclKazr1KolliasRaw()
-                case (Observatory.OLIKTOK, Product.MPLCMASKML):
-                    strategy: TransformationStrategy = MplCmaskMlRaw()
-                case (Observatory.OLIKTOK, Product.INTERPOLATEDSONDE):
-                    strategy: TransformationStrategy = InterpolatedSondeRaw()
+            strategy: TransformationStrategy
+            match request.product:
+                case Product.ARSCL1CLOTH:
+                    strategy = Arscl1ClothRaw()
+                case Product.ARSCLKAZR1KOLLIAS:
+                    strategy = ArsclKazr1KolliasRaw()
+                case Product.INTERPOLATEDSONDE:
+                    strategy = InterpolatedSondeRaw()
+                case Product.MPLCMASKML:
+                    strategy = MplCmaskMlRaw()
+
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
@@ -1372,11 +1371,9 @@ class ObservationManager:
                     frames = pickle.load(file)
                 os.remove(filepath)
 
-                # Now that we know we have a file, the total counts can be updated
-                counts[month] += 24 * 60
-
                 # Now we are going to go through each day and compile
                 for time in phase_map.index:
+                    counts[month] += 1
                     this_slice = phase_map.loc[time, :]
                     if all(np.isnan(this_slice)):
                         continue
@@ -1528,12 +1525,10 @@ class ObservationManager:
                     print("Skipping the file that was not found")
                     continue
 
-                # Now that we know we have a file, the total counts can be updated
-                counts[month] += 24 * 60
-
                 layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
                 # Now we are going to go through each day and compile
                 for time in layers_and_phases.index:
+                    counts[month] += 1
                     this_temp_slice = frames["temp"].loc[time, :]
                     for layer in layers_and_phases[time]:
                         for phase_layer in layer:
@@ -1636,12 +1631,9 @@ class ObservationManager:
                     phase_map = pickle.load(file)
                 os.remove(filepath)
 
-                # Now that we know we have a file, the total counts can be updated
-                counts[month] += 24 * 60
-
-                # layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
                 # Now we are going to go through each day and compile
                 for time in phase_map.index:
+                    counts[month] += 1
                     this_slice = phase_map.loc[time, :]
                     if any(this_slice.isin([1, 2])):
                         ice += 1
@@ -1744,12 +1736,9 @@ class ObservationManager:
                     phase_map = pickle.load(file)
                 os.remove(filepath)
 
-                # Now that we know we have a file, the total counts can be updated
-                counts[month] += 24 * 60
-
-                # layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
                 # Now we are going to go through each day and compile
                 for time in phase_map.index:
+                    counts[month] += 1
                     this_slice = phase_map.loc[time, :]
                     for phase in count.keys():
                         if any(this_slice.isin(phase_ids[phase])):
@@ -1812,6 +1801,155 @@ class ObservationManager:
             name=request.observatory.name.lower(),
             path=filepath,
             directory="report_fig/03/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def create_annual_correlation_timeseries(self, request: ObservatoryRequest) -> None:
+        """TODO: Docstring."""
+        # The first step is to make all of the zeros
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        temperature_blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"resampled_frames/daily/{request.year}/",
+        )
+        index: list[int] = list(range(1, 12 + 1))
+        # counts: pd.Series = pd.Series(0, index=index)
+        year_data = []
+        month_data = []
+        temp_data = []
+        phase_data = []
+        base_data = []
+        top_data = []
+        depth_data = []
+        datetime_data = []
+        # Now start building results
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                # Download the phase map ---------------------------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+                # Download the frame with the temperatures ----------------
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    temperature_blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                try:
+                    with open(filepath, "rb") as file:
+                        frames = pickle.load(file)
+                    os.remove(filepath)
+                except FileNotFoundError:
+                    print("Skipping the file that was not found")
+                    continue
+
+                layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+                # Now we are going to go through each day and compile
+                for time in layers_and_phases.index:
+                    # counts[month] += 1
+                    # NOTE: IT SEEMS LIKE WE HAVE THE FIRST TIMESTAMP REPEATED IN THESE THINGS!!!
+                    # TODO: You might need to remove the last timestamp from each of these
+                    time_stamp: datetime = datetime(
+                        target.year, target.month, target.day, tzinfo=timezone.utc
+                    ) + timedelta(seconds=time)
+                    if time_stamp.date() != target:
+                        continue
+                    this_temp_slice = frames["temp"].loc[time, :]
+                    if len(layers_and_phases[time]) == 0:
+                        year_data.append(request.year)
+                        month_data.append(month)
+                        base_data.append(np.nan)
+                        top_data.append(np.nan)
+                        depth_data.append(np.nan)
+                        phase_data.append(np.nan)
+                        temp_data.append(np.nan)
+                        datetime_data.append(time_stamp)
+                        continue
+                    layer = layers_and_phases[time][0][0]
+                    base = layer["base"]
+                    top = layer["top"]
+                    depth = layer["depth"]
+                    # Now append the data
+                    year_data.append(request.year)
+                    month_data.append(month)
+                    base_data.append(base)
+                    top_data.append(top)
+                    depth_data.append(depth)
+                    match layer["phase"]:
+                        case 1 | 2:
+                            phase_data.append("ice")
+                        case 3:
+                            phase_data.append("mixed")
+                        case 4 | 5:
+                            phase_data.append("liquid")
+                    # You also need to get the average temp
+                    avg_temp = this_temp_slice.loc[
+                        (base < this_temp_slice.index) & (this_temp_slice.index < top)
+                    ].mean()
+                    temp_data.append(avg_temp)
+                    # Finally add the time_stamp
+                    datetime_data.append(time_stamp)
+        # Now we are done with all of the days in a month
+        # Now save the daily results
+        filepath: Path = Path.cwd() / (
+            f"{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-first_layer_timeseries"
+            ".pkl"
+        )
+        result = pd.DataFrame(
+            {
+                "year": year_data,
+                "month": month_data,
+                "base": base_data,
+                "top": top_data,
+                "depth": depth_data,
+                "temp": temp_data,
+                "phase": phase_data,
+                "datetime": datetime_data,
+            }
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(result, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="results/correlation_timeseries/annual/",
         )
         # Remove the file
         os.remove(filepath)

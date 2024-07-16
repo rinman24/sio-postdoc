@@ -78,6 +78,26 @@ class TransformationStrategy(ABC):
         else:  # dimensions == 2
             for row in data:
                 yield tuple(self._convert_with_rails(i, req) for i in row)
+                # values: tuple[float, ...] = tuple(
+                #     self._convert_with_rails(i, req) for i in row
+                # )
+                # if req.binary:
+                #     values: tuple[float, ...] = tuple(
+                #         self._convert_to_binary(i, req) for i in values
+                #     )
+                # yield values
+
+    # @staticmethod
+    # def _convert_to_binary(element: float, req: VariableRequest) -> int:
+    #     midpoint: float = sum(req.binary) / 2
+    #     if element == req.dtype.min:
+    #         return int(element)  # Done
+    #     elif (element < req.binary[0]) | (req.binary[1] < element):
+    #         return int(req.dtype.min)  # Done
+    #     elif req.binary[0] <= element < midpoint:
+    #         return int(req.binary[0])
+    #     elif midpoint <= element <= req.binary[1]:
+    #         return int(req.binary[1])
 
     @staticmethod
     def _get_deg_min_sec(angle: float) -> tuple[int, int, int]:
@@ -105,16 +125,24 @@ class TransformationStrategy(ABC):
         return (sign, int(degrees), int(minutes), round(seconds))
 
     @staticmethod
-    def _convert_with_rails(element: float, req: VariableRequest) -> tuple[int, ...]:
+    def _convert_with_rails(element: float, req: VariableRequest) -> int:
         if element == req.flag:
             return req.dtype.min
         else:
             value: float = element * req.conversion_scale.value
-            too_small: bool = value < req.dtype.min
+            too_small: bool = value <= req.dtype.min
             too_large: bool = req.dtype.max < value
             is_nan: bool = np.isnan(value)
-            if too_small or too_large or is_nan:
+            if any([too_small, too_large, is_nan]):
                 return req.dtype.min
+            if req.binary:
+                midpoint: float = sum(req.binary) / 2
+                if (value < req.binary[0]) | (req.binary[1] < value):
+                    return req.dtype.min
+                elif req.binary[0] <= value < midpoint:
+                    return int(req.binary[0])
+                elif midpoint <= value <= req.binary[1]:
+                    return int(req.binary[1])
         return round(value)
 
     @staticmethod

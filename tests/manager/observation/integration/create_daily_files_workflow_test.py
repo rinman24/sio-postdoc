@@ -13,8 +13,8 @@ from sio_postdoc.manager.observation.contracts import (
 )
 from sio_postdoc.manager.observation.service import ObservationManager
 
-load_dotenv(override=True)
-manager = ObservationManager()
+# load_dotenv(override=True)
+# manager = ObservationManager()
 
 # Here is how you process several years of raw data
 # STEP 1: run the months in parallel
@@ -154,10 +154,30 @@ def test_create_annual_phase_summary(manager):
 def test_create_annual_phase_summary_by_temp(manager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
-        month=Month.MAR,
+        month=None,
         year=2023,
     )
     manager.create_annual_phase_summary_by_temp(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_annual_phase_summary_for_report(manager):
+    request = ObservatoryRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=None,
+        year=2023,
+    )
+    manager.create_annual_phase_summary_for_report(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_annual_correlation_timeseries(manager):
+    request = ObservatoryRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=None,
+        year=2023,
+    )
+    manager.create_annual_correlation_timeseries(request)
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")

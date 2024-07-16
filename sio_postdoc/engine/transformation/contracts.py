@@ -83,6 +83,7 @@ class VariableRequest(BaseModel):
     flag: int | float
     dimensions: tuple[Dimension, ...]
     conversion_scale: Scales = Scales.ONE
+    binary: tuple[float, float] | None = None
 
 
 class Direction(Enum):

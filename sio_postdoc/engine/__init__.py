@@ -82,6 +82,7 @@ class Dimensions(Enum):
 class Scales(Enum):
     """Define scales."""
 
+    ONE_TEN_THOUSANDTH = 1e-4
     ONE = 1
     TEN = 10
     HUNDRED = 100
