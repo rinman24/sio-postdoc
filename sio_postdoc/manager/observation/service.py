@@ -61,6 +61,7 @@ from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
     ArsclKazr1KolliasRaw,
 )
 from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
+    MplCmask1ZwangRaw,
     MplCmaskMlRaw,
 )
 from sio_postdoc.engine.transformation.strategies.raw.products.sonde import (
@@ -281,6 +282,8 @@ class ObservationManager:
                     strategy = ArsclKazr1KolliasRaw()
                 case Product.INTERPOLATEDSONDE:
                     strategy = InterpolatedSondeRaw()
+                case Product.MPLCMASK1ZWANG:
+                    strategy = MplCmask1ZwangRaw()
                 case Product.MPLCMASKML:
                     strategy = MplCmaskMlRaw()
 
