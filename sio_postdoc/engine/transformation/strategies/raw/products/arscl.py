@@ -130,8 +130,11 @@ class Arscl1ClothRaw(TransformationStrategy):
         self._add_single_variable(dataset, value_request)
 
     def _add_cloud_mask_mplzwang(self, dataset: DataSet) -> None:
+        variable: str = "CloudMaskMplZwang"
+        if variable not in dataset.variables.keys():
+            variable = "CloudMaskMplCloth"
         value_request: VariableRequest = VariableRequest(
-            variable="CloudMaskMplZwang",
+            variable=variable,
             name="radar_mask",
             long_name="Radar Mask",
             units=Units.NONE,
