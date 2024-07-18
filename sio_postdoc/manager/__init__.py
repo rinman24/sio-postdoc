@@ -30,6 +30,7 @@ class Product(Enum):
     INTERPOLATEDSONDE = auto()
     MPLCMASK1ZWANG = auto()
     MPLCMASKML = auto()
+    MWRLOS = auto()
 
 
 class Month(Enum):

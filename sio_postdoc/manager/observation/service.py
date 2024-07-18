@@ -64,6 +64,7 @@ from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
     MplCmask1ZwangRaw,
     MplCmaskMlRaw,
 )
+from sio_postdoc.engine.transformation.strategies.raw.products.mrwlos import MwrLosRaw
 from sio_postdoc.engine.transformation.strategies.raw.products.sonde import (
     InterpolatedSondeRaw,
 )
@@ -286,6 +287,8 @@ class ObservationManager:
                     strategy = MplCmask1ZwangRaw()
                 case Product.MPLCMASKML:
                     strategy = MplCmaskMlRaw()
+                case Product.MWRLOS:
+                    strategy = MwrLosRaw()
 
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
