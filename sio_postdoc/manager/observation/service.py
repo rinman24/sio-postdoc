@@ -38,11 +38,14 @@ from sio_postdoc.engine.transformation.strategies.base import (
     TransformationStrategy,
 )
 from sio_postdoc.engine.transformation.strategies.daily.products.arscl import (
+    Arscl1Cloth,
     ArsclKazr1Kollias,
 )
 from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import (
+    MplCmask1Zwang,
     MplCmaskMl,
 )
+from sio_postdoc.engine.transformation.strategies.daily.products.mwr import MwrLos
 from sio_postdoc.engine.transformation.strategies.daily.products.sonde import (
     InterpolatedSonde,
 )
@@ -136,6 +139,8 @@ SHUPE = {
         "thresh": 30,
     },
 }
+
+PRODUCT_SUITE_THRESH: int = 2009
 
 Mask = tuple[tuple[int, ...], ...]
 
@@ -323,12 +328,27 @@ class ObservationManager:
 
     def create_daily_resampled_merged_files(self, request: ObservatoryRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
+        # Use request.year to select the product suite
+        product_suites: dict[str, tuple[Product, ...]] = {
+            "a": [
+                Product.ARSCLKAZR1KOLLIAS,
+                Product.INTERPOLATEDSONDE,
+                Product.MPLCMASKML,
+            ],
+            "b": [
+                Product.ARSCL1CLOTH,
+                Product.INTERPOLATEDSONDE,
+                Product.MPLCMASK1ZWANG,
+                Product.MWRLOS,
+            ],
+        }
+        product_key = "b" if request.year <= PRODUCT_SUITE_THRESH else "a"
+        products = product_suites[product_key]
         # Get a list of all the relevant blobs
-        products = ["arsclkazr1kollias", "mplcmaskml", "interpolatedsonde"]
         blobs: dict[str, tuple[str, ...]] = {
-            product: self.instrument_access.list_blobs(
+            product.name.lower(): self.instrument_access.list_blobs(
                 container=request.observatory.name.lower(),
-                name_starts_with=f"{product}/daily/{request.year}/",
+                name_starts_with=f"{product.name.lower()}/daily/{request.year}/",
             )
             for product in products
         }
@@ -336,9 +356,9 @@ class ObservationManager:
         for target in self._dates_in_month(request.year, request.month.value):
             print(target)
             selected: dict[str, tuple[str] | tuple] = {
-                product: self.filter_context.apply(
+                product.name.lower(): self.filter_context.apply(
                     target,
-                    blobs[product],
+                    blobs[product.name.lower()],
                     strategy=NamesByDate(),
                     time=False,
                 )
@@ -350,23 +370,24 @@ class ObservationManager:
             frames = {}
             for product in products:
                 # Select the Strategy
-                match (request.observatory, product):
-                    case (Observatory.UTQIAGVIK, "arsclkazr1kollias"):
-                        strategy: TransformationStrategy = ArsclKazr1Kollias()
-                    case (Observatory.UTQIAGVIK, "mplcmaskml"):
-                        strategy: TransformationStrategy = MplCmaskMl()
-                    case (Observatory.UTQIAGVIK, "interpolatedsonde"):
-                        strategy: TransformationStrategy = InterpolatedSonde()
-                    case (Observatory.OLIKTOK, "arsclkazr1kollias"):
-                        strategy: TransformationStrategy = ArsclKazr1Kollias()
-                    case (Observatory.OLIKTOK, "mplcmaskml"):
-                        strategy: TransformationStrategy = MplCmaskMl()
-                    case (Observatory.OLIKTOK, "interpolatedsonde"):
-                        strategy: TransformationStrategy = InterpolatedSonde()
+                strategy: TransformationStrategy
+                match product:
+                    case Product.ARSCL1CLOTH:
+                        strategy = Arscl1Cloth()
+                    case Product.ARSCLKAZR1KOLLIAS:
+                        strategy = ArsclKazr1Kollias()
+                    case Product.INTERPOLATEDSONDE:
+                        strategy = InterpolatedSonde()
+                    case Product.MPLCMASK1ZWANG:
+                        strategy = MplCmask1Zwang()
+                    case Product.MPLCMASKML:
+                        strategy = MplCmaskMl()
+                    case Product.MWRLOS:
+                        strategy = MwrLos()
                 # Generate a InstrumentData for each DataSet corresponding to the target date
                 results: tuple[InstrumentData, ...] = tuple(
                     self._generate_data(
-                        selected[product],
+                        selected[product.name.lower()],
                         request,
                         strategy=strategy,
                     )
@@ -378,147 +399,232 @@ class ObservationManager:
                 if not data:
                     continue
                 # Now that you have the instrument data, you want to construct the dataframes
-                if product == "arsclkazr1kollias":
-                    frames["radar_mask"] = pd.DataFrame(
-                        data.variables["radar_mask"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["refl"] = pd.DataFrame(
-                        data.variables["refl"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["mean_dopp_vel"] = pd.DataFrame(
-                        data.variables["mean_dopp_vel"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["spec_width"] = pd.DataFrame(
-                        data.variables["spec_width"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["spec_width"] = pd.DataFrame(
-                        data.variables["spec_width"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["mwr_lwp"] = pd.DataFrame(
-                        data.variables["mwr_lwp"].values,
-                        index=data.variables["offset"].values,
-                        columns=["mwr_lwp"],
-                    )
-                elif product == "mplcmaskml":
-                    frames["lidar_mask"] = pd.DataFrame(
-                        data.variables["lidar_mask"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["depol"] = pd.DataFrame(
-                        data.variables["depol"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                elif product == "interpolatedsonde":
-                    frames["temp"] = pd.DataFrame(
-                        data.variables["temp"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
-                    frames["rh"] = pd.DataFrame(
-                        data.variables["rh"].values,
-                        index=data.variables["offset"].values,
-                        columns=data.variables["range"].values,
-                    )
+                # NOTE: You can move these match statements to methods that take the product and return the frames object.
+                match product:
+                    case Product.ARSCL1CLOTH:
+                        frames["radar_mask"] = pd.DataFrame(
+                            data.variables["radar_mask"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["refl"] = pd.DataFrame(
+                            data.variables["refl"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["mean_dopp_vel"] = pd.DataFrame(
+                            data.variables["mean_dopp_vel"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["spec_width"] = pd.DataFrame(
+                            data.variables["spec_width"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["spec_width"] = pd.DataFrame(
+                            data.variables["spec_width"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                    case Product.ARSCLKAZR1KOLLIAS:
+                        frames["radar_mask"] = pd.DataFrame(
+                            data.variables["radar_mask"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["refl"] = pd.DataFrame(
+                            data.variables["refl"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["mean_dopp_vel"] = pd.DataFrame(
+                            data.variables["mean_dopp_vel"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["spec_width"] = pd.DataFrame(
+                            data.variables["spec_width"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["spec_width"] = pd.DataFrame(
+                            data.variables["spec_width"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["mwr_lwp"] = pd.DataFrame(
+                            data.variables["mwr_lwp"].values,
+                            index=data.variables["offset"].values,
+                            columns=["mwr_lwp"],
+                        )
+                    case Product.INTERPOLATEDSONDE:
+                        frames["temp"] = pd.DataFrame(
+                            data.variables["temp"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["rh"] = pd.DataFrame(
+                            data.variables["rh"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                    case Product.MPLCMASK1ZWANG | Product.MPLCMASKML:
+                        frames["lidar_mask"] = pd.DataFrame(
+                            data.variables["lidar_mask"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                        frames["depol"] = pd.DataFrame(
+                            data.variables["depol"].values,
+                            index=data.variables["offset"].values,
+                            columns=data.variables["range"].values,
+                        )
+                    case Product.MWRLOS:
+                        frames["mwr_lwp"] = pd.DataFrame(
+                            data.variables["mwr_lwp"].values,
+                            index=data.variables["offset"].values,
+                            columns=["mwr_lwp"],
+                        )
                 # Now we have all of the dataframes
-                if product == "arsclkazr1kollias":
-                    # Radar Mask
-                    flag_ = data.variables["radar_mask"].dtype.min
-                    scale = data.variables["radar_mask"].scale.value
-                    frames["radar_mask"].replace(flag_, 0, inplace=True)
-                    frames["radar_mask"] = frames["radar_mask"] / scale
-                    frames["radar_mask"].replace(2, 1, inplace=True)
-                    frames["radar_mask"] = self._reformat(
-                        frames["radar_mask"], method="mode"
-                    )
-                    # Reflectivity
-                    flag_ = data.variables["refl"].dtype.min
-                    scale = data.variables["refl"].scale.value
-                    frames["refl"].replace(flag_, np.nan, inplace=True)
-                    frames["refl"] = frames["refl"] / scale
-                    frames["refl"] = self._reformat(
-                        frames["refl"],
-                        method="mean",
-                    )
-                    frames["refl"][frames["radar_mask"] == 0] = np.nan
-                    # Mean Doppler Velocity
-                    flag_ = data.variables["mean_dopp_vel"].dtype.min
-                    scale = data.variables["mean_dopp_vel"].scale.value
-                    frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
-                    frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
-                    frames["mean_dopp_vel"] = self._reformat(
-                        frames["mean_dopp_vel"],
-                        method="mean",
-                    )
-                    frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
-                    # Spectral Width
-                    flag_ = data.variables["spec_width"].dtype.min
-                    scale = data.variables["spec_width"].scale.value
-                    frames["spec_width"].replace(flag_, np.nan, inplace=True)
-                    frames["spec_width"] = frames["spec_width"] / scale
-                    frames["spec_width"] = self._reformat(
-                        frames["spec_width"],
-                        method="mean",
-                    )
-                    frames["spec_width"][frames["radar_mask"] == 0] = np.nan
-                    # MWR LWP
-                    flag_ = data.variables["mwr_lwp"].dtype.min
-                    scale = data.variables["mwr_lwp"].scale.value
-                    frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
-                    frames["mwr_lwp"] = frames["mwr_lwp"] / scale
-                    frames["mwr_lwp"] = self._reformat_1D(
-                        frames["mwr_lwp"],
-                        method="mean",
-                    )
-                elif product == "mplcmaskml":
-                    # Lidar Mask
-                    flag_ = data.variables["lidar_mask"].dtype.min
-                    scale = data.variables["lidar_mask"].scale.value
-                    frames["lidar_mask"].replace(flag_, 0, inplace=True)
-                    frames["lidar_mask"] = frames["lidar_mask"] / scale
-                    frames["lidar_mask"] = self._reformat(
-                        frames["lidar_mask"], method="mode"
-                    )
-                    # Depolarization Ratio
-                    flag_ = data.variables["depol"].dtype.min
-                    scale = data.variables["depol"].scale.value
-                    frames["depol"].replace(flag_, np.nan, inplace=True)
-                    frames["depol"] = frames["depol"] / scale
-                    frames["depol"] = self._reformat(
-                        frames["depol"],
-                        method="mean",
-                    )
-                    frames["depol"][frames["lidar_mask"] == 0] = np.nan
-                elif product == "interpolatedsonde":
-                    # Temperature
-                    flag_ = data.variables["temp"].dtype.min
-                    scale = data.variables["temp"].scale.value
-                    frames["temp"].replace(flag_, np.nan, inplace=True)
-                    frames["temp"] = frames["temp"] / scale
-                    frames["temp"] = self._reformat(
-                        frames["temp"],
-                        method="mean",
-                    )
-                    # Relative Humidity
-                    flag_ = data.variables["rh"].dtype.min
-                    scale = data.variables["rh"].scale.value
-                    frames["rh"].replace(flag_, np.nan, inplace=True)
-                    frames["rh"] = frames["rh"] / scale
-                    frames["rh"] = self._reformat(
-                        frames["rh"],
-                        method="mean",
-                    )
+                match product:
+                    case Product.ARSCL1CLOTH:
+                        # Radar Mask
+                        flag_ = data.variables["radar_mask"].dtype.min
+                        scale = data.variables["radar_mask"].scale.value
+                        frames["radar_mask"].replace(flag_, 0, inplace=True)
+                        frames["radar_mask"] = frames["radar_mask"] / scale
+                        frames["radar_mask"].replace(2, 1, inplace=True)
+                        frames["radar_mask"] = self._reformat(
+                            frames["radar_mask"], method="mode"
+                        )
+                        # Reflectivity
+                        flag_ = data.variables["refl"].dtype.min
+                        scale = data.variables["refl"].scale.value
+                        frames["refl"].replace(flag_, np.nan, inplace=True)
+                        frames["refl"] = frames["refl"] / scale
+                        frames["refl"] = self._reformat(
+                            frames["refl"],
+                            method="mean",
+                        )
+                        frames["refl"][frames["radar_mask"] == 0] = np.nan
+                        # Mean Doppler Velocity
+                        flag_ = data.variables["mean_dopp_vel"].dtype.min
+                        scale = data.variables["mean_dopp_vel"].scale.value
+                        frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
+                        frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
+                        frames["mean_dopp_vel"] = self._reformat(
+                            frames["mean_dopp_vel"],
+                            method="mean",
+                        )
+                        frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
+                        # Spectral Width
+                        flag_ = data.variables["spec_width"].dtype.min
+                        scale = data.variables["spec_width"].scale.value
+                        frames["spec_width"].replace(flag_, np.nan, inplace=True)
+                        frames["spec_width"] = frames["spec_width"] / scale
+                        frames["spec_width"] = self._reformat(
+                            frames["spec_width"],
+                            method="mean",
+                        )
+                        frames["spec_width"][frames["radar_mask"] == 0] = np.nan
+                    case Product.ARSCLKAZR1KOLLIAS:
+                        # Radar Mask
+                        flag_ = data.variables["radar_mask"].dtype.min
+                        scale = data.variables["radar_mask"].scale.value
+                        frames["radar_mask"].replace(flag_, 0, inplace=True)
+                        frames["radar_mask"] = frames["radar_mask"] / scale
+                        frames["radar_mask"].replace(2, 1, inplace=True)
+                        frames["radar_mask"] = self._reformat(
+                            frames["radar_mask"], method="mode"
+                        )
+                        # Reflectivity
+                        flag_ = data.variables["refl"].dtype.min
+                        scale = data.variables["refl"].scale.value
+                        frames["refl"].replace(flag_, np.nan, inplace=True)
+                        frames["refl"] = frames["refl"] / scale
+                        frames["refl"] = self._reformat(
+                            frames["refl"],
+                            method="mean",
+                        )
+                        frames["refl"][frames["radar_mask"] == 0] = np.nan
+                        # Mean Doppler Velocity
+                        flag_ = data.variables["mean_dopp_vel"].dtype.min
+                        scale = data.variables["mean_dopp_vel"].scale.value
+                        frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
+                        frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
+                        frames["mean_dopp_vel"] = self._reformat(
+                            frames["mean_dopp_vel"],
+                            method="mean",
+                        )
+                        frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
+                        # Spectral Width
+                        flag_ = data.variables["spec_width"].dtype.min
+                        scale = data.variables["spec_width"].scale.value
+                        frames["spec_width"].replace(flag_, np.nan, inplace=True)
+                        frames["spec_width"] = frames["spec_width"] / scale
+                        frames["spec_width"] = self._reformat(
+                            frames["spec_width"],
+                            method="mean",
+                        )
+                        frames["spec_width"][frames["radar_mask"] == 0] = np.nan
+                        # MWR LWP
+                        flag_ = data.variables["mwr_lwp"].dtype.min
+                        scale = data.variables["mwr_lwp"].scale.value
+                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
+                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
+                        frames["mwr_lwp"] = self._reformat_1D(
+                            frames["mwr_lwp"],
+                            method="mean",
+                        )
+                    case Product.INTERPOLATEDSONDE:
+                        # Temperature
+                        flag_ = data.variables["temp"].dtype.min
+                        scale = data.variables["temp"].scale.value
+                        frames["temp"].replace(flag_, np.nan, inplace=True)
+                        frames["temp"] = frames["temp"] / scale
+                        frames["temp"] = self._reformat(
+                            frames["temp"],
+                            method="mean",
+                        )
+                        # Relative Humidity
+                        flag_ = data.variables["rh"].dtype.min
+                        scale = data.variables["rh"].scale.value
+                        frames["rh"].replace(flag_, np.nan, inplace=True)
+                        frames["rh"] = frames["rh"] / scale
+                        frames["rh"] = self._reformat(
+                            frames["rh"],
+                            method="mean",
+                        )
+                    case Product.MPLCMASK1ZWANG | Product.MPLCMASKML:
+                        # Lidar Mask
+                        flag_ = data.variables["lidar_mask"].dtype.min
+                        scale = data.variables["lidar_mask"].scale.value
+                        frames["lidar_mask"].replace(flag_, 0, inplace=True)
+                        frames["lidar_mask"] = frames["lidar_mask"] / scale
+                        frames["lidar_mask"] = self._reformat(
+                            frames["lidar_mask"], method="mode"
+                        )
+                        # Depolarization Ratio
+                        flag_ = data.variables["depol"].dtype.min
+                        scale = data.variables["depol"].scale.value
+                        frames["depol"].replace(flag_, np.nan, inplace=True)
+                        frames["depol"] = frames["depol"] / scale
+                        frames["depol"] = self._reformat(
+                            frames["depol"],
+                            method="mean",
+                        )
+                        frames["depol"][frames["lidar_mask"] == 0] = np.nan
+                    case Product.MWRLOS:
+                        # MWR LWP
+                        flag_ = data.variables["mwr_lwp"].dtype.min
+                        scale = data.variables["mwr_lwp"].scale.value
+                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
+                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
+                        frames["mwr_lwp"] = self._reformat_1D(
+                            frames["mwr_lwp"],
+                            method="mean",
+                        )
             # Now we should have all of the reformatted data that we want to seralize
             # pickle the frames.
             filepath: Path = Path.cwd() / (
@@ -2942,7 +3048,14 @@ class ObservationManager:
     def _resample(df: pd.DataFrame, base: int, transpose: bool, method: str):
         if transpose:
             df = df.T
-        df["new_column"] = [base * round(i / base) for i in df.index]
+        new_df: pd.DataFrame = pd.DataFrame(
+            [base * round(i / base) for i in df.index],
+            columns=[
+                "new_column",
+            ],
+            index=df.index,
+        )
+        df = pd.concat([df, new_df], axis=1)
         match method:
             case "mode":
                 df = df.groupby("new_column").agg(lambda x: min(pd.Series.mode(x)))

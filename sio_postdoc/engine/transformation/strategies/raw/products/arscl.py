@@ -40,8 +40,6 @@ class Arscl1ClothRaw(TransformationStrategy):
         self._add_range(dataset)
         self._add_refl(dataset)
         self._add_spec_width(dataset)
-        # NOTE: You need to get this somewhere else!!!
-        # self._add_mwr_lwp(dataset)
         self._add_cloud_mask_mplzwang(dataset)
 
     def _add_epoch(self, path: Path) -> None:

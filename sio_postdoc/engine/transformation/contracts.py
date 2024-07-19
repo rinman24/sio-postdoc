@@ -59,9 +59,9 @@ class Variable(BaseModel):
     dimensions: tuple[Dimension, ...]
     dtype: DType
     long_name: str
-    scale: Scales
     units: Units
     values: Values
+    scale: Scales = Scales.ONE
 
 
 class InstrumentData(BaseModel):
@@ -78,10 +78,10 @@ class VariableRequest(BaseModel):
     name: str
     long_name: str
     units: Units
-    scale: Scales
     dtype: DType
     flag: int | float
     dimensions: tuple[Dimension, ...]
+    scale: Scales = Scales.ONE
     conversion_scale: Scales = Scales.ONE
     binary: tuple[float, float] | None = None
 
