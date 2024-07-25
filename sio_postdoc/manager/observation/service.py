@@ -2754,16 +2754,27 @@ class ObservationManager:
         elif not np.isnan(center):
             top = index + 45
             phase = center
+            base = index - 45
             depth = top - base
-            layer_phase_extents.append(
-                {
-                    "base": base,
-                    "top": top,
-                    "depth": depth,
-                    "phase": int(phase),
-                }
-            )
-            atmospheric_column.append(layer_phase_extents)
+            try:
+                layer_phase_extents.append(
+                    {
+                        "base": base,
+                        "top": top,
+                        "depth": depth,
+                        "phase": int(phase),
+                    }
+                )
+            except NameError:
+                layer_phase_extents = []
+                layer_phase_extents.append(
+                    {
+                        "base": base,
+                        "top": top,
+                        "depth": depth,
+                        "phase": int(phase),
+                    }
+                )
         return atmospheric_column
 
     # def make_fig_3_bases(self, request: ObservatoryRequest) -> None:
