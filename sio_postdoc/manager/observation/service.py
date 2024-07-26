@@ -59,6 +59,7 @@ from sio_postdoc.engine.transformation.strategies.daily.utqiagvik.kazr import (
 from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
+from sio_postdoc.engine.transformation.strategies.raw.products.ahsrl import AhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
     Arscl1ClothRaw,
     ArsclKazr1KolliasRaw,
@@ -104,6 +105,11 @@ NEW_LIQUID: int = 5
 MIXED_LIQUID: int = 4
 MIXED_ICE: int = 2
 NEW_ICE: int = 1
+
+RECLASSIFIED = {"ice": {1, 2}, "liquid": {4, 5}}
+
+MIN_BASE: int = 300
+MIN_DEPTH: int = 500
 
 MINUTES_PER_DAY: int = int(24 * 60)
 
@@ -283,6 +289,8 @@ class ObservationManager:
             # Select the Strategy
             strategy: TransformationStrategy
             match request.product:
+                case Product.AHSRL:
+                    strategy = AhsrlRaw()
                 case Product.ARSCL1CLOTH:
                     strategy = Arscl1ClothRaw()
                 case Product.ARSCLKAZR1KOLLIAS:
@@ -2065,6 +2073,122 @@ class ObservationManager:
             name=request.observatory.name.lower(),
             path=filepath,
             directory="results/correlation_timeseries/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def create_annual_structure_summary(self, request: ObservatoryRequest) -> None:
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"reclassified_phases/daily/{request.year}/",
+        )
+        monthly_counts = pd.DataFrame(
+            {"year": [request.year] * 12, "total": [0] * 12}, index=range(1, 13)
+        )
+        years = []
+        months = []
+        structures = []
+        phase_layers = []
+        cloud_layers = []
+        bases = []
+        tops = []
+        depths = []
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                print(target)
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    phase_map = pickle.load(file)
+                os.remove(filepath)
+                # Now we are going to go through each day and compile
+                layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+                # extract structure
+                for seconds in layers_and_phases.index:
+                    monthly_counts.loc[month, "total"] += 1
+                    cloud_layer = 0
+                    for layer in layers_and_phases[seconds]:
+                        structure = ""
+                        if layer:
+                            base = layer[0]["base"]
+                            top = layer[-1]["top"]
+                            depth = top - base
+                            if (base < MIN_BASE) and (depth < MIN_DEPTH):
+                                continue
+                            cloud_layer += 1
+                        for phase in layer:
+                            if phase["phase"] in RECLASSIFIED["ice"]:
+                                structure += "I"
+                            elif phase["phase"] in RECLASSIFIED["liquid"]:
+                                structure += "L"
+                            elif phase["phase"] == MIXED:
+                                structure += "M"
+                        # Now you're done with the structure
+                        structures.append(structure)
+                        phase_layers.append(len(structure))
+                        cloud_layers.append(cloud_layer)
+                        years.append(request.year)
+                        months.append(month)
+                        bases.append(base)
+                        tops.append(top)
+                        depths.append(depth)
+        # Now make the dataframe
+        results = pd.DataFrame(
+            {
+                "year": years,
+                "month": months,
+                "base": bases,
+                "top": tops,
+                "depth": depths,
+                "structure": structures,
+                "phase_layer": phase_layers,
+                "cloud_layer": cloud_layers,
+            }
+        )
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-phase_structure"
+            ".pkl"
+        )
+        results.to_pickle(filepath)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="results/structure/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+        # Do the same with the monthly counts
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-monthly_counts"
+            ".pkl"
+        )
+        monthly_counts.to_pickle(filepath)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="results/monthly_counts/annual/",
         )
         # Remove the file
         os.remove(filepath)
