@@ -81,26 +81,6 @@ class TransformationStrategy(ABC):
         else:  # dimensions == 2
             for row in data:
                 yield tuple(self._convert_with_rails(i, req) for i in row)
-                # values: tuple[float, ...] = tuple(
-                #     self._convert_with_rails(i, req) for i in row
-                # )
-                # if req.binary:
-                #     values: tuple[float, ...] = tuple(
-                #         self._convert_to_binary(i, req) for i in values
-                #     )
-                # yield values
-
-    # @staticmethod
-    # def _convert_to_binary(element: float, req: VariableRequest) -> int:
-    #     midpoint: float = sum(req.binary) / 2
-    #     if element == req.dtype.min:
-    #         return int(element)  # Done
-    #     elif (element < req.binary[0]) | (req.binary[1] < element):
-    #         return int(req.dtype.min)  # Done
-    #     elif req.binary[0] <= element < midpoint:
-    #         return int(req.binary[0])
-    #     elif midpoint <= element <= req.binary[1]:
-    #         return int(req.binary[1])
 
     def _add_epoch(self, path: Path) -> None:
         # Change this to base: it should not be epoch
@@ -213,7 +193,8 @@ class TransformationStrategy(ABC):
         if element == req.flag:
             return req.dtype.min
         else:
-            value: float = element * req.conversion_scale.value
+            offset: float = req.offset * req.conversion_scale.value
+            value: float = offset + (element * req.conversion_scale.value)
             too_small: bool = value <= req.dtype.min
             too_large: bool = req.dtype.max < value
             is_nan: bool = np.isnan(value)

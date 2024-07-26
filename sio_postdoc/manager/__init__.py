@@ -28,6 +28,7 @@ class Product(Enum):
     ARSCL1CLOTH = auto()
     ARSCLKAZR1KOLLIAS = auto()
     INTERPOLATEDSONDE = auto()
+    MMCRMERGE = auto()
     MPLCMASK1ZWANG = auto()
     MPLCMASKML = auto()
     MWRLOS = auto()

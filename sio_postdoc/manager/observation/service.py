@@ -62,6 +62,7 @@ from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaM
 from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
     Arscl1ClothRaw,
     ArsclKazr1KolliasRaw,
+    MmcrMergeRaw,
 )
 from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
     MplCmask1ZwangRaw,
@@ -288,6 +289,8 @@ class ObservationManager:
                     strategy = ArsclKazr1KolliasRaw()
                 case Product.INTERPOLATEDSONDE:
                     strategy = InterpolatedSondeRaw()
+                case Product.MMCRMERGE:
+                    strategy = MmcrMergeRaw()
                 case Product.MPLCMASK1ZWANG:
                     strategy = MplCmask1ZwangRaw()
                 case Product.MPLCMASKML:

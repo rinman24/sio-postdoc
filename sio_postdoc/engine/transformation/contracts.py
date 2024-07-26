@@ -84,6 +84,7 @@ class VariableRequest(BaseModel):
     scale: Scales = Scales.ONE
     conversion_scale: Scales = Scales.ONE
     binary: tuple[float, float] | None = None
+    offset: int = 0
 
 
 class Direction(Enum):
