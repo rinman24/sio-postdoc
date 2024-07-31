@@ -135,7 +135,7 @@ class MwrLosRawEureka(TransformationStrategy):
         # values = values * Scales.CM_TO_GM2.value
         values = values * 10
         # values[values < 0] = DType.I2.min
-        self._variables["mrw_lwp"] = Variable(
+        self._variables["mwr_lwp"] = Variable(
             dtype=DType.I2,
             long_name="Liquid Water Path",
             scale=Scales.TEN,
