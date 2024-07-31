@@ -69,7 +69,10 @@ from sio_postdoc.engine.transformation.strategies.raw.products.mplcmask import (
     MplCmask1ZwangRaw,
     MplCmaskMlRaw,
 )
-from sio_postdoc.engine.transformation.strategies.raw.products.mrwlos import MwrLosRaw
+from sio_postdoc.engine.transformation.strategies.raw.products.mrwlos import (
+    MwrLosRaw,
+    MwrLosRawEureka,
+)
 from sio_postdoc.engine.transformation.strategies.raw.products.sonde import (
     InterpolatedSondeRaw,
 )
@@ -304,8 +307,11 @@ class ObservationManager:
                 case Product.MPLCMASKML:
                     strategy = MplCmaskMlRaw()
                 case Product.MWRLOS:
-                    strategy = MwrLosRaw()
-
+                    strategy = (
+                        MwrLosRawEureka()
+                        if (request.observatory == Observatory.EUREKA)
+                        else MwrLosRaw()
+                    )
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
@@ -3250,6 +3256,9 @@ class ObservationManager:
     #     )
     #     filepath: Path = Path.cwd() / filename
     #     with open(filepath, "rb") as file:
+    #         result = pickle.load(file)
+    #     os.remove(filepath)
+    #     return result
     #         result = pickle.load(file)
     #     os.remove(filepath)
     #     return result

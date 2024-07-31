@@ -141,6 +141,16 @@ def test_create_monthly_phase_summary(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_annual_structure_summary(manager):
+    request = ObservatoryRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=None,
+        year=2023,
+    )
+    manager.create_annual_structure_summary(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_create_annual_phase_summary(manager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
