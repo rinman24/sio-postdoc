@@ -144,9 +144,12 @@ class AhsrlRaw(TransformationStrategy):
             # greater than 10-7 / (m sr) is used to adjust the HSRL-
             # accumulated optical depth profile to zero.
             vert_col: list[float] = back_scatter.iloc[i, :].to_list()
-            od_idx: int = list(map(lambda i: i > BACK_SCATTER_THRESH, vert_col)).index(
-                True
-            )
+            try:
+                od_idx: int = list(
+                    map(lambda i: i > BACK_SCATTER_THRESH, vert_col)
+                ).index(True)
+            except ValueError:
+                continue
             optical_depth.iloc[i, :] -= optical_depth.iloc[i, od_idx]
             for j in range(1, n_columns - 1):
                 if mol_counts_snr.iloc[i, j] > MOL_COUNT_SNR_THRESH:
