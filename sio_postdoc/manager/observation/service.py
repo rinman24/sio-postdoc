@@ -947,7 +947,7 @@ class ObservationManager:
             elevations = len(steps["7"].columns)
             for i, index in enumerate(steps["7"].index):
                 if i % 250 == 0:
-                    print(i / times * 100)
+                    print(f"\t{round(i / times * 100)}%")
                 if (i < SHUPE["window"]["buffer"]) or (
                     times - SHUPE["window"]["buffer"] - 1 < i
                 ):
