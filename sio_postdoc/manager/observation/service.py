@@ -2226,6 +2226,75 @@ class ObservationManager:
         # Remove the file
         os.remove(filepath)
 
+    def create_annual_lwp_ts(self, request: ObservatoryRequest) -> None:
+        # Get a list of all the relevant blobs
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"resampled_frames/daily/{request.year}/",
+        )
+        years = []
+        months = []
+        timestamps = []
+        values = []
+        for month in range(1, 13):
+            for target in self._dates_in_month(request.year, month):
+                initial_datetime = datetime(
+                    year=target.year,
+                    month=target.month,
+                    day=target.day,
+                    tzinfo=timezone.utc,
+                )
+                print(target)
+                selected: tuple[str, ...] = self.filter_context.apply(
+                    target,
+                    blobs,
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                if not selected:
+                    continue
+                # Now that I have the blob (pkl) I need to download it
+                # There is only one in each selected
+                name: str = selected[0]
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                # Unpickle the dataframes [steps]
+                filepath: Path = Path.cwd() / filename
+                with open(filepath, "rb") as file:
+                    data = pickle.load(file)
+                os.remove(filepath)
+                lwp = data["mwr_lwp"]
+                # Now we are going to go through each day and compile
+                timestamps += [initial_datetime + timedelta(seconds=i) for i in lwp.index]
+                values += [i for i in lwp.values]
+                months += [month] * len(lwp.index)
+                years += [request.year] * len(lwp.index)
+        results = pd.DataFrame(
+            {
+                "year": years,
+                "month": months,
+                "lwp": values,
+                "timestamps": timestamps,
+            }
+        )
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{request.observatory.name.lower()}"
+            "-mwr_lwp"
+            ".pkl"
+        )
+        results.to_pickle(filepath)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory="results/lwp/annual/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
     def _persistence(self, data) -> int:
         """NOTE: This is just an example of what the algorithm should look like."""
         # Initialize the parameters ---------------------------------------------
