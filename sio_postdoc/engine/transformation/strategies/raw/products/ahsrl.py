@@ -30,6 +30,7 @@ BACK_SCATTER_1_NEIGHBOR: float = 1e-6
 MOL_COUNT_SNR_THRESH: int = 5
 BACK_SCATTER_SNR_THRESH: int = 10
 THREE: int = 3
+TWO: int = 2
 ONE: int = 1
 
 
@@ -127,10 +128,16 @@ class AhsrlRaw(TransformationStrategy):
             index=index,
             columns=columns,
         )
-        mol_dark_counts = pd.Series(
-            dataset["mol_dark_count"][:].data,
-            index=index,
-        )
+        if len(dataset["mol_dark_count"].dimensions) == TWO:
+            mol_dark_counts = pd.Series(
+                dataset["mol_dark_count"][:].data[:][:, 0],
+                index=index,
+            )
+        else:
+            mol_dark_counts = pd.Series(
+                dataset["mol_dark_count"][:].data,
+                index=index,
+            )
         mol_counts_snr = (molecular_counts.T * (1 / mol_dark_counts)).T
         # Create the mask
         mask = optical_depth.copy(deep=True)
