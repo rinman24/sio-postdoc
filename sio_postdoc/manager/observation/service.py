@@ -59,7 +59,10 @@ from sio_postdoc.engine.transformation.strategies.daily.utqiagvik.kazr import (
 from sio_postdoc.engine.transformation.strategies.masks import Masks
 from sio_postdoc.engine.transformation.strategies.raw.eureka.ahsrl import EurekaAhsrlRaw
 from sio_postdoc.engine.transformation.strategies.raw.eureka.mmcr import EurekaMmcrRaw
-from sio_postdoc.engine.transformation.strategies.raw.products.ahsrl import AhsrlRaw
+from sio_postdoc.engine.transformation.strategies.raw.products.ahsrl import (
+    AhsrlRaw,
+    AhsrlSondeRaw,
+)
 from sio_postdoc.engine.transformation.strategies.raw.products.arscl import (
     Arscl1ClothRaw,
     ArsclKazr1KolliasRaw,
@@ -291,9 +294,31 @@ class ObservationManager:
                 continue
             # Select the Strategy
             strategy: TransformationStrategy
+            prev_day: bool = False
+            next_day: bool = False
             match request.product:
                 case Product.AHSRL:
                     strategy = AhsrlRaw()
+                case Product.AHSRLSONDE:
+                    strategy = AhsrlSondeRaw()
+                    # target
+                    next_day_name: tuple[str, ...] = self.filter_context.apply(
+                        target + timedelta(days=1),
+                        blobs,
+                        strategy=NamesByDate(),
+                    )
+                    if next_day_name:
+                        next_day = True
+                    prev_day_name: tuple[str, ...] = self.filter_context.apply(
+                        target - timedelta(days=1),
+                        blobs,
+                        strategy=NamesByDate(),
+                    )
+                    if prev_day_name:
+                        prev_day = True
+                    selected = tuple(
+                        list(prev_day_name) + list(selected) + list(next_day_name)
+                    )
                 case Product.ARSCL1CLOTH:
                     strategy = Arscl1ClothRaw()
                 case Product.ARSCLKAZR1KOLLIAS:
@@ -318,6 +343,8 @@ class ObservationManager:
                     selected,
                     request,
                     strategy=strategy,
+                    prev_day=prev_day,
+                    next_day=next_day,
                 )
             )
             if not results:
@@ -3176,17 +3203,164 @@ class ObservationManager:
         selected: tuple[str, ...],
         request: DailyRequest,
         strategy: TransformationStrategy,
+        prev_day: bool = False,
+        next_day: bool = False,
     ) -> Generator[InstrumentData, None, None]:
         self.transformation_context.strategy = strategy
-        for name in selected:
-            filename = self.instrument_access.download_blob(
-                container=request.observatory.name.lower(),
-                name=name,
+        if isinstance(strategy, AhsrlSondeRaw):
+            yield self._generate_sonde_data(
+                selected, request, strategy, prev_day, next_day
             )
-            filepath: Path = Path.cwd() / filename
-            with DataSet(filename) as dataset:
-                yield self.transformation_context.hydrate(dataset, filepath)
-            os.remove(filepath)
+        else:
+            for name in selected:
+                filename = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+                filepath: Path = Path.cwd() / filename
+                with DataSet(filename) as dataset:
+                    yield self.transformation_context.hydrate(dataset, filepath)
+                os.remove(filepath)
+
+    def _generate_sonde_data(
+        self,
+        selected: tuple[str, ...],
+        request: DailyRequest,
+        strategy: TransformationStrategy,
+        prev_day: bool,
+        next_day: bool,
+    ) -> Generator[InstrumentData, None, None]:
+        self.transformation_context.strategy = strategy
+        match (prev_day, next_day):
+            case (True, True):
+                prev_day_name = selected[0]
+                current_day_name = selected[1]
+                next_day_name = selected[2]
+            case (True, False):
+                prev_day_name = selected[0]
+                current_day_name = selected[1]
+            case (False, True):
+                current_day_name = selected[0]
+                next_day_name = selected[1]
+            case (False, False):
+                current_day_name = selected[0]
+        datasets = []
+        if prev_day:
+            prev_filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=prev_day_name,
+            )
+            prev_filepath: Path = Path.cwd() / prev_filename
+            prev_dataset = DataSet(prev_filename)
+            datasets.append(prev_dataset)
+        # Current
+        current_filename = self.instrument_access.download_blob(
+            container=request.observatory.name.lower(),
+            name=current_day_name,
+        )
+        current_filepath: Path = Path.cwd() / current_filename
+        current_dataset = DataSet(current_filename)
+        datasets.append(current_dataset)
+        if next_day:
+            next_filename = self.instrument_access.download_blob(
+                container=request.observatory.name.lower(),
+                name=next_day_name,
+            )
+            next_filepath: Path = Path.cwd() / next_filename
+            next_dataset = DataSet(next_filename)
+            datasets.append(next_dataset)
+        timestamps = []
+        temperatures = []
+        for dataset in datasets:
+            for i, new_cal_time in enumerate(dataset["new_cal_times"][:].data):
+                if all(new_cal_time == DType.I2.min + 1):
+                    continue
+                this_timestamp = datetime(
+                    year=new_cal_time[0],
+                    month=new_cal_time[1],
+                    day=new_cal_time[2],
+                    hour=new_cal_time[3],
+                    minute=new_cal_time[4],
+                    tzinfo=timezone.utc,
+                )
+                timestamps.append(this_timestamp)
+                temperatures.append(
+                    list(dataset["temperature_profile"][i].data - 273.15)
+                )
+        # Now that we have the targets the datetimes
+        df = pd.DataFrame(
+            np.nan,
+            index=pd.date_range(
+                start=timestamps[0], end=timestamps[-1], freq="min", tz=timezone.utc
+            ),
+            columns=dataset["altitude"][:].data,
+        )
+        for ts, profile in zip(timestamps, temperatures):
+            df.loc[ts, :] = profile
+        df.interpolate(method="time", limit_direction="both", inplace=True)
+        # You just need to create the instrument data
+        dimensions = {}
+        dimensions["time"] = Dimension(
+            name=Dimensions.TIME,
+            size=dataset.dimensions["time"].size,
+        )
+        dimensions["level"] = Dimension(
+            name=Dimensions.LEVEL,
+            size=dataset.dimensions["altitude"].size,
+        )
+        # Variables
+        variables = {}
+        value = DateTime(
+            year=timestamps[0].year,
+            month=timestamps[0].month,
+            day=timestamps[0].day,
+            hour=timestamps[0].hour,
+            minute=timestamps[0].minute,
+            second=timestamps[0].second,
+        ).unix
+        variables["epoch"] = Variable(
+            dtype=DType.I4,
+            long_name="Unix Epoch 1970 of Initial Timestamp",
+            scale=Scales.ONE,
+            units=Units.SECONDS,
+            dimensions=(),
+            values=value,
+        )
+        variables["offset"] = Variable(
+            dtype=DType.I4,
+            long_name="Seconds Since Initial Timestamp",
+            scale=Scales.ONE,
+            units=Units.SECONDS,
+            dimensions=(dimensions["time"],),
+            values=tuple(int(i * 60) for i in range(len(df.index))),
+        )
+        variables["range"] = Variable(
+            dtype=DType.U2,
+            long_name="Return Range",
+            scale=Scales.ONE,
+            units=Units.METERS,
+            dimensions=(dimensions["level"],),
+            values=tuple(map(round, df.columns)),
+        )
+        df.replace(np.nan, -128, inplace=True)
+        variables["temp"] = Variable(
+            dtype=DType.I1,
+            long_name="Temperature",
+            scale=Scales.ONE,
+            units=Units.CELCIUS,
+            dimensions=(dimensions["time"], dimensions["level"]),
+            values=tuple(tuple(map(round, values)) for values in df.values),
+        )
+        instrument_data = InstrumentData(dimensions=dimensions, variables=variables)
+        if prev_day:
+            prev_dataset.close()
+            os.remove(prev_filepath)
+        current_dataset.close()
+        os.remove(current_filepath)
+        if next_day:
+            next_dataset.close()
+            os.remove(next_filepath)
+        return instrument_data
 
     @staticmethod
     def _resample(df: pd.DataFrame, base: int, transpose: bool, method: str):

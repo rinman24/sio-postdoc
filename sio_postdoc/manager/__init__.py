@@ -26,6 +26,7 @@ class Product(Enum):
     """Data Products names."""
 
     AHSRL = auto()
+    AHSRLSONDE = auto()
     ARSCL1CLOTH = auto()
     ARSCLKAZR1KOLLIAS = auto()
     INTERPOLATEDSONDE = auto()

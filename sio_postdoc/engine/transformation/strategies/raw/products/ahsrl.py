@@ -208,3 +208,13 @@ class AhsrlRaw(TransformationStrategy):
             dimensions=(self._dimensions["time"], self._dimensions["level"]),
             values=values,
         )
+
+
+class AhsrlSondeRaw(TransformationStrategy):
+    def _add_dimensions(self, dataset: DataSet, path: Path) -> None:
+        """Use a `DataSet` to set the state of `_dimensions`."""
+        pass
+
+    def _add_variables(self, dataset: DataSet, path: Path) -> None:
+        """Use a `DataSet` to set the state of `_variables`."""
+        pass
