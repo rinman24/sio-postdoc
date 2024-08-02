@@ -440,8 +440,6 @@ class ObservationManager:
                     continue
                 # There is only one per day
                 data: InstrumentData = results[0]
-                if not data:
-                    continue
                 # Now that you have the instrument data, you want to construct the dataframes
                 # NOTE: You can move these match statements to methods that take the product and return the frames object.
                 match product:
@@ -484,11 +482,6 @@ class ObservationManager:
                         )
                         frames["mean_dopp_vel"] = pd.DataFrame(
                             data.variables["mean_dopp_vel"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["spec_width"] = pd.DataFrame(
-                            data.variables["spec_width"].values,
                             index=data.variables["offset"].values,
                             columns=data.variables["range"].values,
                         )
@@ -2267,7 +2260,9 @@ class ObservationManager:
                 os.remove(filepath)
                 lwp = data["mwr_lwp"]
                 # Now we are going to go through each day and compile
-                timestamps += [initial_datetime + timedelta(seconds=i) for i in lwp.index]
+                timestamps += [
+                    initial_datetime + timedelta(seconds=i) for i in lwp.index
+                ]
                 values += [i[0] for i in lwp.values]
                 months += [month] * len(lwp.index)
                 years += [request.year] * len(lwp.index)
@@ -2280,10 +2275,7 @@ class ObservationManager:
             }
         )
         filepath: Path = Path.cwd() / (
-            f"D{target.year}"
-            f"-{request.observatory.name.lower()}"
-            "-mwr_lwp"
-            ".pkl"
+            f"D{target.year}-{request.observatory.name.lower()}-mwr_lwp.pkl"
         )
         results.to_pickle(filepath)
         # Add to blob storage
@@ -3366,7 +3358,7 @@ class ObservationManager:
         )
         for ts, profile in zip(timestamps, temperatures):
             i_ = list(df.index == ts).index(True)
-            df.iloc[i_, 0:len(profile)] = profile
+            df.iloc[i_, 0 : len(profile)] = profile
         df.interpolate(method="time", limit_direction="both", inplace=True)
         # You just need to create the instrument data
         dimensions = {}
@@ -3459,9 +3451,7 @@ class ObservationManager:
     def _reindex(df: pd.DataFrame, method: str):
         match method:
             case "time":
-                df = df.reindex(
-                    [i for i in range(0, 60 * 60 * 24 + 1, 60)], method="ffill"
-                )
+                df = df.reindex([i for i in range(0, 60 * 60 * 24, 60)], method="ffill")
             case "height":
                 df = df.T
                 df = df.reindex([i for i in range(0, 17501, 90)], method="ffill")
