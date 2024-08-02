@@ -2268,7 +2268,7 @@ class ObservationManager:
                 lwp = data["mwr_lwp"]
                 # Now we are going to go through each day and compile
                 timestamps += [initial_datetime + timedelta(seconds=i) for i in lwp.index]
-                values += [i for i in lwp.values]
+                values += [i[0] for i in lwp.values]
                 months += [month] * len(lwp.index)
                 years += [request.year] * len(lwp.index)
         results = pd.DataFrame(
