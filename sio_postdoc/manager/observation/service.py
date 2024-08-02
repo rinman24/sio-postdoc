@@ -3296,7 +3296,8 @@ class ObservationManager:
             columns=dataset["altitude"][:].data,
         )
         for ts, profile in zip(timestamps, temperatures):
-            df.loc[ts, :] = profile
+            i_ = list(df.index == ts).index(True)
+            df.iloc[i_, 0:len(profile)] = profile
         df.interpolate(method="time", limit_direction="both", inplace=True)
         # You just need to create the instrument data
         dimensions = {}
