@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel
 
-from sio_postdoc.manager import Instrument, Month, Observatory, Product
+from sio_postdoc.manager import FileType, Instrument, Month, Observatory, Product
 
 
 class DailyRequest(BaseModel):
@@ -29,3 +29,29 @@ class ObservatoryRequest(BaseModel):
     observatory: Observatory
     month: Month | None = None
     year: int
+
+
+class FileRequest(BaseModel):
+    """Encapsulate requests for the request of daily files."""
+
+    product: Product
+    observatory: Observatory
+    year: int
+    month: Month
+    day: int
+    type: FileType
+
+
+class RequestResponse(BaseModel):
+    """Encapsulate response to a request."""
+
+    status: bool
+    message: str
+    items: tuple
+
+
+class BlobRequest(BaseModel):
+    """Encapsulate request for a blob."""
+
+    container: str
+    prefix: str = ""

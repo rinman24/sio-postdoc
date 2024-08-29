@@ -45,7 +45,11 @@ from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import
     MplCmask1Zwang,
     MplCmaskMl,
 )
-from sio_postdoc.engine.transformation.strategies.daily.products.mwr import MwrLos
+from sio_postdoc.engine.transformation.strategies.daily.products.mwr import (
+    MwrLos,
+    MwrRet,
+)
+from sio_postdoc.engine.transformation.strategies.daily.products.rad import QcRad
 from sio_postdoc.engine.transformation.strategies.daily.products.sonde import (
     InterpolatedSonde,
 )
@@ -76,6 +80,10 @@ from sio_postdoc.engine.transformation.strategies.raw.products.mrwlos import (
     MwrLosRaw,
     MwrLosRawEureka,
 )
+from sio_postdoc.engine.transformation.strategies.raw.products.mwrret import (
+    MwrRet1LiljClouRaw,
+)
+from sio_postdoc.engine.transformation.strategies.raw.products.rad import QcRad1LongRaw
 from sio_postdoc.engine.transformation.strategies.raw.products.sonde import (
     InterpolatedSondeRaw,
 )
@@ -84,13 +92,17 @@ from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmc
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
     UtqiagvikKazrRaw,
 )
+from sio_postdoc.manager import FileType
 from sio_postdoc.manager.observation.contracts import (
+    BlobRequest,
     DailyProductRequest,
     DailyRequest,
+    FileRequest,
     Instrument,
     Observatory,
     ObservatoryRequest,
     Product,
+    RequestResponse,
 )
 
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
@@ -153,7 +165,7 @@ SHUPE = {
     },
 }
 
-PRODUCT_SUITE_THRESH: int = 2009
+PRODUCT_SUITE_THRESH: int = 2011
 
 Mask = tuple[tuple[int, ...], ...]
 
@@ -199,6 +211,60 @@ class ObservationManager:
     def local_access(self) -> TransformationContext:
         """Return the private local access."""
         return self._local_access
+
+    def process(self, request) -> RequestResponse:
+        """Process the request."""
+        match request:
+            case FileRequest:
+                return self._get_file(request)
+
+    def _get_file(self, request: FileRequest) -> RequestResponse:
+        status: bool = False
+        message: str
+
+        response: RequestResponse = self._get_blobs(request)
+
+        try:
+            target: date = date(
+                year=request.year, month=request.month.value, day=request.day
+            )
+        except ValueError as exc:
+            match exc.args:
+                case ("day is out of range for month",):
+                    message = exc.args[0]
+        else:
+            selected: tuple[str, ...] = self.filter_context.apply(
+                target=target,
+                content=response.items,
+                strategy=NamesByDate(),
+                time=False,
+            )
+            try:
+                name: str = selected[0]
+            except IndexError:
+                message = "file not found"
+            else:
+                message = self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(),
+                    name=name,
+                )
+
+        return RequestResponse(
+            status=status,
+            message=message,
+            items=tuple(),
+        )
+
+    def _get_blobs(self, request: FileRequest) -> RequestResponse:
+        blobs: tuple[str, ...] = self.instrument_access.list_blobs(
+            container=request.observatory.name.lower(),
+            name_starts_with=f"{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/",
+        )
+        return RequestResponse(
+            status=True,
+            message="",
+            items=blobs,
+        )
 
     def format_dir(self, directory: Path, suffix: str, year: str):
         """Format the directory using the current formatting context."""
@@ -337,6 +403,10 @@ class ObservationManager:
                         if (request.observatory == Observatory.EUREKA)
                         else MwrLosRaw()
                     )
+                case Product.MWRRET1LILJCLOU:
+                    strategy = MwrRet1LiljClouRaw()
+                case Product.QCRAD1LONG:
+                    strategy = QcRad1LongRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
@@ -370,6 +440,111 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    def create_daily_resampled_lwp_dlr_files(self, request: ObservatoryRequest) -> None:
+        """Create daily files for a given instrument, observatory, month and year."""
+        products = [Product.MWRRET1LILJCLOU, Product.QCRAD1LONG]
+        # Get a list of all the relevant blobs
+        blobs: dict[str, tuple[str, ...]] = {
+            product.name.lower(): self.instrument_access.list_blobs(
+                container=request.observatory.name.lower(),
+                name_starts_with=f"{product.name.lower()}/daily/{request.year}/",
+            )
+            for product in products
+        }
+        # Create a daily file for each day in the month
+        for target in self._dates_in_month(request.year, request.month.value):
+            print(target)
+            selected: dict[str, tuple[str] | tuple] = {
+                product.name.lower(): self.filter_context.apply(
+                    target,
+                    blobs[product.name.lower()],
+                    strategy=NamesByDate(),
+                    time=False,
+                )
+                for product in products
+            }
+            if not all(selected.values()):
+                continue
+            # Because you need to set the strategy, you need to go through each product
+            frames = {}
+            for product in products:
+                # Select the Strategy
+                strategy: TransformationStrategy
+                match product:
+                    case Product.MWRRET1LILJCLOU:
+                        strategy = MwrRet()
+                    case Product.QCRAD1LONG:
+                        strategy = QcRad()
+                # Generate a InstrumentData for each DataSet corresponding to the target date
+                results: tuple[InstrumentData, ...] = tuple(
+                    self._generate_data(
+                        selected[product.name.lower()],
+                        request,
+                        strategy=strategy,
+                    )
+                )
+                if not results:
+                    continue
+                # There is only one per day
+                data: InstrumentData = results[0]
+                # Now that you have the instrument data, you want to construct the dataframes
+                # NOTE: You can move these match statements to methods that take the product and return the frames object.
+                match product:
+                    case Product.MWRRET1LILJCLOU:
+                        frames["mwr_lwp"] = pd.DataFrame(
+                            data.variables["mwr_lwp"].values,
+                            index=data.variables["offset"].values,
+                            columns=["mwr_lwp"],
+                        )
+                    case Product.QCRAD1LONG:
+                        frames["dlr"] = pd.DataFrame(
+                            data.variables["dlr"].values,
+                            index=data.variables["offset"].values,
+                            columns=["dlr"],
+                        )
+                # Now we have all of the dataframes
+                match product:
+                    case Product.MWRRET1LILJCLOU:
+                        # MWR LWP
+                        flag_ = data.variables["mwr_lwp"].dtype.min
+                        scale = data.variables["mwr_lwp"].scale.value
+                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
+                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
+                        frames["mwr_lwp"] = self._reformat_1D(
+                            frames["mwr_lwp"],
+                            method="mean",
+                        )
+                    case Product.QCRAD1LONG:
+                        # DLR
+                        flag_ = data.variables["dlr"].dtype.min
+                        scale = data.variables["dlr"].scale.value
+                        frames["dlr"].replace(flag_, np.nan, inplace=True)
+                        frames["dlr"] = frames["dlr"] / scale
+                        frames["dlr"] = self._reformat_1D(
+                            frames["dlr"],
+                            method="mean",
+                        )
+            # Now we should have all of the reformatted data that we want to seralize
+            # pickle the frames.
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-resampled_frames-for-dlr-and-lwp"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(frames, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"resampled_frames_for_dlr_and_lwp/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
     def create_daily_resampled_merged_files(self, request: ObservatoryRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Use request.year to select the product suite
@@ -382,12 +557,13 @@ class ObservationManager:
             "b": [
                 Product.ARSCL1CLOTH,
                 Product.INTERPOLATEDSONDE,
-                Product.MPLCMASK1ZWANG,
+                Product.MPLCMASKML,
                 Product.MWRLOS,
             ],
         }
         product_key = "b" if request.year <= PRODUCT_SUITE_THRESH else "a"
         products = product_suites[product_key]
+        products = [Product.MWRRET1LILJCLOU, Product.QCRAD1LONG]
         # Get a list of all the relevant blobs
         blobs: dict[str, tuple[str, ...]] = {
             product.name.lower(): self.instrument_access.list_blobs(
@@ -428,6 +604,10 @@ class ObservationManager:
                         strategy = MplCmaskMl()
                     case Product.MWRLOS:
                         strategy = MwrLos()
+                    case Product.MWRRET1LILJCLOU:
+                        strategy = MwrRet()
+                    case Product.QCRAD1LONG:
+                        strategy = QcRad()
                 # Generate a InstrumentData for each DataSet corresponding to the target date
                 results: tuple[InstrumentData, ...] = tuple(
                     self._generate_data(
@@ -522,6 +702,18 @@ class ObservationManager:
                             data.variables["mwr_lwp"].values,
                             index=data.variables["offset"].values,
                             columns=["mwr_lwp"],
+                        )
+                    case Product.MWRRET1LILJCLOU:
+                        frames["mwr_lwp"] = pd.DataFrame(
+                            data.variables["mwr_lwp"].values,
+                            index=data.variables["offset"].values,
+                            columns=["mwr_lwp"],
+                        )
+                    case Product.QCRAD1LONG:
+                        frames["dlr"] = pd.DataFrame(
+                            data.variables["dlr"].values,
+                            index=data.variables["offset"].values,
+                            columns=["dlr"],
                         )
                 # Now we have all of the dataframes
                 match product:
@@ -662,6 +854,26 @@ class ObservationManager:
                             frames["mwr_lwp"],
                             method="mean",
                         )
+                    case Product.MWRRET1LILJCLOU:
+                        # MWR LWP
+                        flag_ = data.variables["mwr_lwp"].dtype.min
+                        scale = data.variables["mwr_lwp"].scale.value
+                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
+                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
+                        frames["mwr_lwp"] = self._reformat_1D(
+                            frames["mwr_lwp"],
+                            method="mean",
+                        )
+                    case Product.QCRAD1LONG:
+                        # DLR
+                        flag_ = data.variables["dlr"].dtype.min
+                        scale = data.variables["dlr"].scale.value
+                        frames["dlr"].replace(flag_, np.nan, inplace=True)
+                        frames["dlr"] = frames["dlr"] / scale
+                        frames["dlr"] = self._reformat_1D(
+                            frames["dlr"],
+                            method="mean",
+                        )
             # Now we should have all of the reformatted data that we want to seralize
             # pickle the frames.
             filepath: Path = Path.cwd() / (
@@ -669,7 +881,7 @@ class ObservationManager:
                 f"-{str(target.month).zfill(2)}"
                 f"-{str(target.day).zfill(2)}"
                 f"-{request.observatory.name.lower()}"
-                "-resampled_frames"
+                "-resampled_frames-for-dlr-and-lwp"
                 ".pkl"
             )
             with open(filepath, "wb") as file:
@@ -678,7 +890,7 @@ class ObservationManager:
             self.instrument_access.add_blob(
                 name=request.observatory.name.lower(),
                 path=filepath,
-                directory=f"resampled_frames/daily/{request.year}/",
+                directory=f"resampled_frames_for_dlr_and_lwp/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)

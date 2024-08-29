@@ -68,6 +68,7 @@ class Units(Enum):
     UNSPECIFIED = auto()
     CELCIUS = auto()
     PERCENT = auto()
+    WATTS_PER_METER_SQUARE = auto()
 
 
 class Dimensions(Enum):

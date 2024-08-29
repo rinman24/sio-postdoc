@@ -34,6 +34,8 @@ class Product(Enum):
     MPLCMASK1ZWANG = auto()
     MPLCMASKML = auto()
     MWRLOS = auto()
+    MWRRET1LILJCLOU = auto()
+    QCRAD1LONG = auto()
 
 
 class Month(Enum):
@@ -51,3 +53,10 @@ class Month(Enum):
     OCT = auto()
     NOV = auto()
     DEC = auto()
+
+
+class FileType(Enum):
+    """Types of processing for files."""
+
+    RAW = auto()
+    DAILY = auto()
