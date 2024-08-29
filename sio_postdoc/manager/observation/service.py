@@ -244,6 +244,7 @@ class ObservationManager:
             except IndexError:
                 message = "file not found"
             else:
+                status = True
                 message = self.instrument_access.download_blob(
                     container=request.observatory.name.lower(),
                     name=name,
