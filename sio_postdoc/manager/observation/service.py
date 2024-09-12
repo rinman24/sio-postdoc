@@ -9,6 +9,11 @@ from typing import Generator
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib.figure import Figure
+from matplotlib.image import AxesImage
+from pydantic import BaseModel
 
 from sio_postdoc.access import DataSet
 from sio_postdoc.access.instrument.service import InstrumentAccess
@@ -40,6 +45,7 @@ from sio_postdoc.engine.transformation.strategies.base import (
 from sio_postdoc.engine.transformation.strategies.daily.products.arscl import (
     Arscl1Cloth,
     ArsclKazr1Kollias,
+    ArsclKazr1KolliasMwr,
 )
 from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import (
     MplCmask1Zwang,
@@ -48,8 +54,9 @@ from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import
 from sio_postdoc.engine.transformation.strategies.daily.products.mwr import (
     MwrLos,
     MwrRet,
+    MwrRet1LiljClou,
 )
-from sio_postdoc.engine.transformation.strategies.daily.products.rad import QcRad
+from sio_postdoc.engine.transformation.strategies.daily.products.rad import QcRad1Long
 from sio_postdoc.engine.transformation.strategies.daily.products.sonde import (
     InterpolatedSonde,
 )
@@ -92,15 +99,18 @@ from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmc
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
     UtqiagvikKazrRaw,
 )
-from sio_postdoc.manager import FileType
+from sio_postdoc.manager import FileType, InstrumentType, Month, Process, ResampleMethod
 from sio_postdoc.manager.observation.contracts import (
-    BlobRequest,
+    ContainerContentRequest,
     DailyProductRequest,
     DailyRequest,
+    DownloadInfo,
     FileRequest,
     Instrument,
     Observatory,
     ObservatoryRequest,
+    PlotRequest,
+    ProcessRequest,
     Product,
     RequestResponse,
 )
@@ -167,6 +177,22 @@ SHUPE = {
 
 PRODUCT_SUITE_THRESH: int = 2011
 
+PRODUCTS = dict(
+    radar=[Product.ARSCLKAZR1KOLLIAS, Product.ARSCL1CLOTH, Product.MMCRMERGE],
+    lidar=[Product.MPLCMASKML, Product.MPLCMASK1ZWANG, Product.AHSRL],
+    sonde=[
+        Product.INTERPOLATEDSONDE
+    ],  # You still need to add the sonde data for Eureka
+    mwr=[
+        Product.MWRRET1LILJCLOU,
+        Product.ARSCLKAZR1KOLLIAS,
+    ],
+    irp=[Product.QCRAD1LONG],
+)
+
+LOWEST_RANGE_GATE_COUNT: int = 6
+LOWEST_RANGE_GATES_THRESH: int = -40
+
 Mask = tuple[tuple[int, ...], ...]
 
 
@@ -212,17 +238,74 @@ class ObservationManager:
         """Return the private local access."""
         return self._local_access
 
-    def process(self, request) -> RequestResponse:
+    def process(self, request: BaseModel) -> RequestResponse:
         """Process the request."""
-        match request:
-            case FileRequest:
-                return self._get_file(request)
+        # Note, these are strategies.
+        if isinstance(request, FileRequest):
+            return self._get_files(request)
+        elif isinstance(request, PlotRequest):
+            return self._make_plot(request)
+        elif isinstance(request, ProcessRequest):
+            return self._process_request(request)
+        elif isinstance(request, ContainerContentRequest):
+            return self._get_container_contents(request)
+        else:
+            return RequestResponse(
+                status=False,
+                message="Request was not handled by a case.",
+            )
 
-    def _get_file(self, request: FileRequest) -> RequestResponse:
+    def _process_request(self, request: ProcessRequest) -> RequestResponse:
+        match request.process:
+            case Process.RESAMPLE:
+                self._create_resampled_files(request)
+
+    def _make_plot(self, request):
+        if request.filename.endswith(".ncdf"):
+            print("I am here...")
+            # So now we know we'er dealing with a dataset
+            # Let's convert it to a dataframe
+            ds = DataSet(request.filename)
+            variables: list[str] = ["mean_dopp_vel", "refl", "spec_width", "radar_mask"]
+            data: dict[str, pd.DataFrame] = {
+                variable: pd.DataFrame(
+                    index=ds["offset"][:].data,
+                    columns=ds["range"][:].data,
+                    data=ds[variable][:].data,
+                )
+                for variable in variables
+            }
+        elif request.filename.endswith(".pkl"):
+            print("then you're dealing with a pickled dataframe...")
+        # replace the data
+        data["mean_dopp_vel"].replace(-32768, np.nan, inplace=True)
+        data["mean_dopp_vel"] = data["mean_dopp_vel"] / ds["mean_dopp_vel"]._scale
+        # Now that you have the data, you want to make the plot
+        # Just code this up and then try to break it down when you refactor
+        # So, step one, make a plot with the number of axis that you need
+        fig: Figure = plt.figure(layout="constrained")
+        axs: dict[str, Axes] = fig.subplot_mosaic(
+            [[variable] for variable in variables],
+            sharex=True,
+        )
+        norm = TwoSlopeNorm(vmin=-2, vcenter=0, vmax=4)
+        ai: AxesImage = axs["mean_dopp_vel"].matshow(
+            data["mean_dopp_vel"].T, aspect="auto", norm=norm, cmap="coolwarm"
+        )
+        axs["mean_dopp_vel"].invert_yaxis()
+        fig.colorbar(ai, ax=axs["mean_dopp_vel"], extend="both")
+        plt.savefig("example_001.png")
+        # Now use the first axis to plot the image
+        # You are kind of fucked, and need to take a break.
+        print("I am here")
+        # I think I also need to know the product
+        # The first think I need to do is find out what I am plotting
+        # I can store these in something I can pass to a plot statement
+        # What if I have the first product
+
+    def _get_files(self, request: FileRequest) -> RequestResponse:
         status: bool = False
         message: str
-
-        response: RequestResponse = self._get_blobs(request)
 
         try:
             target: date = date(
@@ -235,37 +318,40 @@ class ObservationManager:
         else:
             selected: tuple[str, ...] = self.filter_context.apply(
                 target=target,
-                content=response.items,
+                content=request.content,
                 strategy=NamesByDate(),
-                time=False,
+                time=request.time,
+                inclusive=request.inclusive,
             )
-            try:
-                name: str = selected[0]
-            except IndexError:
-                message = "file not found"
-            else:
-                status = True
-                message = self.instrument_access.download_blob(
-                    container=request.observatory.name.lower(),
-                    name=name,
+        if selected:
+            status = True
+            items = tuple(
+                self.instrument_access.download_blob(
+                    container=request.observatory.name.lower(), name=name
                 )
-
+                for name in selected
+            )
+            message = f"files found: {len(items)}"
+        else:
+            items = tuple()
+            message = "no files found"
         return RequestResponse(
             status=status,
+            items=items,
             message=message,
-            items=tuple(),
         )
 
-    def _get_blobs(self, request: FileRequest) -> RequestResponse:
+    def _get_container_contents(self, request: FileRequest) -> RequestResponse:
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
             container=request.observatory.name.lower(),
             name_starts_with=f"{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/",
         )
-        return RequestResponse(
-            status=True,
-            message="",
-            items=blobs,
-        )
+        if blobs:
+            return RequestResponse(
+                status=True,
+                items=blobs,
+            )
+        return RequestResponse(status=False)
 
     def format_dir(self, directory: Path, suffix: str, year: str):
         """Format the directory using the current formatting context."""
@@ -290,7 +376,7 @@ class ObservationManager:
             name_starts_with=f"{request.instrument.name.lower()}/raw/{request.year}/",
         )
         # Create a daily file for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -319,6 +405,9 @@ class ObservationManager:
                     strategy=strategy,
                 )
             )
+            for filename in selected:
+                filepath: Path = Path.cwd() / filename
+                os.remove(filepath)
             if not results:
                 continue
             # Filter so only the target date exists in a single instance of `InstrumentData`
@@ -350,7 +439,7 @@ class ObservationManager:
             name_starts_with=f"{request.product.name.lower()}/raw/{request.year}/",
         )
         # Create a daily file for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -409,6 +498,7 @@ class ObservationManager:
                 case Product.QCRAD1LONG:
                     strategy = QcRad1LongRaw()
             # Generate a InstrumentData for each DataSet corresponding to the target date
+            # NOTE: This is where you want to use the new pattern where youo use the DownloadInfo first.
             results: tuple[InstrumentData, ...] = tuple(
                 self._generate_data(
                     selected,
@@ -453,7 +543,7 @@ class ObservationManager:
             for product in products
         }
         # Create a daily file for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: dict[str, tuple[str] | tuple] = {
                 product.name.lower(): self.filter_context.apply(
@@ -475,7 +565,7 @@ class ObservationManager:
                     case Product.MWRRET1LILJCLOU:
                         strategy = MwrRet()
                     case Product.QCRAD1LONG:
-                        strategy = QcRad()
+                        strategy = QcRad1Long()
                 # Generate a InstrumentData for each DataSet corresponding to the target date
                 results: tuple[InstrumentData, ...] = tuple(
                     self._generate_data(
@@ -546,343 +636,50 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    def create_daily_resampled_merged_files(self, request: ObservatoryRequest) -> None:
-        """Create daily files for a given instrument, observatory, month and year."""
-        # Use request.year to select the product suite
-        product_suites: dict[str, tuple[Product, ...]] = {
-            "a": [
-                Product.ARSCLKAZR1KOLLIAS,
-                Product.INTERPOLATEDSONDE,
-                Product.MPLCMASKML,
-            ],
-            "b": [
-                Product.ARSCL1CLOTH,
-                Product.INTERPOLATEDSONDE,
-                Product.MPLCMASKML,
-                Product.MWRLOS,
-            ],
-        }
-        product_key = "b" if request.year <= PRODUCT_SUITE_THRESH else "a"
-        products = product_suites[product_key]
-        products = [Product.MWRRET1LILJCLOU, Product.QCRAD1LONG]
-        # Get a list of all the relevant blobs
-        blobs: dict[str, tuple[str, ...]] = {
-            product.name.lower(): self.instrument_access.list_blobs(
-                container=request.observatory.name.lower(),
-                name_starts_with=f"{product.name.lower()}/daily/{request.year}/",
-            )
-            for product in products
-        }
-        # Create a daily file for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+    def _create_resampled_files(self, request: ProcessRequest) -> None:
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
-            selected: dict[str, tuple[str] | tuple] = {
-                product.name.lower(): self.filter_context.apply(
-                    target,
-                    blobs[product.name.lower()],
-                    strategy=NamesByDate(),
-                    time=False,
-                )
-                for product in products
-            }
-            if not all(selected.values()):
+            frames: dict[str, pd.DataFrame | pd.Series] = dict()
+            # Add the frames
+            for inst_type in [
+                InstrumentType.RADAR,
+                InstrumentType.LIDAR,
+                InstrumentType.MWR,
+                InstrumentType.IRP,
+            ]:
+                response = self._add_frames(inst_type, request, target, frames)
+            if not response.status:
                 continue
-            # Because you need to set the strategy, you need to go through each product
-            frames = {}
-            for product in products:
-                # Select the Strategy
-                strategy: TransformationStrategy
-                match product:
-                    case Product.ARSCL1CLOTH:
-                        strategy = Arscl1Cloth()
-                    case Product.ARSCLKAZR1KOLLIAS:
-                        strategy = ArsclKazr1Kollias()
-                    case Product.INTERPOLATEDSONDE:
-                        strategy = InterpolatedSonde()
-                    case Product.MPLCMASK1ZWANG:
-                        strategy = MplCmask1Zwang()
-                    case Product.MPLCMASKML:
-                        strategy = MplCmaskMl()
-                    case Product.MWRLOS:
-                        strategy = MwrLos()
-                    case Product.MWRRET1LILJCLOU:
-                        strategy = MwrRet()
-                    case Product.QCRAD1LONG:
-                        strategy = QcRad()
-                # Generate a InstrumentData for each DataSet corresponding to the target date
-                results: tuple[InstrumentData, ...] = tuple(
-                    self._generate_data(
-                        selected[product.name.lower()],
-                        request,
-                        strategy=strategy,
-                    )
-                )
-                if not results:
-                    continue
-                # There is only one per day
-                data: InstrumentData = results[0]
-                # Now that you have the instrument data, you want to construct the dataframes
-                # NOTE: You can move these match statements to methods that take the product and return the frames object.
-                match product:
-                    case Product.ARSCL1CLOTH:
-                        frames["radar_mask"] = pd.DataFrame(
-                            data.variables["radar_mask"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["refl"] = pd.DataFrame(
-                            data.variables["refl"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["mean_dopp_vel"] = pd.DataFrame(
-                            data.variables["mean_dopp_vel"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["spec_width"] = pd.DataFrame(
-                            data.variables["spec_width"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["spec_width"] = pd.DataFrame(
-                            data.variables["spec_width"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                    case Product.ARSCLKAZR1KOLLIAS:
-                        frames["radar_mask"] = pd.DataFrame(
-                            data.variables["radar_mask"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["refl"] = pd.DataFrame(
-                            data.variables["refl"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["mean_dopp_vel"] = pd.DataFrame(
-                            data.variables["mean_dopp_vel"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["spec_width"] = pd.DataFrame(
-                            data.variables["spec_width"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["mwr_lwp"] = pd.DataFrame(
-                            data.variables["mwr_lwp"].values,
-                            index=data.variables["offset"].values,
-                            columns=["mwr_lwp"],
-                        )
-                    case Product.INTERPOLATEDSONDE:
-                        frames["temp"] = pd.DataFrame(
-                            data.variables["temp"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["rh"] = pd.DataFrame(
-                            data.variables["rh"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                    case Product.MPLCMASK1ZWANG | Product.MPLCMASKML:
-                        frames["lidar_mask"] = pd.DataFrame(
-                            data.variables["lidar_mask"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                        frames["depol"] = pd.DataFrame(
-                            data.variables["depol"].values,
-                            index=data.variables["offset"].values,
-                            columns=data.variables["range"].values,
-                        )
-                    case Product.MWRLOS:
-                        frames["mwr_lwp"] = pd.DataFrame(
-                            data.variables["mwr_lwp"].values,
-                            index=data.variables["offset"].values,
-                            columns=["mwr_lwp"],
-                        )
-                    case Product.MWRRET1LILJCLOU:
-                        frames["mwr_lwp"] = pd.DataFrame(
-                            data.variables["mwr_lwp"].values,
-                            index=data.variables["offset"].values,
-                            columns=["mwr_lwp"],
-                        )
-                    case Product.QCRAD1LONG:
-                        frames["dlr"] = pd.DataFrame(
-                            data.variables["dlr"].values,
-                            index=data.variables["offset"].values,
-                            columns=["dlr"],
-                        )
-                # Now we have all of the dataframes
-                match product:
-                    case Product.ARSCL1CLOTH:
-                        # Radar Mask
-                        flag_ = data.variables["radar_mask"].dtype.min
-                        scale = data.variables["radar_mask"].scale.value
-                        frames["radar_mask"].replace(flag_, 0, inplace=True)
-                        frames["radar_mask"] = frames["radar_mask"] / scale
-                        frames["radar_mask"].replace(2, 1, inplace=True)
-                        frames["radar_mask"] = self._reformat(
-                            frames["radar_mask"], method="mode"
-                        )
-                        # Reflectivity
-                        flag_ = data.variables["refl"].dtype.min
-                        scale = data.variables["refl"].scale.value
-                        frames["refl"].replace(flag_, np.nan, inplace=True)
-                        frames["refl"] = frames["refl"] / scale
-                        frames["refl"] = self._reformat(
-                            frames["refl"],
-                            method="mean",
-                        )
-                        frames["refl"][frames["radar_mask"] == 0] = np.nan
-                        # Mean Doppler Velocity
-                        flag_ = data.variables["mean_dopp_vel"].dtype.min
-                        scale = data.variables["mean_dopp_vel"].scale.value
-                        frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
-                        frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
-                        frames["mean_dopp_vel"] = self._reformat(
-                            frames["mean_dopp_vel"],
-                            method="mean",
-                        )
-                        frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
-                        # Spectral Width
-                        flag_ = data.variables["spec_width"].dtype.min
-                        scale = data.variables["spec_width"].scale.value
-                        frames["spec_width"].replace(flag_, np.nan, inplace=True)
-                        frames["spec_width"] = frames["spec_width"] / scale
-                        frames["spec_width"] = self._reformat(
-                            frames["spec_width"],
-                            method="mean",
-                        )
-                        frames["spec_width"][frames["radar_mask"] == 0] = np.nan
-                    case Product.ARSCLKAZR1KOLLIAS:
-                        # Radar Mask
-                        flag_ = data.variables["radar_mask"].dtype.min
-                        scale = data.variables["radar_mask"].scale.value
-                        frames["radar_mask"].replace(flag_, 0, inplace=True)
-                        frames["radar_mask"] = frames["radar_mask"] / scale
-                        frames["radar_mask"].replace(2, 1, inplace=True)
-                        frames["radar_mask"] = self._reformat(
-                            frames["radar_mask"], method="mode"
-                        )
-                        # Reflectivity
-                        flag_ = data.variables["refl"].dtype.min
-                        scale = data.variables["refl"].scale.value
-                        frames["refl"].replace(flag_, np.nan, inplace=True)
-                        frames["refl"] = frames["refl"] / scale
-                        frames["refl"] = self._reformat(
-                            frames["refl"],
-                            method="mean",
-                        )
-                        frames["refl"][frames["radar_mask"] == 0] = np.nan
-                        # Mean Doppler Velocity
-                        flag_ = data.variables["mean_dopp_vel"].dtype.min
-                        scale = data.variables["mean_dopp_vel"].scale.value
-                        frames["mean_dopp_vel"].replace(flag_, np.nan, inplace=True)
-                        frames["mean_dopp_vel"] = frames["mean_dopp_vel"] / scale
-                        frames["mean_dopp_vel"] = self._reformat(
-                            frames["mean_dopp_vel"],
-                            method="mean",
-                        )
-                        frames["mean_dopp_vel"][frames["radar_mask"] == 0] = np.nan
-                        # Spectral Width
-                        flag_ = data.variables["spec_width"].dtype.min
-                        scale = data.variables["spec_width"].scale.value
-                        frames["spec_width"].replace(flag_, np.nan, inplace=True)
-                        frames["spec_width"] = frames["spec_width"] / scale
-                        frames["spec_width"] = self._reformat(
-                            frames["spec_width"],
-                            method="mean",
-                        )
-                        frames["spec_width"][frames["radar_mask"] == 0] = np.nan
-                        # MWR LWP
-                        flag_ = data.variables["mwr_lwp"].dtype.min
-                        scale = data.variables["mwr_lwp"].scale.value
-                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
-                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
-                        frames["mwr_lwp"] = self._reformat_1D(
-                            frames["mwr_lwp"],
-                            method="mean",
-                        )
-                    case Product.INTERPOLATEDSONDE:
-                        # Temperature
-                        flag_ = data.variables["temp"].dtype.min
-                        scale = data.variables["temp"].scale.value
-                        frames["temp"].replace(flag_, np.nan, inplace=True)
-                        frames["temp"] = frames["temp"] / scale
-                        frames["temp"] = self._reformat(
-                            frames["temp"],
-                            method="mean",
-                        )
-                        # Relative Humidity
-                        flag_ = data.variables["rh"].dtype.min
-                        scale = data.variables["rh"].scale.value
-                        frames["rh"].replace(flag_, np.nan, inplace=True)
-                        frames["rh"] = frames["rh"] / scale
-                        frames["rh"] = self._reformat(
-                            frames["rh"],
-                            method="mean",
-                        )
-                    case Product.MPLCMASK1ZWANG | Product.MPLCMASKML:
-                        # Lidar Mask
-                        flag_ = data.variables["lidar_mask"].dtype.min
-                        scale = data.variables["lidar_mask"].scale.value
-                        frames["lidar_mask"].replace(flag_, 0, inplace=True)
-                        frames["lidar_mask"] = frames["lidar_mask"] / scale
-                        frames["lidar_mask"] = self._reformat(
-                            frames["lidar_mask"], method="mode"
-                        )
-                        # Depolarization Ratio
-                        flag_ = data.variables["depol"].dtype.min
-                        scale = data.variables["depol"].scale.value
-                        frames["depol"].replace(flag_, np.nan, inplace=True)
-                        frames["depol"] = frames["depol"] / scale
-                        frames["depol"] = self._reformat(
-                            frames["depol"],
-                            method="mean",
-                        )
-                        frames["depol"][frames["lidar_mask"] == 0] = np.nan
-                    case Product.MWRLOS:
-                        # MWR LWP
-                        flag_ = data.variables["mwr_lwp"].dtype.min
-                        scale = data.variables["mwr_lwp"].scale.value
-                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
-                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
-                        frames["mwr_lwp"] = self._reformat_1D(
-                            frames["mwr_lwp"],
-                            method="mean",
-                        )
-                    case Product.MWRRET1LILJCLOU:
-                        # MWR LWP
-                        flag_ = data.variables["mwr_lwp"].dtype.min
-                        scale = data.variables["mwr_lwp"].scale.value
-                        frames["mwr_lwp"].replace(flag_, np.nan, inplace=True)
-                        frames["mwr_lwp"] = frames["mwr_lwp"] / scale
-                        frames["mwr_lwp"] = self._reformat_1D(
-                            frames["mwr_lwp"],
-                            method="mean",
-                        )
-                    case Product.QCRAD1LONG:
-                        # DLR
-                        flag_ = data.variables["dlr"].dtype.min
-                        scale = data.variables["dlr"].scale.value
-                        frames["dlr"].replace(flag_, np.nan, inplace=True)
-                        frames["dlr"] = frames["dlr"] / scale
-                        frames["dlr"] = self._reformat_1D(
-                            frames["dlr"],
-                            method="mean",
-                        )
-            # Now we should have all of the reformatted data that we want to seralize
-            # pickle the frames.
+            frames = response.items[0]
+            # Resample the frames
+            for key in frames.keys():
+                # Select the resample methood
+                method: ResampleMethod
+                if "mask" in key:
+                    method = ResampleMethod.MODE
+                else:
+                    method = ResampleMethod.MEAN
+                # Resample the data
+                data: pd.DataFrame | pd.Series = frames[key]
+                if isinstance(data, pd.DataFrame):
+                    frames[key] = self._reformat(data, method=method)
+                elif isinstance(data, pd.Series):
+                    frames[key] = self._reformat_1D(data, method=method)
+            # Apply masks where appropriate
+            for key in frames.keys():
+                if "mask" not in key:
+                    match inst_type:
+                        case InstrumentType.RADAR:
+                            frames[key][frames["radar_mask"] == 0] = np.nan
+                        case InstrumentType.LIDAR:
+                            frames[key][frames["lidar_mask"] == 0] = np.nan
+            # Save the file
             filepath: Path = Path.cwd() / (
                 f"D{target.year}"
                 f"-{str(target.month).zfill(2)}"
                 f"-{str(target.day).zfill(2)}"
                 f"-{request.observatory.name.lower()}"
-                "-resampled_frames-for-dlr-and-lwp"
+                "-resampled_frames"
                 ".pkl"
             )
             with open(filepath, "wb") as file:
@@ -891,10 +688,191 @@ class ObservationManager:
             self.instrument_access.add_blob(
                 name=request.observatory.name.lower(),
                 path=filepath,
-                directory=f"resampled_frames_for_dlr_and_lwp/daily/{request.year}/",
+                directory=f"cloud_phase_steps/01-resampled_frames/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
+
+    def _add_frames(
+        self,
+        inst_type: InstrumentType,
+        request: ProcessRequest,
+        target: date,
+        frames: dict[str, pd.DataFrame],
+    ) -> RequestResponse:
+        # Download the appropriate file
+        for product in PRODUCTS[inst_type.name.lower()]:
+            dl_info: DownloadInfo = DownloadInfo(
+                product=product,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if response.status:
+                break
+        if not response.status:
+            return RequestResponse(status=False, message="No product file was found")
+        # Select strategy and generate data.
+        strategy: TransformationStrategy = self._select_strategy(
+            product, FileType.DAILY, inst_type
+        )
+        results: tuple[InstrumentData, ...] = tuple(
+            self._generate_data(
+                response.items,
+                request,
+                strategy=strategy,
+            )
+        )
+        # Cleanup the files you downloaded
+        for filename in response.items:
+            filepath: Path = Path.cwd() / filename
+            os.remove(filepath)
+        # Add the frames
+        data: InstrumentData = results[0]
+        match inst_type:
+            case InstrumentType.RADAR:
+                frames["radar_mask"] = self._get_radar_mask(data)
+                for name in ["refl", "mean_dopp_vel", "spec_width"]:
+                    frames[name] = self._extract_frame(data, name)
+                    frames[name][frames["radar_mask"] == 0] = np.nan
+            case InstrumentType.LIDAR:
+                frames["lidar_mask"] = self._extract_frame(data, "lidar_mask")
+                frames["depol"] = self._extract_frame(data, "depol")
+                frames["depol"][frames["lidar_mask"] == 0] = np.nan
+            case InstrumentType.SONDE:
+                frames["temp"] = self._extract_frame(data, "temp")
+            case InstrumentType.MWR:
+                frames["lwp"] = self._extract_series(data, "mwr_lwp")
+            case InstrumentType.IRP:
+                frames["dlr"] = self._extract_series(data, "dlr")
+
+        return RequestResponse(status=True, items=tuple(frames))
+
+    def _download_file(self, pr: ProcessRequest, dli: DownloadInfo) -> RequestResponse:
+        response: RequestResponse = self.process(
+            ContainerContentRequest(
+                observatory=pr.observatory,
+                product=dli.product,
+                type=dli.type,
+                year=pr.year,
+            )
+        )
+        response: RequestResponse = self.process(
+            FileRequest(
+                product=dli.product,
+                observatory=pr.observatory,
+                year=pr.year,
+                month=pr.month,
+                day=dli.target.day,
+                type=dli.type,
+                content=response.items,
+                inclusive=dli.inclusive,
+                time=dli.time,
+            )
+        )
+        return response
+
+    def _get_radar_mask(self, data: InstrumentData) -> pd.DataFrame:
+        refl = self._extract_frame(data, "refl")
+        refl = refl.apply(
+            self._lower_range_gates,
+            axis="columns",
+            gates=LOWEST_RANGE_GATE_COUNT,
+        )
+        # Now you want all the values that are not nan to be a one
+        refl[pd.notna(refl)] = 1
+        refl[pd.isna(refl)] = 0
+        return refl
+
+    @staticmethod
+    def _select_strategy(
+        product: Product, file_type: FileType, inst_type: InstrumentType
+    ) -> TransformationStrategy:
+        match file_type:
+            case FileType.RAW:
+                # You need to fill this section out
+                pass
+            case FileType.DAILY:
+                match product:
+                    case Product.ARSCL1CLOTH:
+                        return Arscl1Cloth()
+                    case Product.ARSCLKAZR1KOLLIAS:
+                        match inst_type:
+                            case InstrumentType.RADAR:
+                                return ArsclKazr1Kollias()
+                            case InstrumentType.MWR:
+                                return ArsclKazr1KolliasMwr()
+                    case Product.MMCRMERGE:
+                        return (
+                            None  # NOTE: You still need to come up with this strategy.
+                        )
+                    case Product.MPLCMASKML:
+                        return MplCmaskMl()
+                    case Product.MPLCMASK1ZWANG:
+                        return MplCmask1Zwang()
+                    case Product.AHSRL:
+                        return (
+                            None  # NOTE: You still need to come up with this strategy.
+                        )
+                    case Product.INTERPOLATEDSONDE:
+                        return InterpolatedSonde()
+                    case Product.MWRRET1LILJCLOU:
+                        return MwrRet1LiljClou()
+                    case Product.MWRLOS:
+                        return MwrLos()
+                    case Product.QCRAD1LONG:
+                        return QcRad1Long()
+
+    @staticmethod
+    def _extract_series(data: InstrumentData, name: str) -> pd.Series:
+        series: pd.Series = pd.Series(
+            index=[
+                i * data.variables["offset"].scale.value
+                for i in data.variables["offset"].values
+            ],
+            data=data.variables[name].values,
+        )
+        # Replace min value with nan
+        series.replace(
+            data.variables[name].dtype.min,
+            np.nan,
+            inplace=True,
+        )
+        # Scale
+        series = series / data.variables[name].scale.value
+        return series
+
+    @staticmethod
+    def _extract_frame(data: InstrumentData, name: str) -> pd.DataFrame:
+        # Create DataFrame
+        frame: pd.DataFrame = pd.DataFrame(
+            index=[
+                i * data.variables["offset"].scale.value
+                for i in data.variables["offset"].values
+            ],
+            columns=[
+                i * data.variables["range"].scale.value
+                for i in data.variables["range"].values
+            ],
+            data=data.variables[name].values,
+        )
+        # Replace min value with nan
+        frame.replace(
+            data.variables[name].dtype.min,
+            np.nan,
+            inplace=True,
+        )
+        # Scale
+        frame = frame / data.variables[name].scale.value
+        return frame
+
+    @staticmethod
+    def _lower_range_gates(row: pd.Series, gates: int):
+        if not any(LOWEST_RANGE_GATES_THRESH < row[:gates]):
+            row[:gates] = np.nan
+        return row
 
     def create_daily_layers_and_phases(self, request: ObservatoryRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
@@ -903,7 +881,7 @@ class ObservationManager:
             container=request.observatory.name.lower(),
             name_starts_with=f"resampled_frames/daily/{request.year}/",
         )
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -1301,7 +1279,7 @@ class ObservationManager:
             container=request.observatory.name.lower(),
             name_starts_with=f"mask_steps/daily/{request.year}/",
         )
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -1408,7 +1386,7 @@ class ObservationManager:
         # The issue that we're having is that we don't know what the indexes are until we get to the
         # first day
         # So, for now, we just need to make the series
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -1451,7 +1429,7 @@ class ObservationManager:
             break
         # Now that you have the series with the correct index
         # You can produce the summary counts
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -2557,7 +2535,7 @@ class ObservationManager:
             container=request.observatory.name.lower(),
             name_starts_with=f"resampled_frames/daily/{request.year}/",
         )
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: dict[str, tuple[str, ...]] = {}
             selected["steps"] = self.filter_context.apply(
@@ -2621,7 +2599,7 @@ class ObservationManager:
             name_starts_with=f"{request.instrument.name.lower()}/daily/{request.year}/",
         )
         # Create a daily file for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -2740,7 +2718,7 @@ class ObservationManager:
             for instrument in instruments.values()
         }
         # Merge the masks for each day in the month
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: dict[Instrument, tuple[str, ...]] = {
                 instrument: self.filter_context.apply(
@@ -3003,7 +2981,7 @@ class ObservationManager:
             name_starts_with=f"combined_masks/{request.year}/",
         )
         # Extract the data for each day
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target, blobs, strategy=NamesByDate(), time=False
@@ -3223,7 +3201,7 @@ class ObservationManager:
     #     lidar: int = 0
     #     radar: int = 0
     #     both: int = 0
-    #     for target in self._dates_in_month(request.year, request.month.value):
+    #     for target in self._dates_in_month(request.year, request.month):
     #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
@@ -3280,7 +3258,7 @@ class ObservationManager:
     #     lidar: int = 0
     #     radar: int = 0
     #     both: int = 0
-    #     for target in self._dates_in_month(request.year, request.month.value):
+    #     for target in self._dates_in_month(request.year, request.month):
     #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
@@ -3322,7 +3300,7 @@ class ObservationManager:
     #     three = 0
     #     four = 0
     #     five = 0
-    #     for target in self._dates_in_month(request.year, request.month.value):
+    #     for target in self._dates_in_month(request.year, request.month):
     #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
@@ -3373,7 +3351,7 @@ class ObservationManager:
         # Create a daily file for each day in the month
         monthly_datetimes: list[datetime] = []
         monthly_layers: list[list[np.nan | int]] = []
-        for target in self._dates_in_month(request.year, request.month.value):
+        for target in self._dates_in_month(request.year, request.month):
             print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
@@ -3466,7 +3444,8 @@ class ObservationManager:
         monthly_df.to_pickle(filepath)
 
     @staticmethod
-    def _dates_in_month(year: int, month: int) -> Generator[date, None, None]:
+    def _dates_in_month(year: int, month: Month) -> Generator[date, None, None]:
+        month: int = month.value
         current = datetime(year, month, 1)
         while current.month == month:
             yield date(year, month, current.day)
@@ -3474,7 +3453,7 @@ class ObservationManager:
 
     def _generate_data(
         self,
-        selected: tuple[str, ...],
+        selected: tuple[str, ...],  # This should just be called content.
         request: DailyRequest,
         strategy: TransformationStrategy,
         prev_day: bool = False,
@@ -3486,15 +3465,22 @@ class ObservationManager:
                 selected, request, strategy, prev_day, next_day
             )
         else:
-            for name in selected:
-                filename = self.instrument_access.download_blob(
-                    container=request.observatory.name.lower(),
-                    name=name,
-                )
+            remove: bool = False  # The new pattern takes care of deleting files
+            for filename in selected:
                 filepath: Path = Path.cwd() / filename
+                if not filepath.exists():
+                    filename = self.instrument_access.download_blob(
+                        container=request.observatory.name.lower(),
+                        name=filename,
+                    )
+                    filepath: Path = Path.cwd() / filename
+                    remove: bool = (
+                        True  # The legacy patter has the responsibily to delete here, this needs to be updated
+                    )
                 with DataSet(filename) as dataset:
                     yield self.transformation_context.hydrate(dataset, filepath)
-                os.remove(filepath)
+                if remove:
+                    os.remove(filepath)
 
     def _generate_sonde_data(
         self,
@@ -3650,9 +3636,9 @@ class ObservationManager:
         )
         df = pd.concat([df, new_df], axis=1)
         match method:
-            case "mode":
+            case ResampleMethod.MODE:
                 df = df.groupby("new_column").agg(lambda x: min(pd.Series.mode(x)))
-            case "mean":
+            case ResampleMethod.MEAN:
                 df = df.groupby("new_column").mean()
             case _:
                 raise ValueError("invalid method")
@@ -3674,25 +3660,25 @@ class ObservationManager:
         return df
 
     def _reformat(self, df: pd.DataFrame, method: str):
-        print("resample time")
+        print("\tresample time")
         df = self._resample(df, 60, transpose=False, method=method)
-        print("resample height")
+        print("\tresample height")
         df = self._resample(df, 90, transpose=True, method=method)
 
-        print("reindex time")
+        print("\t\treindex time")
         df = self._reindex(df, "time")
-        print("reindex height")
+        print("\t\treindex height")
         df = self._reindex(df, "height")
         return df
 
-    def _reformat_1D(self, df: pd.DataFrame, method: str):
-        print("resample time")
-        df = self._resample(df, 60, transpose=False, method=method)
+    def _reformat_1D(self, series: pd.Series, method: str):
+        print("\tresample time")
+        series = self._resample(series, 60, transpose=False, method=method)
 
-        print("reindex time")
-        df = self._reindex(df, "time")
+        print("\t\treindex time")
+        series = self._reindex(series, "time")
 
-        return df
+        return series
 
     # def _read_pickle(
     #     self, name: str, request: ObservatoryRequest

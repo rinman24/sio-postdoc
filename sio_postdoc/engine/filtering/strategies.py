@@ -28,8 +28,14 @@ class NamesByDate(AbstractDateStrategy):
     """TODO: Docstring."""
 
     @staticmethod
-    def apply(target: date, content: Content, time: bool = True) -> Content:
-        """TODO: Implement."""
+    def apply(
+        target: date, content: Content, time: bool = True, inclusive: bool = True
+    ) -> Content:
+        """TODO: Implement.
+
+        NOTE: assuming that the target day has been found, the `inclusive`
+        kwarg is meant to include the subsequent day.
+        """
         results: list[str] = []
         start: datetime = DateTime(
             year=target.year,
@@ -51,8 +57,8 @@ class NamesByDate(AbstractDateStrategy):
                 results.append(entry)
             elif current == end:
                 break
-            elif current > end:
-                if results:
+            elif end < current:
+                if results and inclusive:
                     results.append(entry)
                 break
             else:

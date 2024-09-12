@@ -3,6 +3,16 @@
 from enum import Enum, auto
 
 
+class InstrumentType(Enum):
+    """Instrument types."""
+
+    RADAR = auto()
+    LIDAR = auto()
+    SONDE = auto()
+    MWR = auto()
+    IRP = auto()
+
+
 class Instrument(Enum):
     """Instrument names."""
 
@@ -60,3 +70,16 @@ class FileType(Enum):
 
     RAW = auto()
     DAILY = auto()
+
+
+class Process(Enum):
+    """Types of processing workflows."""
+
+    RESAMPLE = auto()
+
+
+class ResampleMethod(Enum):
+    """Types of methods to resample."""
+
+    MEAN = auto()
+    MODE = auto()

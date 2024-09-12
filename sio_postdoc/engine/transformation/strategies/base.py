@@ -163,6 +163,19 @@ class TransformationStrategy(ABC):
         )
         self._add_single_variable(dataset, value_request)
 
+    def _add_dlr(self, dataset: DataSet) -> None:
+        value_request: VariableRequest = VariableRequest(
+            variable="dlr",
+            name="dlr",
+            long_name="Downwelling Longwave Radiation Hemispherical",
+            units=Units.WATTS_PER_METER_SQUARE,
+            scale=Scales.TEN,
+            dtype=DType.I2,
+            flag=DType.I2.min,
+            dimensions=(self._dimensions["time"],),
+        )
+        self._add_single_variable(dataset, value_request)
+
     @staticmethod
     def _get_deg_min_sec(angle: float) -> tuple[int, int, int]:
         """Convert decimal degrees into degrees, minutes, and seconds.

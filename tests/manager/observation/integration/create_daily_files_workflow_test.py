@@ -5,11 +5,12 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
-from sio_postdoc.manager import Instrument, Month, Observatory, Product
+from sio_postdoc.manager import Instrument, Month, Observatory, Process, Product
 from sio_postdoc.manager.observation.contracts import (
     DailyProductRequest,
     DailyRequest,
     ObservatoryRequest,
+    ProcessRequest,
 )
 from sio_postdoc.manager.observation.service import ObservationManager
 
@@ -71,7 +72,7 @@ def manager() -> ObservationManager:
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_format_dir(manager):
+def test_format_dir(manager: ObservationManager):
     directory: Path = Path(
         "C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\kazr\\2019\\nsaarsclkazr1kolliasC1.c0.20190101.000000.nc"
     )
@@ -79,7 +80,7 @@ def test_format_dir(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_files(manager):
+def test_create_daily_files(manager: ObservationManager):
     request = DailyRequest(
         instrument=Instrument.KAZR,
         observatory=Observatory.UTQIAGVIK,
@@ -90,7 +91,7 @@ def test_create_daily_files(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_product_files(manager):
+def test_create_daily_product_files(manager: ObservationManager):
     request = DailyProductRequest(
         product=Product.INTERPOLATEDSONDE,
         observatory=Observatory.UTQIAGVIK,
@@ -101,17 +102,28 @@ def test_create_daily_product_files(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_resampled_merged_files(manager):
-    request = ObservatoryRequest(
+def test_create_daily_resampled_merged_files(manager: ObservationManager):
+    request = ProcessRequest(
         observatory=Observatory.UTQIAGVIK,
-        month=Month.MAR,
-        year=2023,
+        month=Month.OCT,
+        year=2022,
+        process=Process.RESAMPLE,
     )
-    manager.create_daily_resampled_merged_files(request)
+    manager.process(request)
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_layers_and_phases(manager):
+def test_create_daily_resampled_lwp_dlr_files(manager: ObservationManager):
+    request = ObservatoryRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.OCT,
+        year=2020,
+    )
+    manager.create_daily_resampled_lwp_dlr_files(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_daily_layers_and_phases(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.MAR,
@@ -121,7 +133,7 @@ def test_create_daily_layers_and_phases(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_reclassify_mixed_columns(manager):
+def test_reclassify_mixed_columns(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.MAR,
@@ -131,7 +143,7 @@ def test_reclassify_mixed_columns(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_monthly_phase_summary(manager):
+def test_create_monthly_phase_summary(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.MAR,
@@ -141,7 +153,7 @@ def test_create_monthly_phase_summary(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_structure_summary(manager):
+def test_create_annual_structure_summary(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=None,
@@ -151,7 +163,7 @@ def test_create_annual_structure_summary(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_phase_summary(manager):
+def test_create_annual_phase_summary(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.MAR,
@@ -161,7 +173,7 @@ def test_create_annual_phase_summary(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_phase_summary_by_temp(manager):
+def test_create_annual_phase_summary_by_temp(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=None,
@@ -171,7 +183,7 @@ def test_create_annual_phase_summary_by_temp(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_phase_summary_for_report(manager):
+def test_create_annual_phase_summary_for_report(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=None,
@@ -181,7 +193,7 @@ def test_create_annual_phase_summary_for_report(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_correlation_timeseries(manager):
+def test_create_annual_correlation_timeseries(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=None,
@@ -191,7 +203,7 @@ def test_create_annual_correlation_timeseries(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_annual_phase_summary_for_report_2(manager):
+def test_create_annual_phase_summary_for_report_2(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.MAR,
@@ -201,7 +213,7 @@ def test_create_annual_phase_summary_for_report_2(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_monthly_elevation_by_phase(manager):
+def test_create_monthly_elevation_by_phase(manager: ObservationManager):
     request = ObservatoryRequest(
         observatory=Observatory.UTQIAGVIK,
         month=Month.JAN,
@@ -211,7 +223,7 @@ def test_create_monthly_elevation_by_phase(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_masks(manager):
+def test_create_daily_masks(manager: ObservationManager):
     request = DailyRequest(
         instrument=Instrument.MMCR,
         observatory=Observatory.SHEBA,
@@ -222,7 +234,7 @@ def test_create_daily_masks(manager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_create_daily_layer_plots(manager):
+def test_create_daily_layer_plots(manager: ObservationManager):
     request = DailyRequest(
         instrument=Instrument.KAZR,
         observatory=Observatory.UTQIAGVIK,
@@ -230,3 +242,12 @@ def test_create_daily_layer_plots(manager):
         year=2019,
     )
     manager.create_daily_layer_plots(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_create_annual_lwp_ts(manager: ObservationManager):
+    request = ObservatoryRequest(
+        observatory=Observatory.UTQIAGVIK,
+        year=2022,
+    )
+    manager.create_annual_lwp_ts(request)
