@@ -748,7 +748,7 @@ class ObservationManager:
             case InstrumentType.IRP:
                 frames["dlr"] = self._extract_series(data, "dlr")
 
-        return RequestResponse(status=True, items=tuple(frames))
+        return RequestResponse(status=True, items=(frames,))
 
     def _download_file(self, pr: ProcessRequest, dli: DownloadInfo) -> RequestResponse:
         response: RequestResponse = self.process(
