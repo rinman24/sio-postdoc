@@ -344,7 +344,7 @@ class ObservationManager:
     def _get_container_contents(self, request: FileRequest) -> RequestResponse:
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
             container=request.observatory.name.lower(),
-            name_starts_with=f"{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/",
+            name_starts_with=f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/",
         )
         if blobs:
             return RequestResponse(
