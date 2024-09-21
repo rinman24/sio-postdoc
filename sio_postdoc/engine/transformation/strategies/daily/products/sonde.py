@@ -37,7 +37,7 @@ class InterpolatedSonde(TransformationStrategy):
         self._add_offset(dataset)
         self._add_range(dataset)
         self._add_temp(dataset)
-        self._add_rh(dataset)
+        # self._add_rh(dataset)
 
     def _add_epoch(self, path: Path) -> None:
         # Change this to base: it should not be epoch
@@ -98,15 +98,15 @@ class InterpolatedSonde(TransformationStrategy):
         )
         self._add_single_variable(dataset, value_request)
 
-    def _add_rh(self, dataset: DataSet) -> None:
-        value_request: VariableRequest = VariableRequest(
-            variable="rh",
-            name="rh",
-            long_name="Relative Humidity",
-            units=Units.PERCENT,
-            scale=Scales.ONE,
-            dtype=DType.I1,
-            flag=DType.I1.min,
-            dimensions=(self._dimensions["time"], self._dimensions["level"]),
-        )
-        self._add_single_variable(dataset, value_request)
+    # def _add_rh(self, dataset: DataSet) -> None:
+    #     value_request: VariableRequest = VariableRequest(
+    #         variable="rh",
+    #         name="rh",
+    #         long_name="Relative Humidity",
+    #         units=Units.PERCENT,
+    #         scale=Scales.ONE,
+    #         dtype=DType.I1,
+    #         flag=DType.I1.min,
+    #         dimensions=(self._dimensions["time"], self._dimensions["level"]),
+    #     )
+    #     self._add_single_variable(dataset, value_request)

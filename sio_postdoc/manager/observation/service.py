@@ -2,17 +2,19 @@
 
 import os
 import pickle
+from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
+from warnings import deprecated
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from matplotlib.colors import TwoSlopeNorm
 from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
+from matplotlib.lines import Line2D
 from pydantic import BaseModel
 
 from sio_postdoc.access import DataSet
@@ -52,7 +54,6 @@ from sio_postdoc.engine.transformation.strategies.daily.products.mplcmask import
     MplCmaskMl,
 )
 from sio_postdoc.engine.transformation.strategies.daily.products.mwr import (
-    MwrLos,
     MwrRet,
     MwrRet1LiljClou,
 )
@@ -99,7 +100,20 @@ from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmc
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
     UtqiagvikKazrRaw,
 )
-from sio_postdoc.manager import FileType, InstrumentType, Month, Process, ResampleMethod
+from sio_postdoc.manager import (
+    FileType,
+    InstrumentType,
+    Month,
+    PlotPane,
+    Process,
+    ResampleMethod,
+)
+from sio_postdoc.manager.observation.colorbars import (
+    colorbar_extend,
+    colorbar_labels,
+    colorbar_ticks,
+)
+from sio_postdoc.manager.observation.colormaps import colormap_limits, colormaps
 from sio_postdoc.manager.observation.contracts import (
     ContainerContentRequest,
     DailyProductRequest,
@@ -109,11 +123,13 @@ from sio_postdoc.manager.observation.contracts import (
     Instrument,
     Observatory,
     ObservatoryRequest,
-    PlotRequest,
+    ProcessPlotRequest,
     ProcessRequest,
     Product,
+    ProductPlotRequest,
     RequestResponse,
 )
+from sio_postdoc.manager.observation.plot_labels import plot_labels, plot_ylabels
 
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
@@ -208,6 +224,11 @@ class ObservationManager:
         self._transformation_engine: TransformationEngine = TransformationEngine()
         self._local_access: LocalAccess = LocalAccess()
 
+        self._letters: deque[str]
+        self._reset_letters()
+        self._colors: deque[str]
+        self._reset_colors()
+
     @property
     def instrument_access(self) -> InstrumentAccess:
         """Return the private instrument access."""
@@ -238,12 +259,24 @@ class ObservationManager:
         """Return the private local access."""
         return self._local_access
 
+    def _reset_letters(self) -> None:
+        self._letters: deque[str] = deque(
+            ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+        )
+
+    def _reset_colors(self) -> None:
+        self._colors: deque[str] = deque(
+            ["#011959", "#185562", "#577647", "#b38e2f", "#fba689"]
+        )
+
     def process(self, request: BaseModel) -> RequestResponse:
         """Process the request."""
         # Note, these are strategies.
         if isinstance(request, FileRequest):
             return self._get_files(request)
-        elif isinstance(request, PlotRequest):
+        elif isinstance(request, ProductPlotRequest):
+            return self._make_plot(request)
+        elif isinstance(request, ProcessPlotRequest):
             return self._make_plot(request)
         elif isinstance(request, ProcessRequest):
             return self._process_request(request)
@@ -259,49 +292,73 @@ class ObservationManager:
         match request.process:
             case Process.RESAMPLE:
                 self._create_resampled_files(request)
+            case Process.PHASES:
+                self._create_phase_maps(request)
 
-    def _make_plot(self, request):
-        if request.filename.endswith(".ncdf"):
-            print("I am here...")
-            # So now we know we'er dealing with a dataset
-            # Let's convert it to a dataframe
-            ds = DataSet(request.filename)
-            variables: list[str] = ["mean_dopp_vel", "refl", "spec_width", "radar_mask"]
-            data: dict[str, pd.DataFrame] = {
-                variable: pd.DataFrame(
-                    index=ds["offset"][:].data,
-                    columns=ds["range"][:].data,
-                    data=ds[variable][:].data,
-                )
-                for variable in variables
-            }
-        elif request.filename.endswith(".pkl"):
-            print("then you're dealing with a pickled dataframe...")
-        # replace the data
-        data["mean_dopp_vel"].replace(-32768, np.nan, inplace=True)
-        data["mean_dopp_vel"] = data["mean_dopp_vel"] / ds["mean_dopp_vel"]._scale
-        # Now that you have the data, you want to make the plot
-        # Just code this up and then try to break it down when you refactor
-        # So, step one, make a plot with the number of axis that you need
-        fig: Figure = plt.figure(layout="constrained")
-        axs: dict[str, Axes] = fig.subplot_mosaic(
-            [[variable] for variable in variables],
-            sharex=True,
+    def _make_plot(
+        self, request: ProcessPlotRequest | ProductPlotRequest
+    ) -> RequestResponse:
+        if isinstance(request, ProcessPlotRequest):
+            process: Process = request.process
+            product = None
+        elif isinstance(request, ProductPlotRequest):
+            process = None
+            product: Product = request.product
+        target: date = date(request.year, request.month.value, request.day)
+        dl_info: DownloadInfo = DownloadInfo(
+            process=process,
+            product=product,
+            type=FileType.DAILY,
+            inclusive=False,
+            time=False,
+            target=target,
         )
-        norm = TwoSlopeNorm(vmin=-2, vcenter=0, vmax=4)
-        ai: AxesImage = axs["mean_dopp_vel"].matshow(
-            data["mean_dopp_vel"].T, aspect="auto", norm=norm, cmap="coolwarm"
-        )
-        axs["mean_dopp_vel"].invert_yaxis()
-        fig.colorbar(ai, ax=axs["mean_dopp_vel"], extend="both")
-        plt.savefig("example_001.png")
-        # Now use the first axis to plot the image
-        # You are kind of fucked, and need to take a break.
-        print("I am here")
-        # I think I also need to know the product
-        # The first think I need to do is find out what I am plotting
-        # I can store these in something I can pass to a plot statement
-        # What if I have the first product
+        response: RequestResponse = self._download_file(request, dl_info)
+        if not response.status:
+            return RequestResponse(
+                status=False, message="No file was found for the requested plot"
+            )
+        filename: str = response.items[0]
+        filepath: Path = Path.cwd() / filename
+
+        data: dict[str, pd.DataFrame | pd.Series]
+        if filepath.suffix == ".ncdf":
+            pass
+        elif filepath.suffix == ".pkl":
+            data = pd.read_pickle(filepath)
+        panes: tuple[PlotPane, ...]
+        if not product:
+            panes = self._get_process_panes(process)
+        elif not process:
+            panes = self._get_product_panes(product)
+        figsize: tuple[float, float] = (9, 2 * len(panes))
+        fig: Figure = plt.figure(layout="constrained", figsize=figsize)
+        axs: dict[str, Axes] = self._create_subplots(fig, panes)
+
+        for pane in panes:
+            self._draw_pane(fig, axs[pane], pane, data, request)
+        # You need to find out what you want to call the file
+        axs[pane].set_xlabel("Time, [Hours, UTC]")
+        # Save the file
+        # filepath: Path = Path.cwd() / (
+        #     f"D{target.year}"
+        #     f"-{str(target.month).zfill(2)}"
+        #     f"-{str(target.day).zfill(2)}"
+        #     f"-{request.observatory.name.lower()}"
+        #     "-resampled_frames"
+        #     ".png"
+        # )
+        # plt.savefig(filepath)
+        # # Add to blob storage
+        # self.instrument_access.add_blob(
+        #     name=request.observatory.name.lower(),
+        #     path=filepath,
+        #     directory=f"plots/cloud_phase_steps/01-resampled_frames/daily/{request.year}/",
+        # )
+        # # Remove the file
+        # os.remove(filepath)
+        # self._reset_colors()
+        # self._reset_letters()
 
     def _get_files(self, request: FileRequest) -> RequestResponse:
         status: bool = False
@@ -342,9 +399,18 @@ class ObservationManager:
         )
 
     def _get_container_contents(self, request: FileRequest) -> RequestResponse:
+        prefix: str
+        if request.process:
+            match request.process:
+                case Process.RESAMPLE:
+                    prefix = (
+                        f"cloud_phase_steps/01-resampled_frames/daily/{request.year}"
+                    )
+        elif request.product:
+            prefix = f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/"
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
             container=request.observatory.name.lower(),
-            name_starts_with=f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/",
+            name_starts_with=prefix,
         )
         if blobs:
             return RequestResponse(
@@ -636,9 +702,56 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    # def _temp_add_sonde(self, request: ProcessRequest) -> None:
+    #     for target in self._dates_in_month(request.year, request.month):
+    #         print(target)
+    #         # The first thing we want to do is get the previous version of the file.
+    #         dl_info: DownloadInfo = DownloadInfo(
+    #             process=Process.RESAMPLE,
+    #             type=FileType.DAILY,
+    #             inclusive=False,
+    #             time=False,
+    #             target=target,
+    #         )
+    #         response: RequestResponse = self._download_file(request, dl_info)
+    #         if not response.status:
+    #             continue
+    #         # Now that you have the file, you want to open it
+    #         filename: str = response.items[0]
+    #         filepath: Path = Path.cwd() / filename
+    #         data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+    #         # Now that you have the data, you want to get the sonde data
+    #         response = self._add_frames(InstrumentType.SONDE, request, target, data)
+    #         if not response.status:
+    #             continue
+    #         data = response.items[0]
+    #         # Resample the data
+    #         data["temp"] = self._reformat(data["temp"], method=ResampleMethod.MEAN)
+    #         # Save the file
+    #         filepath: Path = Path.cwd() / (
+    #             f"D{target.year}"
+    #             f"-{str(target.month).zfill(2)}"
+    #             f"-{str(target.day).zfill(2)}"
+    #             f"-{request.observatory.name.lower()}"
+    #             "-resampled_frames"
+    #             ".pkl"
+    #         )
+    #         with open(filepath, "wb") as file:
+    #             pickle.dump(data, file)
+    #         # Add to blob storage
+    #         self.instrument_access.add_blob(
+    #             name=request.observatory.name.lower(),
+    #             path=filepath,
+    #             directory=f"cloud_phase_steps/01a-resampled_frames_with_temp/daily/{request.year}/",
+    #         )
+    #         # Remove the file
+    #         os.remove(filepath)
+
     def _create_resampled_files(self, request: ProcessRequest) -> None:
+        missing_instrument: bool
         for target in self._dates_in_month(request.year, request.month):
             print(target)
+            missing_instrument = False
             frames: dict[str, pd.DataFrame | pd.Series] = dict()
             # Add the frames
             for inst_type in [
@@ -646,9 +759,12 @@ class ObservationManager:
                 InstrumentType.LIDAR,
                 InstrumentType.MWR,
                 InstrumentType.IRP,
+                InstrumentType.SONDE,
             ]:
                 response = self._add_frames(inst_type, request, target, frames)
-            if not response.status:
+                if not response.status:
+                    missing_instrument = True
+            if missing_instrument:
                 continue
             frames = response.items[0]
             # Resample the frames
@@ -692,6 +808,431 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
+
+    def _create_phase_maps(self, request: ProcessRequest) -> None:
+        for target in self._dates_in_month(request.year, request.month):
+            print(target)
+            # Download the appropriate file
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.RESAMPLE,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                continue
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            steps: dict[str, pd.DataFrame] = dict()
+            # Process the steps
+            steps["1"] = self._step_1(data)
+            steps["2"] = self._step_2(data, steps)
+            steps["3"] = self._step_3(data, steps)
+            steps["4a"] = self._step_4a(data, steps)
+            steps["radar_tops"] = self._step_radar_tops(data, steps)
+            steps["lidar_tops"] = self._step_lidar_tops(data, steps)
+            steps["occultation_zone"] = self._step_occultation(data, steps)
+            steps["4b"] = self._step_4b(data, steps)
+            steps["5"] = self._step_5(data, steps)
+            steps["6"] = self._step_6(data, steps)
+            steps["7"] = self._step_7(data, steps)
+            steps["8"] = self._step_8(data, steps)
+            # Save the file
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-shupe_2007_phase_steps"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(steps, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    @staticmethod
+    def _step_1(data: dict[str, pd.DataFrame | pd.Series]) -> pd.DataFrame:
+        step: pd.DataFrame = data["depol"].copy(deep=True)
+        step[data["depol"] < SHUPE["depol"]["ice"]] = LIQUID
+        step[SHUPE["depol"]["ice"] <= data["depol"]] = ICE
+        return step
+
+    @staticmethod
+    def _step_2(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        # Make a copy
+        step = steps["1"].copy(deep=True)
+        # Classify mixed-phase
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["refl"]["low"] < data["refl"])
+        ] = MIXED
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["mean_dopp_vel"]["low"] <= data["mean_dopp_vel"])
+        ] = MIXED
+        # Classify Drizzle
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["refl"]["low"] < data["refl"])
+        ] = DRIZZLE
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["mean_dopp_vel"]["low"] < data["mean_dopp_vel"])
+        ] = DRIZZLE
+        return step
+
+    @staticmethod
+    def _step_3(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["2"].copy(deep=True)
+        # Reclassify snow and rain based on reflectivity greater than 5
+        step[
+            (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["refl"]["high"] < data["refl"])
+        ] = SNOW
+        step[
+            (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["refl"]["high"] < data["refl"])
+        ] = RAIN
+        # Reclassify rain when velocity is greater than 2.5 and temperature is above freezing
+        step[
+            (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["mean_dopp_vel"]["high"] < data["mean_dopp_vel"])
+        ] = RAIN
+        return step
+
+    @staticmethod
+    def _step_4a(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["3"].copy(deep=True)
+        # First set all of the values that are in the mask to rain
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (data["radar_mask"] == 1)  # Pixels viewed by radar
+        ] = RAIN
+        # Now cut in with drizzle
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (data["refl"] < SHUPE["refl"]["high"])
+            & (data["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["high"])
+        ] = DRIZZLE
+        # Finally cut in with liquid
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (data["refl"] < SHUPE["refl"]["low"])
+            & (data["mean_dopp_vel"] < 1)  # Low velocity
+        ] = LIQUID
+        # Differentiate between snow and ice below freezing using reflectivity at narrow widths.
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["spec_width"] < SHUPE["spec_width"]["low"])
+        ] = SNOW
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["spec_width"] < SHUPE["spec_width"]["low"])
+            & (data["refl"] < SHUPE["refl"]["high"])
+        ] = ICE
+        # Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity at elevated widths.
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["spec_width"]["low"] <= data["spec_width"])
+        ] = SNOW
+        # Now cut in with mixed-phase
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["spec_width"]["low"] <= data["spec_width"])
+            & (data["refl"] < SHUPE["refl"]["high"])
+        ] = MIXED
+        # Finally cut in with liquid
+        step[
+            (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["spec_width"]["low"] <= data["spec_width"])
+            & (data["refl"] < SHUPE["refl"]["low"])
+            & (data["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["low"])
+        ] = LIQUID
+        return step
+
+    @staticmethod
+    def _step_radar_tops(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["4a"].copy(deep=True)
+        step.iloc[:, :-1] = (
+            data["radar_mask"].iloc[:, :-1].values
+            - data["radar_mask"].iloc[:, 1:].values
+        )
+        step.iloc[:, -1] = 0
+        return step
+
+    @staticmethod
+    def _step_lidar_tops(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["4a"].copy(deep=True)
+        step.iloc[:, :-1] = (
+            data["lidar_mask"].iloc[:, :-1].values
+            - data["lidar_mask"].iloc[:, 1:].values
+        )
+        step.iloc[:, -1] = 0
+        return step
+
+    @staticmethod
+    def _step_occultation(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["4a"].copy(deep=True)
+        for col in step.columns:
+            step[col].values[:] = 0
+        # Find Lidar Occulation Levels and Radar Tops
+        lidar_occultation_levels = steps["lidar_tops"].T.apply(
+            lambda series: series[series == 1].index.max()
+        )
+        radar_tops_levels = steps["radar_tops"].T.apply(
+            lambda series: series[series == 1].index.tolist()
+        )
+        for t in steps["lidar_tops"].index:
+            for radar_top in radar_tops_levels[t]:
+                base = lidar_occultation_levels[t]
+                if 0 < radar_top - base <= SHUPE["occultation"]["high"]:
+                    step.loc[t, base:radar_top] = 1
+        return step
+
+    @staticmethod
+    def _step_4b(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["4a"].copy(deep=True)
+        step[
+            (steps["occultation_zone"] == 1)  # In occultation zone
+            & (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+        ] = SNOW
+        # Now cut in with mixed-phase
+        step[
+            (steps["occultation_zone"] == 1)  # In occultation zone
+            & (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["refl"] < SHUPE["refl"]["high"])
+        ] = MIXED
+        # Finally cut in with liquid
+        step[
+            (steps["occultation_zone"] == 1)  # In occultation zone
+            & (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["refl"] < SHUPE["refl"]["low"])
+            & (data["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["low"])
+        ] = LIQUID
+        return step
+
+    @staticmethod
+    def _step_5(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["4b"].copy(deep=True)
+        # Find all the locations where step 4 is in both of the masks is below -40
+        # Below - 40 you can only have ice or snow and you can differentiate show using reflectivity > 5
+        step[(data["temp"] < SHUPE["freezing"]["homogeneous"]) & (step == RAIN)] = SNOW
+        step[(data["temp"] < SHUPE["freezing"]["homogeneous"]) & (step == DRIZZLE)] = (
+            SNOW
+        )
+        step[(data["temp"] < SHUPE["freezing"]["homogeneous"]) & (step == LIQUID)] = ICE
+        step[(data["temp"] < SHUPE["freezing"]["homogeneous"]) & (step == MIXED)] = ICE
+        # Above zero you can only have rain, drizzle, or liquid.
+        # You can differentiate these with doppler velocity and reflectivity.
+        step[
+            (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (step == MIXED)  # Mixed-Phase
+        ] = LIQUID
+        step[(SHUPE["freezing"]["nominal"] <= data["temp"]) & (step == ICE)] = LIQUID
+        step[(SHUPE["freezing"]["nominal"] <= data["temp"]) & (step == SNOW)] = RAIN
+        return step
+
+    def _step_6(
+        self, data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["5"].copy(deep=True)
+        # Identify layers and phases
+        layers_and_phases = step.T.apply(self._identify_layers_and_phases)
+        # Add liquid if the lwp is greater than 25 but no liquid in the column
+        for row in data["lwp"].index:
+            lwp = data["lwp"].loc[row, 0]
+            if SHUPE["occultation"]["lwp"] < lwp:
+                this_column = layers_and_phases[row]
+                if all(
+                    phase["phase"] <= ICE for layer in this_column for phase in layer
+                ):
+                    # No liquid was detected
+                    lidar_tops = steps["lidar_tops"].loc[row, :]
+                    base = lidar_tops[lidar_tops == -1].index.min() - 45
+                    if np.isnan(base):
+                        # Then use the lowest observation height
+                        base = int(step.columns.iloc[0])
+                        radar_tops = steps["radar_tops"].loc[row, :]
+                        base = radar_tops[radar_tops == -1].index.min() - 45
+                        if np.isnan(base):
+                            continue
+                    # Now we have a base
+                    # Is there a top within 500 m
+                    # Now we want to find the first top that is within 500 m of the base
+                    tops = []
+                    for layer in this_column:
+                        if layer:
+                            tops.append(layer[-1]["top"])
+                    top = None
+                    for this_top in tops:
+                        if 0 < this_top - base <= SHUPE["occultation"]["low"]:
+                            top = this_top
+                            break
+                    if not top:
+                        # We need to calculate the thickness
+                        thickness = lwp / 0.2
+                        top = base + thickness
+                    # Now that we have a base and a top
+                    # We want to classify everything above the base and below the top as liquid
+                    step.loc[
+                        row,
+                        (base < step.columns) & (step.columns < top),
+                    ] = LIQUID
+            elif lwp <= 0:
+                # Then all liquid containing elements below freezing are set to ice
+                step.loc[
+                    row,
+                    (data["temp"].loc[row, :] < SHUPE["freezing"]["nominal"])
+                    & (MIXED <= step.loc[row, :]),
+                ] = ICE
+        return step
+
+    @staticmethod
+    def _step_7(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["6"].copy(deep=True)
+        # Start with all NaN
+        for col in step.columns:
+            step[col].values[:] = np.nan
+        times = len(step.index)
+        elevations = len(step.columns)
+        for i, index in enumerate(step.index):
+            if i % 250 == 0:
+                print(f"\t{round(i / times * 100)}%")
+            if (i < SHUPE["window"]["buffer"]) or (
+                times - SHUPE["window"]["buffer"] - 1 < i
+            ):
+                step.loc[index, :] = steps["6"].loc[index, :].values
+                # Or you can just pass
+                continue
+            for j, column in enumerate(step.columns):
+                if (j < SHUPE["window"]["buffer"]) or (
+                    elevations - SHUPE["window"]["buffer"] - 1 < j
+                ):
+                    step.loc[:, column] = steps["6"].loc[:, column].values
+                    continue
+                # If we haven't continued, then we know that we can grab all the values
+                values = steps["6"].iloc[
+                    i - SHUPE["window"]["buffer"] : i + SHUPE["window"]["buffer"] + 1,
+                    j - SHUPE["window"]["buffer"] : j + SHUPE["window"]["buffer"] + 1,
+                ]
+                if values.count().sum() < SHUPE["window"]["clear"]:
+                    step.loc[index, column] = np.nan
+                    continue
+                else:
+                    # The center value currently is
+                    center = steps["6"].loc[index, column]
+                    try:
+                        match_center_count = (
+                            values.apply(pd.Series.value_counts)
+                            .fillna(0)
+                            .loc[center, :]
+                            .sum()
+                        )
+                    except KeyError:
+                        match_center_count = 0
+                    if SHUPE["window"]["match"] < match_center_count:
+                        step.loc[index, column] = center
+                    else:
+                        # Use the mode
+                        mode = values.fillna(0).mode().T.mode().iloc[0, 0]
+                        if mode == 0:
+                            mode = np.nan
+                        step.loc[index, column] = mode
+        return step
+
+    def _step_8(
+        self, data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        step = steps["7"].copy(deep=True)
+        # Reidentify phases and layers
+        layers_and_phases = step.T.apply(self._identify_layers_and_phases)
+        # Now check the reclassification
+        for time in step.index:
+            for layer in layers_and_phases[time]:
+                if 2 <= len(layer):
+                    for i in range(len(layer)):
+                        above = None
+                        below = None
+                        if i == 0:
+                            # Then you can only look above
+                            above = layer[i + 1]["phase"]
+                        elif i == len(layer) - 1:
+                            # You can only look below
+                            below = layer[i - 1]["phase"]
+                        else:
+                            # You look above and below
+                            above = layer[i + 1]["phase"]
+                            below = layer[i - 1]["phase"]
+                        phase = layer[i]["phase"]
+                        depth = layer[i]["depth"]
+                        new_phase = None
+                        if (phase == ICE) and (depth < 200) and (below == MIXED):
+                            new_phase = MIXED
+                        elif (phase == ICE) and (depth < 200) and (below == LIQUID):
+                            new_phase = LIQUID
+                        elif (phase == LIQUID) and (above == DRIZZLE):
+                            new_phase = DRIZZLE
+                        elif (phase == DRIZZLE) and (above == ICE):
+                            new_phase = ICE
+                        elif (phase == DRIZZLE) and (below == ICE):
+                            new_phase = ICE
+                        elif (phase == DRIZZLE) and (above == MIXED):
+                            new_phase = MIXED
+                        elif (phase == DRIZZLE) and (below == MIXED):
+                            new_phase = MIXED
+                        # Set new phase if required
+                        if new_phase:
+                            base = layer[i]["base"]
+                            top = layer[i]["top"]
+                            step.loc[
+                                time,
+                                (base < step.columns) & (step.columns < top),
+                            ] = new_phase
+        return step
 
     def _add_frames(
         self,
@@ -750,21 +1291,31 @@ class ObservationManager:
 
         return RequestResponse(status=True, items=(frames,))
 
-    def _download_file(self, pr: ProcessRequest, dli: DownloadInfo) -> RequestResponse:
+    def _download_file(
+        self, obsr: ObservatoryRequest, dli: DownloadInfo
+    ) -> RequestResponse:
+        if dli.process:
+            process: Process = dli.process
+            product = None
+        elif dli.product:
+            process = None
+            product: Product = dli.product
         response: RequestResponse = self.process(
             ContainerContentRequest(
-                observatory=pr.observatory,
-                product=dli.product,
+                observatory=obsr.observatory,
+                process=process,
+                product=product,
                 type=dli.type,
-                year=pr.year,
+                year=obsr.year,
             )
         )
         response: RequestResponse = self.process(
             FileRequest(
-                product=dli.product,
-                observatory=pr.observatory,
-                year=pr.year,
-                month=pr.month,
+                process=process,
+                product=product,
+                observatory=obsr.observatory,
+                year=obsr.year,
+                month=obsr.month,
                 day=dli.target.day,
                 type=dli.type,
                 content=response.items,
@@ -785,6 +1336,94 @@ class ObservationManager:
         refl[pd.notna(refl)] = 1
         refl[pd.isna(refl)] = 0
         return refl
+
+    def _draw_pane(
+        self,
+        fig: Figure,
+        ax: Axes,
+        pane: PlotPane,
+        data: pd.DataFrame | pd.Series,
+        request: ProcessPlotRequest | ProductPlotRequest,
+    ) -> None:
+        key: str = pane.name.lower()
+        if len(data[key].columns) == 1:
+            # Time-series
+            l2d: Line2D = ax.plot(
+                data[key].index / 3600, data[key].values, color=self._get_next_color()
+            )
+            ax.set_ylim(bottom=0)
+        else:
+            # Time-height
+            x_min: float | None = request.left
+            if not x_min:
+                x_min = data[key].index.min() / 3600
+            x_max: float | None = request.right
+            if not x_max:
+                x_max = data[key].index.max() / 3600
+            y_min: float | None = request.bottom
+            if not y_min:
+                y_min = data[key].columns.min() / 1000
+            y_max: float | None = request.top
+            if not y_max:
+                y_max = data[key].columns.max() / 1000
+            extent: list[float] = [x_min, x_max, y_max, y_min]
+            ai: AxesImage = ax.matshow(
+                data[key]
+                .loc[x_min * 3600 : x_max * 3600, y_min * 1000 : y_max * 1000]
+                .T,
+                aspect="auto",
+                cmap=colormaps[pane],
+                vmin=colormap_limits[pane].vmin,
+                vmax=colormap_limits[pane].vmax,
+                interpolation="none",
+                extent=extent,
+            )
+            ax.invert_yaxis()
+            cbar = fig.colorbar(
+                ai,
+                ax=ax,
+                extend=colorbar_extend[pane],
+                aspect=7.5,
+                ticks=colorbar_ticks[pane],
+            )
+            cbar.set_label(colorbar_labels[pane], rotation=270, labelpad=15)
+        ax.grid(alpha=0.25)
+        if pane == PlotPane.DLR:
+            xy = (0, 0)
+            xytext = (+0.7, +0.7)
+            verticalalignment = "bottom"
+        else:
+            xy = (0, 1)
+            xytext = (+0.7, -0.7)
+            verticalalignment = "top"
+        ax.set_ylabel(plot_ylabels[pane])
+        ax.annotate(
+            rf"{self._get_next_letter()}) {plot_labels[pane]}",
+            xy=xy,
+            xycoords="axes fraction",
+            xytext=xytext,
+            textcoords="offset fontsize",
+            fontsize="medium",
+            verticalalignment=verticalalignment,
+            bbox=dict(facecolor="0.7", edgecolor="none", pad=3.0, alpha=0.5),
+        )
+
+    def _get_next_letter(self) -> str:
+        letter: str = self._letters[0]
+        self._letters.rotate(-1)
+        return letter
+
+    def _get_next_color(self) -> str:
+        color: str = self._colors[0]
+        self._colors.rotate(-1)
+        return color
+
+    @staticmethod
+    def _create_subplots(fig: Figure, panes: tuple[PlotPane, ...]) -> dict[str, Axes]:
+        return fig.subplot_mosaic(
+            [[pane] for pane in panes],
+            sharex=True,
+        )
 
     @staticmethod
     def _select_strategy(
@@ -820,8 +1459,6 @@ class ObservationManager:
                         return InterpolatedSonde()
                     case Product.MWRRET1LILJCLOU:
                         return MwrRet1LiljClou()
-                    case Product.MWRLOS:
-                        return MwrLos()
                     case Product.QCRAD1LONG:
                         return QcRad1Long()
 
@@ -874,6 +1511,50 @@ class ObservationManager:
             row[:gates] = np.nan
         return row
 
+    @staticmethod
+    def _get_process_panes(process: Process) -> tuple[PlotPane, ...]:
+        panes: tuple[PlotPane, ...]
+        match process:
+            case Process.RESAMPLE:
+                panes = (
+                    PlotPane.REFL,
+                    PlotPane.MEAN_DOPP_VEL,
+                    PlotPane.SPEC_WIDTH,
+                    PlotPane.DEPOL,
+                    PlotPane.TEMP,
+                    PlotPane.LWP,
+                    PlotPane.DLR,
+                )
+        return panes
+
+    @staticmethod
+    def _get_product_panes(product: Product) -> tuple[PlotPane, ...]:
+        panes: tuple[PlotPane, ...]
+        match product:
+            case Product.AHSRL:
+                panes = tuple()
+            case Product.AHSRLSONDE:
+                panes = tuple()
+            case Product.ARSCL1CLOTH:
+                panes = tuple()
+            case Product.ARSCLKAZR1KOLLIAS:
+                panes = tuple()
+            case Product.INTERPOLATEDSONDE:
+                panes = tuple()
+            case Product.MMCRMERGE:
+                panes = tuple()
+            case Product.MPLCMASK1ZWANG:
+                panes = tuple()
+            case Product.MPLCMASKML:
+                panes = tuple()
+            case Product.MWRRET1LILJCLOU:
+                panes = tuple()
+            case Product.QCRAD1LONG:
+                panes = tuple()
+        return panes
+
+
+    @deprecated("Use the PHASES process instead")
     def create_daily_layers_and_phases(self, request: ObservatoryRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -1012,9 +1693,9 @@ class ObservationManager:
             # Lidar Occulation Zone
             # Start with a dataframe of all zeros
             # NOTE: the Occulation Zone is Step -1
-            steps["occulation_zone"] = steps["4"].copy(deep=True)
-            for col in steps["occulation_zone"].columns:
-                steps["occulation_zone"][col].values[:] = 0
+            steps["occultation_zone"] = steps["4"].copy(deep=True)
+            for col in steps["occultation_zone"].columns:
+                steps["occultation_zone"][col].values[:] = 0
             # Find the radar tops
             steps["radar_tops"] = steps["4"].copy(deep=True)
             steps["radar_tops"].iloc[:, :-1] = (
@@ -1030,7 +1711,7 @@ class ObservationManager:
             )
             steps["lidar_tops"].iloc[:, -1] = 0
             # Find Lidar Occulation Levels and Radar Tops
-            lidar_occulation_levels = steps["lidar_tops"].T.apply(
+            lidar_occultation_levels = steps["lidar_tops"].T.apply(
                 lambda series: series[series == 1].index.max()
             )
             radar_tops_levels = steps["radar_tops"].T.apply(
@@ -1038,27 +1719,27 @@ class ObservationManager:
             )
             for i, t in enumerate(steps["lidar_tops"].index):
                 for radar_top in radar_tops_levels[t]:
-                    base = lidar_occulation_levels[t]
+                    base = lidar_occultation_levels[t]
                     if 0 <= radar_top - base <= SHUPE["occultation"]["high"]:
                         # then set the values in the given location between these values to 1
-                        steps["occulation_zone"].loc[t, base:radar_top] = 1
-            # Use occulation zone to Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity regardless of spectral width.
+                        steps["occultation_zone"].loc[t, base:radar_top] = 1
+            # Use occultation zone to Differentiate between liquid, mixed-phase, and snow below freezing using reflectivity regardless of spectral width.
             # First set everything to snow
             steps["4"][
-                (steps["occulation_zone"] == 1)  # In occulation zone
+                (steps["occultation_zone"] == 1)  # In occultation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
                 & (frames["temp"] < SHUPE["freezing"]["nominal"])
             ] = SNOW
             # Now cut in with mixed-phase
             steps["4"][
-                (steps["occulation_zone"] == 1)  # In occulation zone
+                (steps["occultation_zone"] == 1)  # In occultation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
                 & (frames["temp"] < SHUPE["freezing"]["nominal"])
                 & (frames["refl"] < SHUPE["refl"]["high"])
             ] = MIXED
             # Finally cut in with liquid
             steps["4"][
-                (steps["occulation_zone"] == 1)  # In occulation zone
+                (steps["occultation_zone"] == 1)  # In occultation zone
                 & (frames["lidar_mask"] == 0)  # Pixels not viewed by lidar
                 & (frames["temp"] < SHUPE["freezing"]["nominal"])
                 & (frames["refl"] < SHUPE["refl"]["low"])

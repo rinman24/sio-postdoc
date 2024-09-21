@@ -43,7 +43,6 @@ class Product(Enum):
     MMCRMERGE = auto()
     MPLCMASK1ZWANG = auto()
     MPLCMASKML = auto()
-    MWRLOS = auto()
     MWRRET1LILJCLOU = auto()
     QCRAD1LONG = auto()
 
@@ -75,6 +74,7 @@ class FileType(Enum):
 class Process(Enum):
     """Types of processing workflows."""
 
+    PHASES = auto()
     RESAMPLE = auto()
 
 
@@ -83,3 +83,17 @@ class ResampleMethod(Enum):
 
     MEAN = auto()
     MODE = auto()
+
+
+class PlotPane(Enum):
+    """Types of plot panes."""
+
+    DEPOL = auto()
+    DLR = auto()
+    LWP = auto()
+    MEAN_DOPP_VEL = auto()
+    PHASES = auto()
+    RECLASS_PHASES = auto()
+    REFL = auto()
+    SPEC_WIDTH = auto()
+    TEMP = auto()

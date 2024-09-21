@@ -38,7 +38,8 @@ class ContainerContentRequest(BaseModel):
     """Encapsulate requests for blobs in a container."""
 
     observatory: Observatory
-    product: Product
+    process: Process | None = None
+    product: Product | None = None
     type: FileType
     year: int
 
@@ -46,7 +47,8 @@ class ContainerContentRequest(BaseModel):
 class FileRequest(ObservatoryRequest):
     """Encapsulate requests for the request of daily files."""
 
-    product: Product
+    process: Process | None = None
+    product: Product | None = None
     day: int
     type: FileType
     content: tuple[str, ...]
@@ -57,18 +59,34 @@ class FileRequest(ObservatoryRequest):
 class DownloadInfo(BaseModel):
     """Encapsulate requsts to download files to the local disk."""
 
-    product: Product
+    product: Product | None = None
+    process: Process | None = None
     type: FileType
     inclusive: bool
     time: bool
     target: date
 
 
-class PlotRequest(BaseModel):
-    """Encapsulate requests for the request of daily files."""
+class ProductPlotRequest(ObservatoryRequest):
+    """Encapsulate requests for the request of daily product plots."""
 
-    filename: str
+    day: int
     product: Product
+    left: float | None = None
+    right: float | None = None
+    bottom: float | None = None
+    top: float | None = None
+
+
+class ProcessPlotRequest(ObservatoryRequest):
+    """Encapsulate requests for the request of daily product plots."""
+
+    day: int
+    process: Process
+    left: float | None = None
+    right: float | None = None
+    bottom: float | None = None
+    top: float | None = None
 
 
 class ProcessRequest(ObservatoryRequest):
