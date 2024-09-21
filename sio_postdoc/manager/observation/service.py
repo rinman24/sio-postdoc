@@ -6,7 +6,6 @@ from collections import deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
-from warnings import deprecated
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +15,7 @@ from matplotlib.figure import Figure
 from matplotlib.image import AxesImage
 from matplotlib.lines import Line2D
 from pydantic import BaseModel
+from typing_extensions import deprecated
 
 from sio_postdoc.access import DataSet
 from sio_postdoc.access.instrument.service import InstrumentAccess
