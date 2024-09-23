@@ -91,7 +91,7 @@ class InstrumentAccess(BlobAccess):
         remote_name: str = directory + path.name
         with self.blob_service.get_container_client(name) as container:
             with open(path, "rb") as data:
-                container.upload_blob(name=remote_name, data=data)
+                container.upload_blob(name=remote_name, data=data, overwrite=True)
 
     def list_blobs(
         self, container: str, name_starts_with: str | None = None
