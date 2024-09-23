@@ -1089,18 +1089,14 @@ class ObservationManager:
                     phase["phase"] <= ICE for layer in this_column for phase in layer
                 ):
                     # No liquid was detected
+                    # Look for a lidar base
                     lidar_tops = steps["lidar_tops"].loc[row, :]
                     base = lidar_tops[lidar_tops == -1].index.min() - 45
                     if np.isnan(base):
                         # Then use the lowest observation height
-                        base = int(step.columns.iloc[0])
-                        radar_tops = steps["radar_tops"].loc[row, :]
-                        base = radar_tops[radar_tops == -1].index.min() - 45
-                        if np.isnan(base):
-                            continue
+                        base = 0
                     # Now we have a base
-                    # Is there a top within 500 m
-                    # Now we want to find the first top that is within 500 m of the base
+                    # We want to find the first top that is within 500 m of the base
                     tops = []
                     for layer in this_column:
                         if layer:
@@ -1552,7 +1548,6 @@ class ObservationManager:
             case Product.QCRAD1LONG:
                 panes = tuple()
         return panes
-
 
     @deprecated("Use the PHASES process instead")
     def create_daily_layers_and_phases(self, request: ObservatoryRequest) -> None:
