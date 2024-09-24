@@ -294,6 +294,8 @@ class ObservationManager:
                 self._create_resampled_files(request)
             case Process.PHASES:
                 self._create_phase_maps(request)
+            case Process.RECLASSIFY:
+                self._reclassify_phases(request)
 
     def _make_plot(
         self, request: ProcessPlotRequest | ProductPlotRequest
@@ -406,6 +408,10 @@ class ObservationManager:
                     prefix = (
                         f"cloud_phase_steps/01-resampled_frames/daily/{request.year}"
                     )
+                case Process.PHASES:
+                    prefix = (
+                        f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}"
+                    )
         elif request.product:
             prefix = f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/"
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
@@ -433,7 +439,7 @@ class ObservationManager:
         )
         self.local_access.rename_files(current, new)
 
-    # NOTE: Most likely depreciated.
+    @deprecated("Most likely deprecated")
     def create_daily_files(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -857,6 +863,107 @@ class ObservationManager:
                 name=request.observatory.name.lower(),
                 path=filepath,
                 directory=f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    def _reclassify_phases(self, request: ProcessRequest) -> None:
+        for target in self._dates_in_month(request.year, request.month):
+            print(target)
+            # Download the appropriate file
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.PHASES,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                continue
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            steps: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            # Set the reference
+            reference = steps["8"]
+            # Start with a copy
+            phase_map = reference.copy(deep=True)
+            # Reclassify phases and layers
+            # Since the distinction between "ice" and "snow" is arbiitrary, these two
+            # classes are jointly referred to as ice.
+            phase_map[reference == ICE] = NEW_ICE
+            phase_map[reference == SNOW] = NEW_ICE
+            # Likewise, "rain" and "drizzle" have been combined as liquid-phase precipitation
+            # and are referred to as rain.
+            phase_map[reference == DRIZZLE] = RAIN
+            phase_map[reference == RAIN] = RAIN  # Redundant but explicit
+            # Reclassify liquid with the new index
+            phase_map[reference == LIQUID] = NEW_LIQUID
+            # Mixed stays the same
+            phase_map[reference == MIXED] = MIXED  # Redundant but explicit
+            # A modified definition of mixed-phase cloud is used here, which
+            # includes those circumstances when clouod ice is identified
+            # directly and continuously below cloud liquid or mixed-phase
+            # regions such that the clouod ice forms from and/or interacts
+            # with the liquid-water containing layer.
+            layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
+            # Now check the reclassification
+            for time in phase_map.index:
+                for layer in layers_and_phases[time]:
+                    if 1 < len(layer):
+                        # First find mixed-ice (under liquid or mixed-phase)
+                        new_phase = None
+                        for i in range(len(layer)):
+                            above = None
+                            if i == len(layer) - 1:
+                                # We're at the top and we don't look below
+                                continue
+                            else:
+                                # Look above
+                                above = layer[i + 1]["phase"]
+                            phase = layer[i]["phase"]
+                            # Look for mixed Ice
+                            if (phase == NEW_ICE) and (above == MIXED):
+                                new_phase = MIXED_ICE
+                            elif (phase == NEW_ICE) and (above == NEW_LIQUID):
+                                new_phase = MIXED_ICE
+                            # Set new phase if required
+                            if new_phase:
+                                base = layer[i]["base"]
+                                top = layer[i]["top"]
+                                phase_map.loc[
+                                    time,
+                                    (base < phase_map.columns)
+                                    & (phase_map.columns < top),
+                                ] = new_phase
+                        # Now find the mixed liquid in the same layer
+                        if new_phase:
+                            # Then all of the liquid goes to mixed liquid
+                            for i in range(len(layer)):
+                                if layer[i]["phase"] == NEW_LIQUID:
+                                    base = layer[i]["base"]
+                                    top = layer[i]["top"]
+                                    phase_map.loc[
+                                        time,
+                                        (base < phase_map.columns)
+                                        & (phase_map.columns < top),
+                                    ] = MIXED_LIQUID
+            # Save the file
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-shupe_2011_phases"
+                ".pkl"
+            )
+            phase_map.to_pickle(filepath)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"cloud_phase_steps/03-shupe-2011-phases/daily/{request.year}/",
             )
             # Remove the file
             os.remove(filepath)
@@ -1305,21 +1412,22 @@ class ObservationManager:
                 year=obsr.year,
             )
         )
-        response: RequestResponse = self.process(
-            FileRequest(
-                process=process,
-                product=product,
-                observatory=obsr.observatory,
-                year=obsr.year,
-                month=obsr.month,
-                day=dli.target.day,
-                type=dli.type,
-                content=response.items,
-                inclusive=dli.inclusive,
-                time=dli.time,
+        if response.status:
+            return self.process(
+                FileRequest(
+                    process=process,
+                    product=product,
+                    observatory=obsr.observatory,
+                    year=obsr.year,
+                    month=obsr.month,
+                    day=dli.target.day,
+                    type=dli.type,
+                    content=response.items,
+                    inclusive=dli.inclusive,
+                    time=dli.time,
+                )
             )
-        )
-        return response
+        return RequestResponse(status="False", message="No container found")
 
     def _get_radar_mask(self, data: InstrumentData) -> pd.DataFrame:
         refl = self._extract_frame(data, "refl")
@@ -1948,6 +2056,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    @deprecated("Use the RECLASSIFY process instead")
     def reclassify_mixed_columns(self, request: ObservatoryRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -3198,7 +3307,7 @@ class ObservationManager:
             result.append(persistence)
         return result
 
-    # NOTE: Most likely depreciated
+    @deprecated("Most likely deprecated")
     def create_monthly_elevation_by_phase(self, request: ObservatoryRequest) -> None:
         """TODO: Docstring."""
         # Get a list of all the relevant blobs
@@ -3266,7 +3375,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    # NOTE: Most likely depreciated
+    @deprecated("Most likely deprecated")
     def create_daily_masks(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs
@@ -3374,7 +3483,7 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    # NOTE: Most likely depreciated
+    @deprecated("Most likely deprecated")
     def merge_daily_masks(self, request: ObservatoryRequest) -> None:
         """Merge daily masks for a given observatory, month and year.
 
@@ -4016,7 +4125,7 @@ class ObservationManager:
     #         "five": five,
     #     }
 
-    # NOTE: Most likely depreciated
+    @deprecated("Most likely deprecated")
     def create_daily_layer_plots(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs

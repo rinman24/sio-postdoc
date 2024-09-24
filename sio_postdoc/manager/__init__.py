@@ -75,6 +75,7 @@ class Process(Enum):
     """Types of processing workflows."""
 
     PHASES = auto()
+    RECLASSIFY = auto()
     RESAMPLE = auto()
 
 
