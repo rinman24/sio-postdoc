@@ -95,6 +95,13 @@ class ProcessRequest(ObservatoryRequest):
     process: Process
 
 
+class PhaseTimeseriesRequest(ObservatoryRequest):
+    """Encapsulate the averaging of timeseries."""
+
+    seconds: int
+    meters: int
+
+
 class RequestResponse(BaseModel):
     """Encapsulate response to a request."""
 

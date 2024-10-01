@@ -3,6 +3,7 @@
 import os
 import pickle
 from collections import deque
+from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator
@@ -104,6 +105,7 @@ from sio_postdoc.manager import (
     FileType,
     InstrumentType,
     Month,
+    Phase,
     PlotPane,
     Process,
     ResampleMethod,
@@ -111,6 +113,7 @@ from sio_postdoc.manager import (
 from sio_postdoc.manager.observation.colorbars import (
     colorbar_extend,
     colorbar_labels,
+    colorbar_tick_labels,
     colorbar_ticks,
 )
 from sio_postdoc.manager.observation.colormaps import colormap_limits, colormaps
@@ -123,13 +126,18 @@ from sio_postdoc.manager.observation.contracts import (
     Instrument,
     Observatory,
     ObservatoryRequest,
+    PhaseTimeseriesRequest,
     ProcessPlotRequest,
     ProcessRequest,
     Product,
     ProductPlotRequest,
     RequestResponse,
 )
-from sio_postdoc.manager.observation.plot_labels import plot_labels, plot_ylabels
+from sio_postdoc.manager.observation.plot_labels import (
+    plot_label_colors,
+    plot_labels,
+    plot_ylabels,
+)
 
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
@@ -149,6 +157,15 @@ NEW_LIQUID: int = 5
 MIXED_LIQUID: int = 4
 MIXED_ICE: int = 2
 NEW_ICE: int = 1
+
+NEW_PHASES: tuple[Phase, ...] = (
+    Phase.ICE,
+    Phase.MIXED_ICE,
+    Phase.MIXED,
+    Phase.MIXED_LIQUID,
+    Phase.LIQUID,
+    Phase.RAIN,
+)
 
 RECLASSIFIED = {"ice": {1, 2}, "liquid": {4, 5}}
 
@@ -271,31 +288,44 @@ class ObservationManager:
 
     def process(self, request: BaseModel) -> RequestResponse:
         """Process the request."""
-        # Note, these are strategies.
+        response: RequestResponse
         if isinstance(request, FileRequest):
-            return self._get_files(request)
+            response = self._get_files(request)
         elif isinstance(request, ProductPlotRequest):
-            return self._make_plot(request)
+            response = self._make_plot(request)
         elif isinstance(request, ProcessPlotRequest):
-            return self._make_plot(request)
+            response = self._make_plot(request)
         elif isinstance(request, ProcessRequest):
-            return self._process_request(request)
+            response = self._process_request(request)
         elif isinstance(request, ContainerContentRequest):
-            return self._get_container_contents(request)
+            response = self._get_container_contents(request)
+        elif isinstance(request, PhaseTimeseriesRequest):
+            response = self._create_phase_timeseries(request)
         else:
-            return RequestResponse(
+            response = RequestResponse(
                 status=False,
                 message="Request was not handled by a case.",
             )
+        return response
 
     def _process_request(self, request: ProcessRequest) -> RequestResponse:
-        match request.process:
-            case Process.RESAMPLE:
-                self._create_resampled_files(request)
-            case Process.PHASES:
-                self._create_phase_maps(request)
-            case Process.RECLASSIFY:
-                self._reclassify_phases(request)
+        methods: dict[Process, Callable[[ProcessRequest], RequestResponse]] = {
+            Process.RESAMPLE: self._create_resampled_files,
+            Process.PHASES: self._create_phase_maps,
+            Process.RECLASSIFY: self._reclassify_phases,
+            Process.ISOLATE: self._isolate_phases,
+            Process.MONTHLY: self._create_monthly_aggregate,
+        }
+        response: RequestResponse
+        try:
+            response = methods[request.process](request)
+        except KeyError:
+            response = RequestResponse(
+                status=False,
+                message=f"No method found for {request.process}",
+            )
+        finally:
+            return response
 
     def _make_plot(
         self, request: ProcessPlotRequest | ProductPlotRequest
@@ -328,6 +358,9 @@ class ObservationManager:
             pass
         elif filepath.suffix == ".pkl":
             data = pd.read_pickle(filepath)
+        # Now that you have read the pickle, you can remove the file
+        os.remove(filepath)
+        # Create the plot
         panes: tuple[PlotPane, ...]
         if not product:
             panes = self._get_process_panes(process)
@@ -339,28 +372,41 @@ class ObservationManager:
 
         for pane in panes:
             self._draw_pane(fig, axs[pane], pane, data, request)
-        # You need to find out what you want to call the file
+
         axs[pane].set_xlabel("Time, [Hours, UTC]")
+        fig.suptitle(
+            f"{request.observatory.name.capitalize()} - {request.year} {request.month.name.capitalize()}. {str(request.day).zfill(2)}",
+            fontsize="x-large",
+        )
         # Save the file
-        # filepath: Path = Path.cwd() / (
-        #     f"D{target.year}"
-        #     f"-{str(target.month).zfill(2)}"
-        #     f"-{str(target.day).zfill(2)}"
-        #     f"-{request.observatory.name.lower()}"
-        #     "-resampled_frames"
-        #     ".png"
-        # )
-        # plt.savefig(filepath)
-        # # Add to blob storage
-        # self.instrument_access.add_blob(
-        #     name=request.observatory.name.lower(),
-        #     path=filepath,
-        #     directory=f"plots/cloud_phase_steps/01-resampled_frames/daily/{request.year}/",
-        # )
-        # # Remove the file
-        # os.remove(filepath)
-        # self._reset_colors()
-        # self._reset_letters()
+        name: str
+        directory: str
+        if isinstance(request, ProcessPlotRequest):
+            name = f"{request.process.name.lower()}-process"
+            match request.process:
+                case Process.RESAMPLE:
+                    directory = f"plots/cloud_phase_steps/01-resampled_frames/daily/{request.year}/"
+        elif isinstance(request, ProductPlotRequest):
+            name = f"{request.product.name.lower()}-product"
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{str(target.month).zfill(2)}"
+            f"-{str(target.day).zfill(2)}"
+            f"-{request.observatory.name.lower()}"
+            f"{name}-plot"
+            ".png"
+        )
+        plt.savefig(filepath)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory=directory,
+        )
+        # Remove the file
+        os.remove(filepath)
+        self._reset_colors()
+        self._reset_letters()
 
     def _get_files(self, request: FileRequest) -> RequestResponse:
         status: bool = False
@@ -403,15 +449,14 @@ class ObservationManager:
     def _get_container_contents(self, request: FileRequest) -> RequestResponse:
         prefix: str
         if request.process:
-            match request.process:
-                case Process.RESAMPLE:
-                    prefix = (
-                        f"cloud_phase_steps/01-resampled_frames/daily/{request.year}"
-                    )
-                case Process.PHASES:
-                    prefix = (
-                        f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}"
-                    )
+            prefixes: dict[Process, str] = {
+                Process.RESAMPLE: f"cloud_phase_steps/01-resampled_frames/daily/{request.year}",
+                Process.PHASES: f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}",
+                Process.RECLASSIFY: f"cloud_phase_steps/03-shupe-2011-phases/daily/{request.year}",
+                Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}",
+                Process.ISOLATED_PHASES: f"wavelet/01_isolated_phases/300seconds_1000meters/daily/{request.year}",
+            }
+            prefix = prefixes[request.process]
         elif request.product:
             prefix = f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/"
         blobs: tuple[str, ...] = self.instrument_access.list_blobs(
@@ -708,52 +753,66 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    # def _temp_add_sonde(self, request: ProcessRequest) -> None:
-    #     for target in self._dates_in_month(request.year, request.month):
-    #         print(target)
-    #         # The first thing we want to do is get the previous version of the file.
-    #         dl_info: DownloadInfo = DownloadInfo(
-    #             process=Process.RESAMPLE,
-    #             type=FileType.DAILY,
-    #             inclusive=False,
-    #             time=False,
-    #             target=target,
-    #         )
-    #         response: RequestResponse = self._download_file(request, dl_info)
-    #         if not response.status:
-    #             continue
-    #         # Now that you have the file, you want to open it
-    #         filename: str = response.items[0]
-    #         filepath: Path = Path.cwd() / filename
-    #         data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
-    #         # Now that you have the data, you want to get the sonde data
-    #         response = self._add_frames(InstrumentType.SONDE, request, target, data)
-    #         if not response.status:
-    #             continue
-    #         data = response.items[0]
-    #         # Resample the data
-    #         data["temp"] = self._reformat(data["temp"], method=ResampleMethod.MEAN)
-    #         # Save the file
-    #         filepath: Path = Path.cwd() / (
-    #             f"D{target.year}"
-    #             f"-{str(target.month).zfill(2)}"
-    #             f"-{str(target.day).zfill(2)}"
-    #             f"-{request.observatory.name.lower()}"
-    #             "-resampled_frames"
-    #             ".pkl"
-    #         )
-    #         with open(filepath, "wb") as file:
-    #             pickle.dump(data, file)
-    #         # Add to blob storage
-    #         self.instrument_access.add_blob(
-    #             name=request.observatory.name.lower(),
-    #             path=filepath,
-    #             directory=f"cloud_phase_steps/01a-resampled_frames_with_temp/daily/{request.year}/",
-    #         )
-    #         # Remove the file
-    #         os.remove(filepath)
+    def _create_phase_timeseries(
+        self, request: PhaseTimeseriesRequest
+    ) -> RequestResponse:
+        for target in self._dates_in_month(request.year, request.month):
+            print(target)
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.ISOLATE,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                continue
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            phases = pd.read_pickle(filepath)
+            # Now you can delete the data since you read the pickle
+            os.remove(filepath)
+            # Now resample the data
+            results: dict[Phase, pd.DataFrame] = dict()
+            for phase in phases.keys():
+                phases[phase].replace(np.nan, 0, inplace=True)
+                results[phase] = self._resample(
+                    phases[phase],
+                    request.seconds,
+                    transpose=False,
+                    method=ResampleMethod.MEAN,
+                )
+                results[phase] = self._resample(
+                    results[phase],
+                    request.meters,
+                    transpose=True,
+                    method=ResampleMethod.MEAN,
+                )
+                # You need to drop the last row, since this is technically the next day
+                results[phase] = results[phase].iloc[:-1, :]
+            # Save the file
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                f"-isolated_phases_{request.seconds}seconds_{request.meters}meters"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(results, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"wavelet/01_isolated_phases/{request.seconds}seconds_{request.meters}meters/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
 
-    def _create_resampled_files(self, request: ProcessRequest) -> None:
+    def _create_resampled_files(self, request: ProcessRequest) -> RequestResponse:
         missing_instrument: bool
         for target in self._dates_in_month(request.year, request.month):
             print(target)
@@ -834,13 +893,19 @@ class ObservationManager:
             filepath: Path = Path.cwd() / filename
             data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
             steps: dict[str, pd.DataFrame] = dict()
+            # Create a temperature mask
+            steps["temp_mask"] = self._step_temp_mask(data)
+            # Apply the temperature mask
+            data = self._apply_temp_mask(data, steps)
             # Process the steps
             steps["1"] = self._step_1(data)
             steps["2"] = self._step_2(data, steps)
             steps["3"] = self._step_3(data, steps)
-            steps["4a"] = self._step_4a(data, steps)
-            steps["radar_tops"] = self._step_radar_tops(data, steps)
-            steps["lidar_tops"] = self._step_lidar_tops(data, steps)
+            steps["4a"] = self._step_4a(
+                data, steps
+            )  # NOTE: This depends on temperature
+            steps["radar_edges"] = self._step_radar_edges(data, steps)
+            steps["lidar_edges"] = self._step_lidar_edges(data, steps)
             steps["occultation_zone"] = self._step_occultation(data, steps)
             steps["4b"] = self._step_4b(data, steps)
             steps["5"] = self._step_5(data, steps)
@@ -968,6 +1033,140 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
+    def _create_monthly_aggregate(self, request: ProcessRequest) -> None:
+        results: dict[Phase, list[list[float]]] = {phase: [] for phase in NEW_PHASES}
+        # How can you create the index that you need.
+        # You should just use a DateTime.datetime
+        index: list[datetime] = []
+        for target in self._dates_in_month(request.year, request.month):
+            print(target)
+            midnight: datetime = datetime(
+                year=target.year,
+                month=target.month,
+                day=target.day,
+                tzinfo=timezone.utc,
+            )
+            index += [midnight + timedelta(seconds=i) for i in range(0, 86101, 300)]
+            # Download the appropriate file
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.ISOLATED_PHASES,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                # because there was no file, you'll need to add a bunch of nans
+                # but you don't know what to add
+                # for each one of the phases, you need to add
+                for phase in NEW_PHASES:
+                    results[phase] += [[np.nan] * 18] * 288
+                continue
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            phases: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            os.remove(filepath)
+            for phase in NEW_PHASES:
+                results[phase] += phases[phase].values.tolist()
+        # Create the final result
+        final: dict[Phase, pd.DataFrame] = {
+            phase: pd.DataFrame(
+                index=index, columns=list(range(0, 17001, 1000)), data=results[phase]
+            )
+            for phase in NEW_PHASES
+        }
+        # Save the file
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{str(target.month).zfill(2)}"
+            f"-{str(target.day).zfill(2)}"
+            f"-{request.observatory.name.lower()}"
+            "-monthly_isolated_phases_300seconds_1000meters"
+            ".pkl"
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(final, file)
+        # Add to blob storage
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=filepath,
+            directory=f"wavelet/02_monthly_isolated_phases/300seconds_1000meters/daily/{request.year}/",
+        )
+        # Remove the file
+        os.remove(filepath)
+
+    def _isolate_phases(self, request: ProcessRequest) -> None:
+        for target in self._dates_in_month(request.year, request.month):
+            print(target)
+            # Download the appropriate file
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.RECLASSIFY,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                continue
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            phase_map: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            results: dict[Phase, pd.DataFrame] = dict()
+            for phase in NEW_PHASES:
+                results[phase] = self._isolate_single_phase(phase, phase_map)
+            filepath: Path = Path.cwd() / (
+                f"D{target.year}"
+                f"-{str(target.month).zfill(2)}"
+                f"-{str(target.day).zfill(2)}"
+                f"-{request.observatory.name.lower()}"
+                "-isolated_phases"
+                ".pkl"
+            )
+            with open(filepath, "wb") as file:
+                pickle.dump(results, file)
+            # Add to blob storage
+            self.instrument_access.add_blob(
+                name=request.observatory.name.lower(),
+                path=filepath,
+                directory=f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
+            )
+            # Remove the file
+            os.remove(filepath)
+
+    @staticmethod
+    def _isolate_single_phase(phase: Phase, phase_map: pd.DataFrame) -> pd.DataFrame:
+        result: pd.DataFrame = phase_map.copy(deep=True)
+        target: int = phase.value
+        result[phase_map != target] = np.nan
+        result[phase_map == target] = 1
+        return result
+
+    @staticmethod
+    def _step_temp_mask(data: dict[str, pd.DataFrame | pd.Series]) -> pd.DataFrame:
+        step: pd.DataFrame = data["temp"].copy(deep=True)
+        step[pd.notna(data["temp"])] = 1
+        step[pd.isna(data["temp"])] = 0
+        return step
+
+    @staticmethod
+    def _apply_temp_mask(
+        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
+        # apply the mask to all the dataframes iin data
+        for key, item in data.items():
+            if len(item.columns) == 1:
+                continue
+            if "temp" in key:
+                continue
+            # If you don't have temperature data
+            # don't perform any classification
+            item[steps["temp_mask"] == 0] = np.nan
+        return data
+
     @staticmethod
     def _step_1(data: dict[str, pd.DataFrame | pd.Series]) -> pd.DataFrame:
         step: pd.DataFrame = data["depol"].copy(deep=True)
@@ -981,17 +1180,6 @@ class ObservationManager:
     ) -> pd.DataFrame:
         # Make a copy
         step = steps["1"].copy(deep=True)
-        # Classify mixed-phase
-        step[
-            (steps["1"] == LIQUID)  # Lidar detected liquid
-            & (data["temp"] < SHUPE["freezing"]["nominal"])
-            & (SHUPE["refl"]["low"] < data["refl"])
-        ] = MIXED
-        step[
-            (steps["1"] == LIQUID)  # Lidar detected liquid
-            & (data["temp"] < SHUPE["freezing"]["nominal"])
-            & (SHUPE["mean_dopp_vel"]["low"] <= data["mean_dopp_vel"])
-        ] = MIXED
         # Classify Drizzle
         step[
             (steps["1"] == LIQUID)  # Lidar detected liquid
@@ -1003,6 +1191,17 @@ class ObservationManager:
             & (SHUPE["freezing"]["nominal"] <= data["temp"])
             & (SHUPE["mean_dopp_vel"]["low"] < data["mean_dopp_vel"])
         ] = DRIZZLE
+        # Classify mixed-phase
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["refl"]["low"] < data["refl"])
+        ] = MIXED
+        step[
+            (steps["1"] == LIQUID)  # Lidar detected liquid
+            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (SHUPE["mean_dopp_vel"]["low"] < data["mean_dopp_vel"])
+        ] = MIXED
         return step
 
     @staticmethod
@@ -1034,32 +1233,32 @@ class ObservationManager:
         # First set all of the values that are in the mask to rain
         step[
             (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
-            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])  # Above zero
             & (data["radar_mask"] == 1)  # Pixels viewed by radar
         ] = RAIN
         # Now cut in with drizzle
         step[
             (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
-            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])  # Above zero
             & (data["refl"] < SHUPE["refl"]["high"])
             & (data["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["high"])
         ] = DRIZZLE
         # Finally cut in with liquid
         step[
             (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
-            & (SHUPE["freezing"]["nominal"] <= data["temp"])
+            & (SHUPE["freezing"]["nominal"] <= data["temp"])  # Above zero
             & (data["refl"] < SHUPE["refl"]["low"])
-            & (data["mean_dopp_vel"] < 1)  # Low velocity
+            & (data["mean_dopp_vel"] < SHUPE["mean_dopp_vel"]["low"])  # Low velocity
         ] = LIQUID
         # Differentiate between snow and ice below freezing using reflectivity at narrow widths.
         step[
             (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
-            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["temp"] < SHUPE["freezing"]["nominal"])  # Below zero
             & (data["spec_width"] < SHUPE["spec_width"]["low"])
         ] = SNOW
         step[
             (data["lidar_mask"] == 0)  # Pixels not viewed by lidar
-            & (data["temp"] < SHUPE["freezing"]["nominal"])
+            & (data["temp"] < SHUPE["freezing"]["nominal"])  # Below zero
             & (data["spec_width"] < SHUPE["spec_width"]["low"])
             & (data["refl"] < SHUPE["refl"]["high"])
         ] = ICE
@@ -1087,7 +1286,7 @@ class ObservationManager:
         return step
 
     @staticmethod
-    def _step_radar_tops(
+    def _step_radar_edges(
         data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
@@ -1099,7 +1298,7 @@ class ObservationManager:
         return step
 
     @staticmethod
-    def _step_lidar_tops(
+    def _step_lidar_edges(
         data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
@@ -1118,13 +1317,13 @@ class ObservationManager:
         for col in step.columns:
             step[col].values[:] = 0
         # Find Lidar Occulation Levels and Radar Tops
-        lidar_occultation_levels = steps["lidar_tops"].T.apply(
+        lidar_occultation_levels = steps["lidar_edges"].T.apply(
             lambda series: series[series == 1].index.max()
         )
-        radar_tops_levels = steps["radar_tops"].T.apply(
+        radar_tops_levels = steps["radar_edges"].T.apply(
             lambda series: series[series == 1].index.tolist()
         )
-        for t in steps["lidar_tops"].index:
+        for t in steps["lidar_edges"].index:
             for radar_top in radar_tops_levels[t]:
                 base = lidar_occultation_levels[t]
                 if 0 < radar_top - base <= SHUPE["occultation"]["high"]:
@@ -1197,8 +1396,8 @@ class ObservationManager:
                 ):
                     # No liquid was detected
                     # Look for a lidar base
-                    lidar_tops = steps["lidar_tops"].loc[row, :]
-                    base = lidar_tops[lidar_tops == -1].index.min() - 45
+                    lidar_edges = steps["lidar_edges"].loc[row, :]
+                    base = lidar_edges[lidar_edges == -1].index.min() - 45
                     if np.isnan(base):
                         # Then use the lowest observation height
                         base = 0
@@ -1230,6 +1429,8 @@ class ObservationManager:
                     (data["temp"].loc[row, :] < SHUPE["freezing"]["nominal"])
                     & (MIXED <= step.loc[row, :]),
                 ] = ICE
+        # Apply the temp mask since the lwp may not have been aware
+        step[steps["temp_mask"] == 0] = np.nan
         return step
 
     @staticmethod
@@ -1450,12 +1651,15 @@ class ObservationManager:
         request: ProcessPlotRequest | ProductPlotRequest,
     ) -> None:
         key: str = pane.name.lower()
+        if key.startswith("step_"):
+            key = key.replace("step_", "")
         if len(data[key].columns) == 1:
             # Time-series
-            l2d: Line2D = ax.plot(
+            _: Line2D = ax.plot(
                 data[key].index / 3600, data[key].values, color=self._get_next_color()
             )
-            ax.set_ylim(bottom=0)
+            if pane != PlotPane.LWP:
+                ax.set_ylim(bottom=0)
         else:
             # Time-height
             x_min: float | None = request.left
@@ -1491,6 +1695,8 @@ class ObservationManager:
                 ticks=colorbar_ticks[pane],
             )
             cbar.set_label(colorbar_labels[pane], rotation=270, labelpad=15)
+            if colorbar_tick_labels[pane]:
+                cbar.ax.set_yticklabels(colorbar_tick_labels[pane])
         ax.grid(alpha=0.25)
         if pane == PlotPane.DLR:
             xy = (0, 0)
@@ -1503,6 +1709,7 @@ class ObservationManager:
         ax.set_ylabel(plot_ylabels[pane])
         ax.annotate(
             rf"{self._get_next_letter()}) {plot_labels[pane]}",
+            color=plot_label_colors[pane],
             xy=xy,
             xycoords="axes fraction",
             xytext=xytext,
@@ -1628,6 +1835,21 @@ class ObservationManager:
                     PlotPane.TEMP,
                     PlotPane.LWP,
                     PlotPane.DLR,
+                )
+            case Process.PHASES:
+                panes = (
+                    PlotPane.STEP_1,
+                    PlotPane.STEP_2,
+                    PlotPane.STEP_3,
+                    PlotPane.STEP_4A,
+                    PlotPane.STEP_RADAR_TOPS,
+                    PlotPane.STEP_LIDAR_TOPS,
+                    PlotPane.STEP_OCCULTATION_ZONE,
+                    PlotPane.STEP_4B,
+                    PlotPane.STEP_5,
+                    PlotPane.STEP_6,
+                    PlotPane.STEP_7,
+                    PlotPane.STEP_8,
                 )
         return panes
 
@@ -1800,27 +2022,27 @@ class ObservationManager:
             for col in steps["occultation_zone"].columns:
                 steps["occultation_zone"][col].values[:] = 0
             # Find the radar tops
-            steps["radar_tops"] = steps["4"].copy(deep=True)
-            steps["radar_tops"].iloc[:, :-1] = (
+            steps["radar_edges"] = steps["4"].copy(deep=True)
+            steps["radar_edges"].iloc[:, :-1] = (
                 frames["radar_mask"].iloc[:, :-1].values
                 - frames["radar_mask"].iloc[:, 1:].values
             )
-            steps["radar_tops"].iloc[:, -1] = 0
+            steps["radar_edges"].iloc[:, -1] = 0
             # Find the lidar tops
-            steps["lidar_tops"] = steps["4"].copy(deep=True)
-            steps["lidar_tops"].iloc[:, :-1] = (
+            steps["lidar_edges"] = steps["4"].copy(deep=True)
+            steps["lidar_edges"].iloc[:, :-1] = (
                 frames["lidar_mask"].iloc[:, :-1].values
                 - frames["lidar_mask"].iloc[:, 1:].values
             )
-            steps["lidar_tops"].iloc[:, -1] = 0
+            steps["lidar_edges"].iloc[:, -1] = 0
             # Find Lidar Occulation Levels and Radar Tops
-            lidar_occultation_levels = steps["lidar_tops"].T.apply(
+            lidar_occultation_levels = steps["lidar_edges"].T.apply(
                 lambda series: series[series == 1].index.max()
             )
-            radar_tops_levels = steps["radar_tops"].T.apply(
+            radar_tops_levels = steps["radar_edges"].T.apply(
                 lambda series: series[series == 1].index.tolist()
             )
-            for i, t in enumerate(steps["lidar_tops"].index):
+            for i, t in enumerate(steps["lidar_edges"].index):
                 for radar_top in radar_tops_levels[t]:
                     base = lidar_occultation_levels[t]
                     if 0 <= radar_top - base <= SHUPE["occultation"]["high"]:
@@ -1895,12 +2117,12 @@ class ObservationManager:
                         for phase in layer
                     ):
                         # No liquid was detected
-                        lidar_tops = steps["lidar_tops"].loc[row, :]
-                        base = lidar_tops[lidar_tops == -1].index.min() - 45
+                        lidar_edges = steps["lidar_edges"].loc[row, :]
+                        base = lidar_edges[lidar_edges == -1].index.min() - 45
                         if np.isnan(base):
                             # Then use the radar base
-                            radar_tops = steps["radar_tops"].loc[row, :]
-                            base = radar_tops[radar_tops == -1].index.min() - 45
+                            radar_edges = steps["radar_edges"].loc[row, :]
+                            base = radar_edges[radar_edges == -1].index.min() - 45
                             if np.isnan(base):
                                 continue
                         # Now we have a base
@@ -4230,10 +4452,13 @@ class ObservationManager:
 
     @staticmethod
     def _dates_in_month(year: int, month: Month) -> Generator[date, None, None]:
+        this_date: date
         month: int = month.value
         current = datetime(year, month, 1)
         while current.month == month:
-            yield date(year, month, current.day)
+            this_date = date(year, month, current.day)
+            print(this_date)
+            yield this_date
             current = current + timedelta(days=1)
 
     def _generate_data(
@@ -4254,15 +4479,15 @@ class ObservationManager:
             for filename in selected:
                 filepath: Path = Path.cwd() / filename
                 if not filepath.exists():
-                    filename = self.instrument_access.download_blob(
+                    _filename = self.instrument_access.download_blob(
                         container=request.observatory.name.lower(),
                         name=filename,
                     )
-                    filepath: Path = Path.cwd() / filename
+                    filepath: Path = Path.cwd() / _filename
                     remove: bool = (
                         True  # The legacy patter has the responsibily to delete here, this needs to be updated
                     )
-                with DataSet(filename) as dataset:
+                with DataSet(_filename) as dataset:
                     yield self.transformation_context.hydrate(dataset, filepath)
                 if remove:
                     os.remove(filepath)
@@ -4409,22 +4634,22 @@ class ObservationManager:
         return instrument_data
 
     @staticmethod
-    def _resample(df: pd.DataFrame, base: int, transpose: bool, method: str):
+    def _resample(df: pd.DataFrame, base: int, transpose: bool, method: ResampleMethod):
+        key: str = "seconds"
         if transpose:
             df = df.T
+            key = "meters"
         new_df: pd.DataFrame = pd.DataFrame(
             [base * round(i / base) for i in df.index],
-            columns=[
-                "new_column",
-            ],
+            columns=[key],
             index=df.index,
         )
         df = pd.concat([df, new_df], axis=1)
         match method:
             case ResampleMethod.MODE:
-                df = df.groupby("new_column").agg(lambda x: min(pd.Series.mode(x)))
+                df = df.groupby(key).agg(lambda x: min(pd.Series.mode(x)))
             case ResampleMethod.MEAN:
-                df = df.groupby("new_column").mean()
+                df = df.groupby(key).mean()
             case _:
                 raise ValueError("invalid method")
         if transpose:

@@ -5,63 +5,20 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 
+from sio_postdoc.engine.transformation.wavelet import TopHat
 from sio_postdoc.manager import Instrument, Month, Observatory, Process, Product
 from sio_postdoc.manager.observation.contracts import (
     DailyProductRequest,
     DailyRequest,
     ObservatoryRequest,
+    PhaseTimeseriesRequest,
+    ProcessPlotRequest,
     ProcessRequest,
 )
 from sio_postdoc.manager.observation.service import ObservationManager
 
 # load_dotenv(override=True)
 # manager = ObservationManager()
-
-# Here is how you process several years of raw data
-# STEP 1: run the months in parallel
-# YEARS = [2020, 2021, 2022]
-# OBSERVATORY = Observatory.OLIKTOK
-# products = [Product.ARSCLKAZR1KOLLIAS, Product.INTERPOLATEDSONDE, Product.MPLCMASKML]
-# for year in YEARS:
-#     for month in [Month.JAN]:
-#         for product in products:
-#             request = DailyProductRequest(
-#                 product=product,
-#                 observatory=OBSERVATORY,
-#                 month=month,
-#                 year=year,
-#             )
-#             manager.create_daily_product_files(request)
-#         request = ObservatoryRequest(
-#             observatory=OBSERVATORY,
-#             month=month,
-#             year=year,
-#         )
-#         manager.create_daily_resampled_merged_files(request)
-#         manager.create_daily_layers_and_phases(request)
-#         manager.reclassify_mixed_columns(request)
-#         manager.create_monthly_phase_summary(request)
-
-# STEP 2: Summarize Annually
-# for year in YEARS:
-#     request = ObservatoryRequest(
-#         observatory=OBSERVATORY,
-#         month=None,
-#         year=year,
-#     )
-#     manager.create_annual_phase_summary(request)
-#     manager.create_annual_phase_summary_by_temp(request)
-#     manager.create_annual_phase_summary_for_report(request)
-#     manager.create_annual_phase_summary_for_report_2(request)
-
-
-# for year in [2019]:
-#     request = ObservatoryRequest(
-#         observatory=Observatory.UTQIAGVIK,
-#         month=None,
-#         year=year,
-#     )
-#     manager.create_annual_phase_summary_for_report_2(request)
 
 
 @pytest.fixture(scope="module")
@@ -77,6 +34,53 @@ def test_format_dir(manager: ObservationManager):
         "C:\\Users\\sio-admin\\Desktop\\data\\utqiagvik\\kazr\\2019\\nsaarsclkazr1kolliasC1.c0.20190101.000000.nc"
     )
     manager.format_dir(directory=directory, suffix=".nc", year="2019")
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_plot_request(manager: ObservationManager):
+    request = ProcessPlotRequest(
+        observatory=Observatory.UTQIAGVIK,
+        year=2022,
+        month=Month.OCT,
+        day=5,
+        process=Process.PHASES,
+        # top=6,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_tophat_wavelet():
+    tophat2 = TopHat(j=2)
+    tophat3 = TopHat(j=3)
+    tophat4 = TopHat(j=4)
+    tophat5 = TopHat(j=5)
+    tophat6 = TopHat(j=6)
+    tophat7 = TopHat(j=7)
+    print("I am here.")
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_monthly_phase_fractions(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.OCT,
+        year=2022,
+        process=Process.MONTHLY,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_average_timeseries(manager: ObservationManager):
+    request = PhaseTimeseriesRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.MAR,
+        year=2022,
+        seconds=int(5 * 60),
+        meters=1000,
+    )
+    manager.process(request)
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
@@ -105,9 +109,53 @@ def test_create_daily_product_files(manager: ObservationManager):
 def test_create_daily_resampled_merged_files(manager: ObservationManager):
     request = ProcessRequest(
         observatory=Observatory.UTQIAGVIK,
-        month=Month.OCT,
+        month=Month.MAR,
         year=2022,
         process=Process.RESAMPLE,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_add_temp_to_resampled_files(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.MAR,
+        year=2022,
+        process=Process.RESAMPLE,
+    )
+    manager._temp_add_sonde(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_phase_request(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        year=2022,
+        month=Month.OCT,
+        process=Process.PHASES,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_reclassify_request(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        year=2022,
+        month=Month.SEP,
+        process=Process.RECLASSIFY,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_isolate_phases(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        year=2022,
+        month=Month.OCT,
+        process=Process.ISOLATE,
     )
     manager.process(request)
 

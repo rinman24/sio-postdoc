@@ -5,22 +5,25 @@ from pydantic import BaseModel
 
 from sio_postdoc.manager import PlotPane
 
+SHUPE_2007: ListedColormap = ListedColormap(
+    [
+        "#05598c",  # SNOW
+        "#386982",  # ICE
+        "#6f878d",  # MIXED
+        "#a1a698",  # LIQUID
+        "#bab98d",  # DRIZZLE
+        "#d2d184",  # RAIN
+    ]
+)
+
+TOPS: ListedColormap = ListedColormap(
+    [
+        "#a1a698",  # CLEAR
+        "#05598c",  # TOPS
+    ]
+)
+
 colormaps: dict[PlotPane, ListedColormap] = {
-    # PlotPane.REFL: ListedColormap(
-    #     [
-    #         "#033198",
-    #         "#1B54A8",
-    #         "#2676B6",
-    #         "#3495C3",
-    #         "#4FB5D0",
-    #         "#7ED5D7",
-    #         "#AFE8CF",
-    #         "#CCE7B0",
-    #         "#D1CD78",
-    #         "#C2A647",
-    #         "#B2842D",
-    #     ]
-    # ),
     PlotPane.REFL: ListedColormap(
         [
             "#ffe0df",
@@ -38,28 +41,17 @@ colormaps: dict[PlotPane, ListedColormap] = {
     ),
     PlotPane.MEAN_DOPP_VEL: ListedColormap(
         [
-            "#3190C1",
-            "#5DC1D3",
-            "#A4E5D3",
-            "#D0E3A3",
-            "#C8B455",
-            "#B07F2A",
-            "#995215",
-            "#7E1700",
+            "#293c6f",
+            "#366392",
+            "#668baf",
+            "#9eb5cc",
+            "#d0d0a2",
+            "#a6a66b",
+            "#777744",
+            "#4c4c20",
+            "#262600",
         ]
     ),
-    # PlotPane.SPEC_WIDTH: ListedColormap(
-    #     [
-    #         "#cce7b2",
-    #         "#d2d484",
-    #         "#c8b455",
-    #         "#ba9437",
-    #         "#ac7726",
-    #         "#9e5c19",
-    #         "#903e0d",
-    #         "#7e1700",
-    #     ]
-    # ),
     PlotPane.SPEC_WIDTH: ListedColormap(
         [
             "#fed3cf",
@@ -74,7 +66,7 @@ colormaps: dict[PlotPane, ListedColormap] = {
     ),
     PlotPane.DEPOL: ListedColormap(
         [
-            "#c8b455",  # "#d2d98d",
+            "#c8b455",
             "#b3e9cd",
             "#90ded7",
             "#69c9d5",
@@ -89,30 +81,58 @@ colormaps: dict[PlotPane, ListedColormap] = {
     PlotPane.TEMP: ListedColormap(
         [
             "#033198",
-            "#2064ae",
-            "#3190c1",
-            "#5dc1d3",
-            "#a4e5d3",
-            "#d0e3a3",
-            "#c8b455",
-            "#b07f2a",
-            "#995215",
+            "#1d5bab",
+            "#2a81bb",
+            "#40a6ca",
+            "#71ced6",
+            "#abe7d1",
+            "#cee5ab",
+            "#cec46a",
+            "#ba9538",
+            "#a86f22",
         ]
     ),
+    PlotPane.STEP_1: SHUPE_2007,
+    PlotPane.STEP_2: SHUPE_2007,
+    PlotPane.STEP_3: SHUPE_2007,
+    PlotPane.STEP_4A: SHUPE_2007,
+    PlotPane.STEP_4B: SHUPE_2007,
+    PlotPane.STEP_5: SHUPE_2007,
+    PlotPane.STEP_6: SHUPE_2007,
+    PlotPane.STEP_7: SHUPE_2007,
+    PlotPane.STEP_8: SHUPE_2007,
+    PlotPane.STEP_RADAR_TOPS: TOPS,
+    PlotPane.STEP_LIDAR_TOPS: TOPS,
+    PlotPane.STEP_OCCULTATION_ZONE: TOPS,
 }
 
 
-class limits(BaseModel):
+class Limits(BaseModel):
     """Encapsulate colormap limits."""
 
     vmin: float
     vmax: float
 
 
-colormap_limits: dict[PlotPane, limits] = {
-    PlotPane.REFL: limits(vmin=-70, vmax=40),
-    PlotPane.MEAN_DOPP_VEL: limits(vmin=-3, vmax=5),
-    PlotPane.SPEC_WIDTH: limits(vmin=0, vmax=1.6),
-    PlotPane.DEPOL: limits(vmin=0, vmax=1),
-    PlotPane.TEMP: limits(vmin=-50, vmax=40),
+PHASES_SHUPE_2007: Limits = Limits(vmin=0.5, vmax=6.5)
+EDGES: Limits = Limits(vmin=-0.5, vmax=1.5)
+
+colormap_limits: dict[PlotPane, Limits] = {
+    PlotPane.REFL: Limits(vmin=-70, vmax=40),
+    PlotPane.MEAN_DOPP_VEL: Limits(vmin=-4, vmax=5),
+    PlotPane.SPEC_WIDTH: Limits(vmin=0, vmax=1.6),
+    PlotPane.DEPOL: Limits(vmin=0, vmax=1),
+    PlotPane.TEMP: Limits(vmin=-60, vmax=40),
+    PlotPane.STEP_1: PHASES_SHUPE_2007,
+    PlotPane.STEP_2: PHASES_SHUPE_2007,
+    PlotPane.STEP_3: PHASES_SHUPE_2007,
+    PlotPane.STEP_4A: PHASES_SHUPE_2007,
+    PlotPane.STEP_4B: PHASES_SHUPE_2007,
+    PlotPane.STEP_5: PHASES_SHUPE_2007,
+    PlotPane.STEP_6: PHASES_SHUPE_2007,
+    PlotPane.STEP_7: PHASES_SHUPE_2007,
+    PlotPane.STEP_8: PHASES_SHUPE_2007,
+    PlotPane.STEP_RADAR_TOPS: EDGES,
+    PlotPane.STEP_LIDAR_TOPS: EDGES,
+    PlotPane.STEP_OCCULTATION_ZONE: EDGES,
 }
