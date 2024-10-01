@@ -886,6 +886,9 @@ class ObservationManager:
             filename: str = response.items[0]
             filepath: Path = Path.cwd() / filename
             data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            # Delete the file
+            os.remove(filepath)
+
             steps: dict[str, pd.DataFrame] = dict()
             # Create a temperature mask
             steps["temp_mask"] = self._step_temp_mask(data)
@@ -895,9 +898,8 @@ class ObservationManager:
             steps["1"] = self._step_1(data)
             steps["2"] = self._step_2(data, steps)
             steps["3"] = self._step_3(data, steps)
-            steps["4a"] = self._step_4a(
-                data, steps
-            )  # NOTE: This depends on temperature
+            # NOTE: This depends on temperature
+            steps["4a"] = self._step_4a(data, steps)
             steps["radar_edges"] = self._step_radar_edges(data, steps)
             steps["lidar_edges"] = self._step_lidar_edges(data, steps)
             steps["occultation_zone"] = self._step_occultation(data, steps)
