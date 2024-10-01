@@ -494,7 +494,6 @@ class ObservationManager:
         )
         # Create a daily file for each day in the month
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -557,7 +556,6 @@ class ObservationManager:
         )
         # Create a daily file for each day in the month
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -661,7 +659,6 @@ class ObservationManager:
         }
         # Create a daily file for each day in the month
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: dict[str, tuple[str] | tuple] = {
                 product.name.lower(): self.filter_context.apply(
                     target,
@@ -757,7 +754,6 @@ class ObservationManager:
         self, request: PhaseTimeseriesRequest
     ) -> RequestResponse:
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.ISOLATE,
                 type=FileType.DAILY,
@@ -815,7 +811,6 @@ class ObservationManager:
     def _create_resampled_files(self, request: ProcessRequest) -> RequestResponse:
         missing_instrument: bool
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             missing_instrument = False
             frames: dict[str, pd.DataFrame | pd.Series] = dict()
             # Add the frames
@@ -876,7 +871,6 @@ class ObservationManager:
 
     def _create_phase_maps(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             # Download the appropriate file
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.RESAMPLE,
@@ -934,7 +928,6 @@ class ObservationManager:
 
     def _reclassify_phases(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             # Download the appropriate file
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.PHASES,
@@ -1039,7 +1032,6 @@ class ObservationManager:
         # You should just use a DateTime.datetime
         index: list[datetime] = []
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             midnight: datetime = datetime(
                 year=target.year,
                 month=target.month,
@@ -1099,7 +1091,6 @@ class ObservationManager:
 
     def _isolate_phases(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             # Download the appropriate file
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.RECLASSIFY,
@@ -1888,7 +1879,6 @@ class ObservationManager:
             name_starts_with=f"resampled_frames/daily/{request.year}/",
         )
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -2287,7 +2277,6 @@ class ObservationManager:
             name_starts_with=f"mask_steps/daily/{request.year}/",
         )
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -2437,7 +2426,6 @@ class ObservationManager:
         # Now that you have the series with the correct index
         # You can produce the summary counts
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -2675,7 +2663,6 @@ class ObservationManager:
         # You can produce the summary counts
         for month in range(1, 13):
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 # Download the phase map ---------------------------------
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
@@ -2825,7 +2812,6 @@ class ObservationManager:
         # Now start building results
         for month in range(1, 13):
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 # Download the phase map ---------------------------------
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
@@ -2956,7 +2942,6 @@ class ObservationManager:
             mixed = 0
             liquid = 0
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 # Download the phase map ---------------------------------
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
@@ -3061,7 +3046,6 @@ class ObservationManager:
 
             # For each month in the year
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 # Download the phase map ---------------------------------
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
@@ -3177,7 +3161,6 @@ class ObservationManager:
         # Now start building results
         for month in range(1, 13):
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 # Download the phase map ---------------------------------
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
@@ -3320,7 +3303,6 @@ class ObservationManager:
         depths = []
         for month in range(1, 13):
             for target in self._dates_in_month(request.year, month):
-                print(target)
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
                     blobs,
@@ -3435,7 +3417,6 @@ class ObservationManager:
                     day=target.day,
                     tzinfo=timezone.utc,
                 )
-                print(target)
                 selected: tuple[str, ...] = self.filter_context.apply(
                     target,
                     blobs,
@@ -3543,7 +3524,6 @@ class ObservationManager:
             name_starts_with=f"resampled_frames/daily/{request.year}/",
         )
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: dict[str, tuple[str, ...]] = {}
             selected["steps"] = self.filter_context.apply(
                 target,
@@ -3572,7 +3552,6 @@ class ObservationManager:
                 steps = pickle.load(file)
             os.remove(filepath)
             # Now we should have the combined frames
-            print("You are here")
             for t in steps["5"].index:
                 slice_ = steps["5"].loc[t, :]
                 if all(np.isnan(slice_)):
@@ -3607,7 +3586,6 @@ class ObservationManager:
         )
         # Create a daily file for each day in the month
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
@@ -3726,7 +3704,6 @@ class ObservationManager:
         }
         # Merge the masks for each day in the month
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: dict[Instrument, tuple[str, ...]] = {
                 instrument: self.filter_context.apply(
                     target,
@@ -3905,9 +3882,6 @@ class ObservationManager:
                         if any(ONE_HALF <= v.mean().mean() for v in values.values())
                         else NO_CLOUD
                     )
-            # NOTE: SPEED THINGS UP
-            # with open("mask_list.pkl", "rb") as file:
-            #     mask = pickle.load(file)
             mask: pd.DataFrame = pd.DataFrame(
                 mask,
                 index=times,
@@ -3989,7 +3963,6 @@ class ObservationManager:
         )
         # Extract the data for each day
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target, blobs, strategy=NamesByDate(), time=False
             )
@@ -4209,7 +4182,6 @@ class ObservationManager:
     #     radar: int = 0
     #     both: int = 0
     #     for target in self._dates_in_month(request.year, request.month):
-    #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
     #         )
@@ -4266,7 +4238,6 @@ class ObservationManager:
     #     radar: int = 0
     #     both: int = 0
     #     for target in self._dates_in_month(request.year, request.month):
-    #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
     #         )
@@ -4308,7 +4279,6 @@ class ObservationManager:
     #     four = 0
     #     five = 0
     #     for target in self._dates_in_month(request.year, request.month):
-    #         print(target)
     #         selected: tuple[str, ...] = self.filter_context.apply(
     #             target, blobs, strategy=NamesByDate(), time=False
     #         )
@@ -4359,7 +4329,6 @@ class ObservationManager:
         monthly_datetimes: list[datetime] = []
         monthly_layers: list[list[np.nan | int]] = []
         for target in self._dates_in_month(request.year, request.month):
-            print(target)
             selected: tuple[str, ...] = self.filter_context.apply(
                 target,
                 blobs,
