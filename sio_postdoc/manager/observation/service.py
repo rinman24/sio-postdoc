@@ -111,8 +111,10 @@ from sio_postdoc.manager import (
     ResampleMethod,
 )
 from sio_postdoc.manager.observation.colorbars import (
+    colorbar_aspects,
     colorbar_extend,
     colorbar_labels,
+    colorbar_shrinks,
     colorbar_tick_labels,
     colorbar_ticks,
 )
@@ -133,6 +135,7 @@ from sio_postdoc.manager.observation.contracts import (
     ProductPlotRequest,
     RequestResponse,
 )
+from sio_postdoc.manager.observation.facecolors import axis_facecolors
 from sio_postdoc.manager.observation.plot_labels import (
     plot_label_colors,
     plot_labels,
@@ -373,6 +376,7 @@ class ObservationManager:
         for pane in panes:
             self._draw_pane(fig, axs[pane], pane, data, request)
 
+        axs[pane].xaxis.tick_bottom()
         axs[pane].set_xlabel("Time, [Hours, UTC]")
         fig.suptitle(
             f"{request.observatory.name.capitalize()} - {request.year} {request.month.name.capitalize()}. {str(request.day).zfill(2)}",
@@ -393,7 +397,7 @@ class ObservationManager:
             f"-{str(target.month).zfill(2)}"
             f"-{str(target.day).zfill(2)}"
             f"-{request.observatory.name.lower()}"
-            f"{name}-plot"
+            f"-{name}-plot"
             ".png"
         )
         plt.savefig(filepath)
@@ -1685,13 +1689,15 @@ class ObservationManager:
                 ai,
                 ax=ax,
                 extend=colorbar_extend[pane],
-                aspect=7.5,
+                aspect=colorbar_aspects[pane],
                 ticks=colorbar_ticks[pane],
+                shrink=colorbar_shrinks[pane],
             )
             cbar.set_label(colorbar_labels[pane], rotation=270, labelpad=15)
             if colorbar_tick_labels[pane]:
                 cbar.ax.set_yticklabels(colorbar_tick_labels[pane])
-            ax.set_facecolor("#D6D6D6")  # This is for nan values
+            # Set the background color.
+            ax.set_facecolor(axis_facecolors[pane])
         ax.grid(alpha=0.25)
         if pane == PlotPane.DLR:
             xy = (0, 0)
@@ -4319,7 +4325,7 @@ class ObservationManager:
     #         "five": five,
     #     }
 
-    @deprecated("Most likely deprecated")
+    @deprecated("Use PLOT Process")
     def create_daily_layer_plots(self, request: DailyRequest) -> None:
         """Create daily files for a given instrument, observatory, month and year."""
         # Get a list of all the relevant blobs

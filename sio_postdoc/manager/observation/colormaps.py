@@ -19,9 +19,9 @@ SHUPE_2007: ListedColormap = ListedColormap(
 
 EDGES: ListedColormap = ListedColormap(
     [
-        "#7e1700",
-        "#c0eac3",
-        "#033198",
+        "#389cc6",
+        "#ffffff",
+        "#b68c32",
     ]
 )
 
@@ -108,7 +108,7 @@ colormaps: dict[PlotPane, ListedColormap] = {
     PlotPane.STEP_LIDAR_EDGES: EDGES,
     PlotPane.STEP_OCCULTATION_ZONE: ListedColormap(
         [
-            "#c0eac3",
+            "#ffffff",
             "#7e1700",
         ]
     ),

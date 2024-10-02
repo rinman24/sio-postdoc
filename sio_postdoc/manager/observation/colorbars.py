@@ -96,3 +96,44 @@ colorbar_tick_labels: dict[PlotPane, tuple[float, ...] | None] = {
     PlotPane.STEP_7: PHASE_TICK_LABELS_SHUPE_2007,
     PlotPane.STEP_8: PHASE_TICK_LABELS_SHUPE_2007,
 }
+
+
+colorbar_shrinks: dict[PlotPane, float] = {
+    PlotPane.MEAN_DOPP_VEL: 1,
+    PlotPane.REFL: 1,
+    PlotPane.SPEC_WIDTH: 1,
+    PlotPane.DEPOL: 1,
+    PlotPane.TEMP: 1,
+    PlotPane.STEP_1: 1,
+    PlotPane.STEP_2: 1,
+    PlotPane.STEP_3: 1,
+    PlotPane.STEP_4A: 1,
+    PlotPane.STEP_RADAR_EDGES: 3 / 7,
+    PlotPane.STEP_LIDAR_EDGES: 3 / 7,
+    PlotPane.STEP_OCCULTATION_ZONE: 2 / 7,
+    PlotPane.STEP_4B: 1,
+    PlotPane.STEP_5: 1,
+    PlotPane.STEP_6: 1,
+    PlotPane.STEP_7: 1,
+    PlotPane.STEP_8: 1,
+}
+
+colorbar_aspects: dict[PlotPane, int] = {
+    PlotPane.MEAN_DOPP_VEL: 7,
+    PlotPane.REFL: 7,
+    PlotPane.SPEC_WIDTH: 7,
+    PlotPane.DEPOL: 7,
+    PlotPane.TEMP: 7,
+    PlotPane.STEP_1: 7,
+    PlotPane.STEP_2: 7,
+    PlotPane.STEP_3: 7,
+    PlotPane.STEP_4A: 7,
+    PlotPane.STEP_RADAR_EDGES: 3,
+    PlotPane.STEP_LIDAR_EDGES: 3,
+    PlotPane.STEP_OCCULTATION_ZONE: 2,
+    PlotPane.STEP_4B: 7,
+    PlotPane.STEP_5: 7,
+    PlotPane.STEP_6: 7,
+    PlotPane.STEP_7: 7,
+    PlotPane.STEP_8: 7,
+}
