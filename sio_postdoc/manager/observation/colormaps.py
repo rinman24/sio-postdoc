@@ -7,19 +7,21 @@ from sio_postdoc.manager import PlotPane
 
 SHUPE_2007: ListedColormap = ListedColormap(
     [
-        "#05598c",  # SNOW
-        "#386982",  # ICE
-        "#6f878d",  # MIXED
-        "#a1a698",  # LIQUID
-        "#bab98d",  # DRIZZLE
-        "#d2d184",  # RAIN
+        "#ffffff",  # NONE
+        "#033198",  # SNOW
+        "#2d88be",  # ICE
+        "#89dad7",  # MIXED
+        "#d2d484",  # LIQUID
+        "#ac7726",  # DRIZZLE
+        "#7e1700",  # RAIN
     ]
 )
 
-TOPS: ListedColormap = ListedColormap(
+EDGES: ListedColormap = ListedColormap(
     [
-        "#a1a698",  # CLEAR
-        "#05598c",  # TOPS
+        "#7e1700",
+        "#c0eac3",
+        "#033198",
     ]
 )
 
@@ -81,15 +83,16 @@ colormaps: dict[PlotPane, ListedColormap] = {
     PlotPane.TEMP: ListedColormap(
         [
             "#033198",
-            "#1d5bab",
-            "#2a81bb",
-            "#40a6ca",
-            "#71ced6",
-            "#abe7d1",
-            "#cee5ab",
-            "#cec46a",
-            "#ba9538",
-            "#a86f22",
+            "#1b54a8",
+            "#2676b6",
+            "#3495c3",
+            "#4fb5d0",
+            "#7ed5d7",
+            "#afe8cf",
+            "#cce7b0",
+            "#d1cd78",
+            "#c2a647",
+            "#b2842d",
         ]
     ),
     PlotPane.STEP_1: SHUPE_2007,
@@ -101,9 +104,14 @@ colormaps: dict[PlotPane, ListedColormap] = {
     PlotPane.STEP_6: SHUPE_2007,
     PlotPane.STEP_7: SHUPE_2007,
     PlotPane.STEP_8: SHUPE_2007,
-    PlotPane.STEP_RADAR_TOPS: TOPS,
-    PlotPane.STEP_LIDAR_TOPS: TOPS,
-    PlotPane.STEP_OCCULTATION_ZONE: TOPS,
+    PlotPane.STEP_RADAR_EDGES: EDGES,
+    PlotPane.STEP_LIDAR_EDGES: EDGES,
+    PlotPane.STEP_OCCULTATION_ZONE: ListedColormap(
+        [
+            "#c0eac3",
+            "#7e1700",
+        ]
+    ),
 }
 
 
@@ -114,15 +122,15 @@ class Limits(BaseModel):
     vmax: float
 
 
-PHASES_SHUPE_2007: Limits = Limits(vmin=0.5, vmax=6.5)
-EDGES: Limits = Limits(vmin=-0.5, vmax=1.5)
+PHASES_SHUPE_2007: Limits = Limits(vmin=-0.5, vmax=6.5)
+EDGE_LIMITS: Limits = Limits(vmin=-1.5, vmax=1.5)
 
 colormap_limits: dict[PlotPane, Limits] = {
     PlotPane.REFL: Limits(vmin=-70, vmax=40),
     PlotPane.MEAN_DOPP_VEL: Limits(vmin=-4, vmax=5),
     PlotPane.SPEC_WIDTH: Limits(vmin=0, vmax=1.6),
     PlotPane.DEPOL: Limits(vmin=0, vmax=1),
-    PlotPane.TEMP: Limits(vmin=-60, vmax=40),
+    PlotPane.TEMP: Limits(vmin=-70, vmax=40),
     PlotPane.STEP_1: PHASES_SHUPE_2007,
     PlotPane.STEP_2: PHASES_SHUPE_2007,
     PlotPane.STEP_3: PHASES_SHUPE_2007,
@@ -132,7 +140,7 @@ colormap_limits: dict[PlotPane, Limits] = {
     PlotPane.STEP_6: PHASES_SHUPE_2007,
     PlotPane.STEP_7: PHASES_SHUPE_2007,
     PlotPane.STEP_8: PHASES_SHUPE_2007,
-    PlotPane.STEP_RADAR_TOPS: EDGES,
-    PlotPane.STEP_LIDAR_TOPS: EDGES,
-    PlotPane.STEP_OCCULTATION_ZONE: EDGES,
+    PlotPane.STEP_RADAR_EDGES: EDGE_LIMITS,
+    PlotPane.STEP_LIDAR_EDGES: EDGE_LIMITS,
+    PlotPane.STEP_OCCULTATION_ZONE: Limits(vmin=-0.5, vmax=1.5),
 }

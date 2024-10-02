@@ -200,8 +200,8 @@ SHUPE = {
     },
     "window": {
         "buffer": 3,
-        "clear": 14,
         "match": 7,
+        "thresh": 35,
     },
     "persistence": {
         "thresh": 30,
@@ -353,7 +353,7 @@ class ObservationManager:
         filename: str = response.items[0]
         filepath: Path = Path.cwd() / filename
 
-        data: dict[str, pd.DataFrame | pd.Series]
+        data: dict[str, pd.DataFrame]
         if filepath.suffix == ".ncdf":
             pass
         elif filepath.suffix == ".pkl":
@@ -885,7 +885,7 @@ class ObservationManager:
             # Read the pickle file.
             filename: str = response.items[0]
             filepath: Path = Path.cwd() / filename
-            data: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            data: dict[str, pd.DataFrame] = pd.read_pickle(filepath)
             # Delete the file
             os.remove(filepath)
 
@@ -895,7 +895,7 @@ class ObservationManager:
             # Apply the temperature mask
             data = self._apply_temp_mask(data, steps)
             # Process the steps
-            steps["1"] = self._step_1(data)
+            steps["1"] = self._step_1(data, steps)
             steps["2"] = self._step_2(data, steps)
             steps["3"] = self._step_3(data, steps)
             # NOTE: This depends on temperature
@@ -1139,7 +1139,7 @@ class ObservationManager:
         return result
 
     @staticmethod
-    def _step_temp_mask(data: dict[str, pd.DataFrame | pd.Series]) -> pd.DataFrame:
+    def _step_temp_mask(data: dict[str, pd.DataFrame]) -> pd.DataFrame:
         step: pd.DataFrame = data["temp"].copy(deep=True)
         step[pd.notna(data["temp"])] = 1
         step[pd.isna(data["temp"])] = 0
@@ -1147,7 +1147,7 @@ class ObservationManager:
 
     @staticmethod
     def _apply_temp_mask(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         # apply the mask to all the dataframes iin data
         for key, item in data.items():
@@ -1161,15 +1161,18 @@ class ObservationManager:
         return data
 
     @staticmethod
-    def _step_1(data: dict[str, pd.DataFrame | pd.Series]) -> pd.DataFrame:
+    def _step_1(
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
+    ) -> pd.DataFrame:
         step: pd.DataFrame = data["depol"].copy(deep=True)
         step[data["depol"] < SHUPE["depol"]["ice"]] = LIQUID
         step[SHUPE["depol"]["ice"] <= data["depol"]] = ICE
+        step[(pd.isna(data["depol"])) & (steps["temp_mask"] == 1)] = 0
         return step
 
     @staticmethod
     def _step_2(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         # Make a copy
         step = steps["1"].copy(deep=True)
@@ -1199,7 +1202,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_3(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["2"].copy(deep=True)
         # Reclassify snow and rain based on reflectivity greater than 5
@@ -1220,7 +1223,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_4a(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["3"].copy(deep=True)
         # First set all of the values that are in the mask to rain
@@ -1280,7 +1283,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_radar_edges(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
         step.iloc[:, :-1] = (
@@ -1292,7 +1295,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_lidar_edges(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
         step.iloc[:, :-1] = (
@@ -1304,11 +1307,12 @@ class ObservationManager:
 
     @staticmethod
     def _step_occultation(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
-        for col in step.columns:
-            step[col].values[:] = 0
+        # Start with zeros
+        step[pd.notna(steps["4a"])] = 0
+
         # Find Lidar Occulation Levels and Radar Tops
         lidar_occultation_levels = steps["lidar_edges"].T.apply(
             lambda series: series[series == 1].index.max()
@@ -1325,7 +1329,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_4b(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4a"].copy(deep=True)
         step[
@@ -1352,7 +1356,7 @@ class ObservationManager:
 
     @staticmethod
     def _step_5(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["4b"].copy(deep=True)
         # Find all the locations where step 4 is in both of the masks is below -40
@@ -1374,7 +1378,7 @@ class ObservationManager:
         return step
 
     def _step_6(
-        self, data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        self, data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["5"].copy(deep=True)
         # Identify layers and phases
@@ -1428,61 +1432,51 @@ class ObservationManager:
 
     @staticmethod
     def _step_7(
-        data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
+        def _progress_helper(i: int) -> None:
+            if i % 250 == 0:
+                print(f"\t{round(i / times * 100)}%")
+
         step = steps["6"].copy(deep=True)
         # Start with all NaN
         for col in step.columns:
             step[col].values[:] = np.nan
+
         times = len(step.index)
-        elevations = len(step.columns)
+
         for i, index in enumerate(step.index):
-            if i % 250 == 0:
-                print(f"\t{round(i / times * 100)}%")
-            if (i < SHUPE["window"]["buffer"]) or (
-                times - SHUPE["window"]["buffer"] - 1 < i
-            ):
-                step.loc[index, :] = steps["6"].loc[index, :].values
-                # Or you can just pass
-                continue
+            _progress_helper(i)
             for j, column in enumerate(step.columns):
-                if (j < SHUPE["window"]["buffer"]) or (
-                    elevations - SHUPE["window"]["buffer"] - 1 < j
-                ):
-                    step.loc[:, column] = steps["6"].loc[:, column].values
-                    continue
-                # If we haven't continued, then we know that we can grab all the values
                 values = steps["6"].iloc[
-                    i - SHUPE["window"]["buffer"] : i + SHUPE["window"]["buffer"] + 1,
-                    j - SHUPE["window"]["buffer"] : j + SHUPE["window"]["buffer"] + 1,
+                    max(i - SHUPE["window"]["buffer"], 0) : i
+                    + SHUPE["window"]["buffer"]
+                    + 1,
+                    max(j - SHUPE["window"]["buffer"], 0) : j
+                    + SHUPE["window"]["buffer"]
+                    + 1,
                 ]
-                if values.count().sum() < SHUPE["window"]["clear"]:
-                    step.loc[index, column] = np.nan
-                    continue
+                # Apply coherence filter
+                classification: int
+                if SHUPE["window"]["thresh"] < values.eq(0).sum().sum():
+                    classification = 0
                 else:
-                    # The center value currently is
                     center = steps["6"].loc[index, column]
-                    try:
-                        match_center_count = (
-                            values.apply(pd.Series.value_counts)
-                            .fillna(0)
-                            .loc[center, :]
-                            .sum()
-                        )
-                    except KeyError:
-                        match_center_count = 0
-                    if SHUPE["window"]["match"] < match_center_count:
-                        step.loc[index, column] = center
+                    if pd.isna(center):
+                        continue
+                    if (center != 0) and (
+                        SHUPE["window"]["match"] < values.eq(center).sum().sum()
+                    ):
+                        classification = center
                     else:
-                        # Use the mode
-                        mode = values.fillna(0).mode().T.mode().iloc[0, 0]
-                        if mode == 0:
-                            mode = np.nan
-                        step.loc[index, column] = mode
+                        classification = int(values.mode().T.mode().min().min())
+
+                step.loc[index, column] = classification
+
         return step
 
     def _step_8(
-        self, data: dict[str, pd.DataFrame | pd.Series], steps: dict[str, pd.DataFrame]
+        self, data: dict[str, pd.DataFrame], steps: dict[str, pd.DataFrame]
     ) -> pd.DataFrame:
         step = steps["7"].copy(deep=True)
         # Reidentify phases and layers
@@ -1490,46 +1484,53 @@ class ObservationManager:
         # Now check the reclassification
         for time in step.index:
             for layer in layers_and_phases[time]:
-                if 2 <= len(layer):
-                    for i in range(len(layer)):
-                        above = None
-                        below = None
-                        if i == 0:
-                            # Then you can only look above
-                            above = layer[i + 1]["phase"]
-                        elif i == len(layer) - 1:
-                            # You can only look below
-                            below = layer[i - 1]["phase"]
-                        else:
-                            # You look above and below
-                            above = layer[i + 1]["phase"]
-                            below = layer[i - 1]["phase"]
-                        phase = layer[i]["phase"]
-                        depth = layer[i]["depth"]
-                        new_phase = None
-                        if (phase == ICE) and (depth < 200) and (below == MIXED):
-                            new_phase = MIXED
-                        elif (phase == ICE) and (depth < 200) and (below == LIQUID):
-                            new_phase = LIQUID
-                        elif (phase == LIQUID) and (above == DRIZZLE):
-                            new_phase = DRIZZLE
-                        elif (phase == DRIZZLE) and (above == ICE):
-                            new_phase = ICE
-                        elif (phase == DRIZZLE) and (below == ICE):
-                            new_phase = ICE
-                        elif (phase == DRIZZLE) and (above == MIXED):
-                            new_phase = MIXED
-                        elif (phase == DRIZZLE) and (below == MIXED):
-                            new_phase = MIXED
-                        # Set new phase if required
-                        if new_phase:
-                            base = layer[i]["base"]
-                            top = layer[i]["top"]
-                            step.loc[
-                                time,
-                                (base < step.columns) & (step.columns < top),
-                            ] = new_phase
+                if len(layer) >= 1:
+                    continue
+                for i in range(len(layer)):
+                    above = None
+                    below = None
+                    if i == 0:
+                        # Then you can only look above
+                        above = layer[i + 1]["phase"]
+                    elif i == len(layer) - 1:
+                        # You can only look below
+                        below = layer[i - 1]["phase"]
+                    else:
+                        # You look above and below
+                        above = layer[i + 1]["phase"]
+                        below = layer[i - 1]["phase"]
+                    phase = layer[i]["phase"]
+                    depth = layer[i]["depth"]
+                    new_phase: int | None = self._step_8_rule(
+                        phase, depth, below, above
+                    )
+                    # Set new phase if required
+                    if new_phase:
+                        base = layer[i]["base"]
+                        top = layer[i]["top"]
+                        step.loc[
+                            time,
+                            (base < step.columns) & (step.columns < top),
+                        ] = new_phase
         return step
+
+    def _step_8_rule(phase: int, depth: int, below: int, above: int) -> int | None:
+        new_phase: int | None = None
+        if (phase == ICE) and (depth < 200) and (below == MIXED):
+            new_phase = MIXED
+        elif (phase == ICE) and (depth < 200) and (below == LIQUID):
+            new_phase = LIQUID
+        elif (phase == LIQUID) and (above == DRIZZLE):
+            new_phase = DRIZZLE
+        elif (phase == DRIZZLE) and (above == ICE):
+            new_phase = ICE
+        elif (phase == DRIZZLE) and (below == ICE):
+            new_phase = ICE
+        elif (phase == DRIZZLE) and (above == MIXED):
+            new_phase = MIXED
+        elif (phase == DRIZZLE) and (below == MIXED):
+            new_phase = MIXED
+        return new_phase
 
     def _add_frames(
         self,
@@ -1690,6 +1691,7 @@ class ObservationManager:
             cbar.set_label(colorbar_labels[pane], rotation=270, labelpad=15)
             if colorbar_tick_labels[pane]:
                 cbar.ax.set_yticklabels(colorbar_tick_labels[pane])
+            ax.set_facecolor("#D6D6D6")  # This is for nan values
         ax.grid(alpha=0.25)
         if pane == PlotPane.DLR:
             xy = (0, 0)
@@ -1817,34 +1819,32 @@ class ObservationManager:
 
     @staticmethod
     def _get_process_panes(process: Process) -> tuple[PlotPane, ...]:
-        panes: tuple[PlotPane, ...]
-        match process:
-            case Process.RESAMPLE:
-                panes = (
-                    PlotPane.REFL,
-                    PlotPane.MEAN_DOPP_VEL,
-                    PlotPane.SPEC_WIDTH,
-                    PlotPane.DEPOL,
-                    PlotPane.TEMP,
-                    PlotPane.LWP,
-                    PlotPane.DLR,
-                )
-            case Process.PHASES:
-                panes = (
-                    PlotPane.STEP_1,
-                    PlotPane.STEP_2,
-                    PlotPane.STEP_3,
-                    PlotPane.STEP_4A,
-                    PlotPane.STEP_RADAR_TOPS,
-                    PlotPane.STEP_LIDAR_TOPS,
-                    PlotPane.STEP_OCCULTATION_ZONE,
-                    PlotPane.STEP_4B,
-                    PlotPane.STEP_5,
-                    PlotPane.STEP_6,
-                    PlotPane.STEP_7,
-                    PlotPane.STEP_8,
-                )
-        return panes
+        panes: dict[Process, tuple[PlotPane, ...]] = {
+            Process.RESAMPLE: (
+                PlotPane.REFL,
+                PlotPane.MEAN_DOPP_VEL,
+                PlotPane.SPEC_WIDTH,
+                PlotPane.DEPOL,
+                PlotPane.TEMP,
+                PlotPane.LWP,
+                PlotPane.DLR,
+            ),
+            Process.PHASES: (
+                PlotPane.STEP_1,
+                PlotPane.STEP_2,
+                PlotPane.STEP_3,
+                PlotPane.STEP_4A,
+                PlotPane.STEP_RADAR_EDGES,
+                PlotPane.STEP_LIDAR_EDGES,
+                PlotPane.STEP_OCCULTATION_ZONE,
+                PlotPane.STEP_4B,
+                PlotPane.STEP_5,
+                PlotPane.STEP_6,
+                PlotPane.STEP_7,
+                PlotPane.STEP_8,
+            ),
+        }
+        return panes[process]
 
     @staticmethod
     def _get_product_panes(product: Product) -> tuple[PlotPane, ...]:
