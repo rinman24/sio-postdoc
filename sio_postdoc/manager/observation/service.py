@@ -404,6 +404,7 @@ class ObservationManager:
             ".png"
         )
         plt.savefig(filepath)
+        plt.close()
         # Add to blob storage
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
