@@ -112,6 +112,9 @@ colormaps: dict[PlotPane, ListedColormap] = {
             "#7e1700",
         ]
     ),
+    PlotPane.REFERENCE: SHUPE_2007,
+    PlotPane.RENUMBERED: SHUPE_2007,
+    PlotPane.MODIFIED_MIXED: SHUPE_2007,
 }
 
 
@@ -143,4 +146,7 @@ colormap_limits: dict[PlotPane, Limits] = {
     PlotPane.STEP_RADAR_EDGES: EDGE_LIMITS,
     PlotPane.STEP_LIDAR_EDGES: EDGE_LIMITS,
     PlotPane.STEP_OCCULTATION_ZONE: Limits(vmin=-0.5, vmax=1.5),
+    PlotPane.REFERENCE: PHASES_SHUPE_2007,
+    PlotPane.RENUMBERED: PHASES_SHUPE_2007,
+    PlotPane.MODIFIED_MIXED: PHASES_SHUPE_2007,
 }

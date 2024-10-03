@@ -6,7 +6,9 @@ BOTH: str = "both"
 MAX: str = "max"
 NEITHER: str = "neither"
 PHASES_SHUPE_2007: str = "Phase (Shupe, 2007)"
+PHASES_SHUPE_2011: str = "Phase (Shupe, 2011)"
 PHASE_TICKS_SHUPE_2007: list[int] = [0, 1, 2, 3, 4, 5, 6]
+PHASE_TICKS_SHUPE_2011: list[int] = [0, 1, 2, 3, 4, 5, 6]
 PHASE_TICK_LABELS_SHUPE_2007: list[int] = [
     "none",
     "snow",
@@ -14,6 +16,15 @@ PHASE_TICK_LABELS_SHUPE_2007: list[int] = [
     "mixed",
     "liquid",
     "drizzle",
+    "rain",
+]
+PHASE_TICK_LABELS_SHUPE_2011: list[int] = [
+    "none",
+    "ice",
+    "mixed ice",
+    "mixed",
+    "mixed liquid",
+    "liquid",
     "rain",
 ]
 
@@ -35,6 +46,9 @@ colorbar_extend: dict[PlotPane, str] = {
     PlotPane.STEP_6: NEITHER,
     PlotPane.STEP_7: NEITHER,
     PlotPane.STEP_8: NEITHER,
+    PlotPane.REFERENCE: NEITHER,
+    PlotPane.RENUMBERED: NEITHER,
+    PlotPane.MODIFIED_MIXED: NEITHER,
 }
 
 colorbar_labels: dict[PlotPane, str] = {
@@ -55,6 +69,9 @@ colorbar_labels: dict[PlotPane, str] = {
     PlotPane.STEP_6: PHASES_SHUPE_2007,
     PlotPane.STEP_7: PHASES_SHUPE_2007,
     PlotPane.STEP_8: PHASES_SHUPE_2007,
+    PlotPane.REFERENCE: PHASES_SHUPE_2007,
+    PlotPane.RENUMBERED: PHASES_SHUPE_2011,
+    PlotPane.MODIFIED_MIXED: PHASES_SHUPE_2011,
 }
 
 colorbar_ticks: dict[PlotPane, tuple[float, ...]] = {
@@ -75,6 +92,9 @@ colorbar_ticks: dict[PlotPane, tuple[float, ...]] = {
     PlotPane.STEP_6: PHASE_TICKS_SHUPE_2007,
     PlotPane.STEP_7: PHASE_TICKS_SHUPE_2007,
     PlotPane.STEP_8: PHASE_TICKS_SHUPE_2007,
+    PlotPane.REFERENCE: PHASE_TICKS_SHUPE_2007,
+    PlotPane.RENUMBERED: PHASE_TICKS_SHUPE_2011,
+    PlotPane.MODIFIED_MIXED: PHASE_TICKS_SHUPE_2011,
 }
 
 colorbar_tick_labels: dict[PlotPane, tuple[float, ...] | None] = {
@@ -95,6 +115,9 @@ colorbar_tick_labels: dict[PlotPane, tuple[float, ...] | None] = {
     PlotPane.STEP_6: PHASE_TICK_LABELS_SHUPE_2007,
     PlotPane.STEP_7: PHASE_TICK_LABELS_SHUPE_2007,
     PlotPane.STEP_8: PHASE_TICK_LABELS_SHUPE_2007,
+    PlotPane.REFERENCE: PHASE_TICK_LABELS_SHUPE_2007,
+    PlotPane.RENUMBERED: PHASE_TICK_LABELS_SHUPE_2011,
+    PlotPane.MODIFIED_MIXED: PHASE_TICK_LABELS_SHUPE_2011,
 }
 
 
@@ -116,6 +139,9 @@ colorbar_shrinks: dict[PlotPane, float] = {
     PlotPane.STEP_6: 1,
     PlotPane.STEP_7: 1,
     PlotPane.STEP_8: 1,
+    PlotPane.REFERENCE: 1,
+    PlotPane.RENUMBERED: 1,
+    PlotPane.MODIFIED_MIXED: 1,
 }
 
 colorbar_aspects: dict[PlotPane, int] = {
@@ -136,4 +162,7 @@ colorbar_aspects: dict[PlotPane, int] = {
     PlotPane.STEP_6: 7,
     PlotPane.STEP_7: 7,
     PlotPane.STEP_8: 7,
+    PlotPane.REFERENCE: 7,
+    PlotPane.RENUMBERED: 7,
+    PlotPane.MODIFIED_MIXED: 7,
 }

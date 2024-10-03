@@ -387,9 +387,12 @@ class ObservationManager:
         directory: str
         if isinstance(request, ProcessPlotRequest):
             name = f"{request.process.name.lower()}-process"
-            match request.process:
-                case Process.RESAMPLE:
-                    directory = f"plots/cloud_phase_steps/01-resampled_frames/daily/{request.year}/"
+            directories: dict[Process, str] = {
+                Process.RESAMPLE: f"plots/cloud_phase_steps/01-resampled_frames/daily/{request.year}/",
+                Process.PHASES: f"plots/cloud_phase_steps/02-shupe_2007_phase_identification/daily/{request.year}/",
+                Process.RECLASSIFY: f"plots/cloud_phase_steps/03-shupe_2011_phase_identification/daily/{request.year}/",
+            }
+            directory = directories[request.process]
         elif isinstance(request, ProductPlotRequest):
             name = f"{request.product.name.lower()}-product"
         filepath: Path = Path.cwd() / (
@@ -1862,6 +1865,11 @@ class ObservationManager:
                 PlotPane.STEP_6,
                 PlotPane.STEP_7,
                 PlotPane.STEP_8,
+            ),
+            Process.RECLASSIFY: (
+                PlotPane.REFERENCE,
+                PlotPane.RENUMBERED,
+                PlotPane.MODIFIED_MIXED,
             ),
         }
         return panes[process]
@@ -4140,7 +4148,9 @@ class ObservationManager:
         # Now that you've gone through all except the last one, handle the edge
         index = series.index[-1]  # Use the last index
         center = series[index]  # Center on the top
-        if in_layer:
+        if pd.isna(center):
+            pass
+        elif in_layer:
             # This means the one below was not nan and center is not nan, else it would have been a top
             # So, if we're in layer at the top then we need to say that's it
             # This is the top of the layer.
@@ -4169,8 +4179,6 @@ class ObservationManager:
                 }
             )
             atmospheric_column.append(layer_phase_extents)
-        elif pd.isna(center):
-            pass
         elif not (center == 0) and not pd.isna(center):
             top = index + 45
             phase = center

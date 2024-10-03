@@ -27,6 +27,9 @@ plot_labels: dict[PlotPane, str] = {
     PlotPane.STEP_6: "Step 6: Liquid Water Path Constraints",
     PlotPane.STEP_7: "Step 7: Coherence Filter",
     PlotPane.STEP_8: "Step 8: Classification Rules",
+    PlotPane.REFERENCE: "Classification from Shupe (2007)",
+    PlotPane.RENUMBERED: "Conversion to Classes from Shupe (2011)",
+    PlotPane.MODIFIED_MIXED: "Mixed-Phase Classification from Shupe (2011)",
 }
 
 plot_label_colors: dict[PlotPane, str] = {
@@ -49,6 +52,9 @@ plot_label_colors: dict[PlotPane, str] = {
     PlotPane.STEP_6: BLACK,
     PlotPane.STEP_7: BLACK,
     PlotPane.STEP_8: BLACK,
+    PlotPane.REFERENCE: BLACK,
+    PlotPane.RENUMBERED: BLACK,
+    PlotPane.MODIFIED_MIXED: BLACK,
 }
 
 plot_ylabels: dict[PlotPane, str] = {
@@ -71,4 +77,7 @@ plot_ylabels: dict[PlotPane, str] = {
     PlotPane.STEP_6: HEIGHT,
     PlotPane.STEP_7: HEIGHT,
     PlotPane.STEP_8: HEIGHT,
+    PlotPane.REFERENCE: HEIGHT,
+    PlotPane.RENUMBERED: HEIGHT,
+    PlotPane.MODIFIED_MIXED: HEIGHT,
 }

@@ -114,6 +114,9 @@ class PlotPane(Enum):
     STEP_7 = auto()
     STEP_8 = auto()
     TEMP = auto()
+    REFERENCE = auto()
+    RENUMBERED = auto()
+    MODIFIED_MIXED = auto()
 
 
 class Phase(Enum):

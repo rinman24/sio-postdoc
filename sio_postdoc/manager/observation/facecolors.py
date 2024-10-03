@@ -20,4 +20,7 @@ axis_facecolors: dict[PlotPane, str] = {
     PlotPane.STEP_RADAR_EDGES: "#d6d6d6",
     PlotPane.STEP_LIDAR_EDGES: "#d6d6d6",
     PlotPane.STEP_OCCULTATION_ZONE: "#d6d6d6",
+    PlotPane.REFERENCE: "#d6d6d6",
+    PlotPane.RENUMBERED: "#d6d6d6",
+    PlotPane.MODIFIED_MIXED: "#d6d6d6",
 }
