@@ -4490,10 +4490,9 @@ class ObservationManager:
                         name=filename,
                     )
                     filepath: Path = Path.cwd() / _filename
-                    remove: bool = (
-                        True  # The legacy patter has the responsibily to delete here, this needs to be updated
-                    )
-                with DataSet(_filename) as dataset:
+                    # NOTE: The legacy pattern has the responsibily to delete here, this needs to be updated
+                    remove: bool = True
+                with DataSet(filepath) as dataset:
                     yield self.transformation_context.hydrate(dataset, filepath)
                 if remove:
                     os.remove(filepath)
