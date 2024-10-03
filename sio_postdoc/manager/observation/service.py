@@ -949,70 +949,15 @@ class ObservationManager:
             filename: str = response.items[0]
             filepath: Path = Path.cwd() / filename
             steps: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+            # Delete the file
+            os.remove(filepath)
+
             # Set the reference
-            reference = steps["8"]
-            # Start with a copy
-            phase_map = reference.copy(deep=True)
-            # Reclassify phases and layers
-            # Since the distinction between "ice" and "snow" is arbiitrary, these two
-            # classes are jointly referred to as ice.
-            phase_map[reference == ICE] = NEW_ICE
-            phase_map[reference == SNOW] = NEW_ICE
-            # Likewise, "rain" and "drizzle" have been combined as liquid-phase precipitation
-            # and are referred to as rain.
-            phase_map[reference == DRIZZLE] = RAIN
-            phase_map[reference == RAIN] = RAIN  # Redundant but explicit
-            # Reclassify liquid with the new index
-            phase_map[reference == LIQUID] = NEW_LIQUID
-            # Mixed stays the same
-            phase_map[reference == MIXED] = MIXED  # Redundant but explicit
-            # A modified definition of mixed-phase cloud is used here, which
-            # includes those circumstances when clouod ice is identified
-            # directly and continuously below cloud liquid or mixed-phase
-            # regions such that the clouod ice forms from and/or interacts
-            # with the liquid-water containing layer.
-            layers_and_phases = phase_map.T.apply(self._identify_layers_and_phases)
-            # Now check the reclassification
-            for time in phase_map.index:
-                for layer in layers_and_phases[time]:
-                    if 1 < len(layer):
-                        # First find mixed-ice (under liquid or mixed-phase)
-                        new_phase = None
-                        for i in range(len(layer)):
-                            above = None
-                            if i == len(layer) - 1:
-                                # We're at the top and we don't look below
-                                continue
-                            else:
-                                # Look above
-                                above = layer[i + 1]["phase"]
-                            phase = layer[i]["phase"]
-                            # Look for mixed Ice
-                            if (phase == NEW_ICE) and (above == MIXED):
-                                new_phase = MIXED_ICE
-                            elif (phase == NEW_ICE) and (above == NEW_LIQUID):
-                                new_phase = MIXED_ICE
-                            # Set new phase if required
-                            if new_phase:
-                                base = layer[i]["base"]
-                                top = layer[i]["top"]
-                                phase_map.loc[
-                                    time,
-                                    (base < phase_map.columns)
-                                    & (phase_map.columns < top),
-                                ] = new_phase
-                        # Now find the mixed liquid in the same layer
-                        if new_phase:
-                            # Then all of the liquid goes to mixed liquid
-                            for i in range(len(layer)):
-                                if layer[i]["phase"] == NEW_LIQUID:
-                                    base = layer[i]["base"]
-                                    top = layer[i]["top"]
-                                    phase_map.loc[
-                                        time,
-                                        (base < phase_map.columns)
-                                        & (phase_map.columns < top),
-                                    ] = MIXED_LIQUID
+            results: dict[str, pd.DataFrame] = dict()
+            results["reference"] = steps["8"]
+            results["renumbered"] = self._update_phase_numbering(results["reference"])
+            results["modified_mixed"] = self._update_mixed_phases(results["renumbered"])
+
             # Save the file
             filepath: Path = Path.cwd() / (
                 f"D{target.year}"
@@ -1022,7 +967,9 @@ class ObservationManager:
                 "-shupe_2011_phases"
                 ".pkl"
             )
-            phase_map.to_pickle(filepath)
+            with open(filepath, "wb") as file:
+                pickle.dump(results, file)
+
             # Add to blob storage
             self.instrument_access.add_blob(
                 name=request.observatory.name.lower(),
@@ -1031,6 +978,73 @@ class ObservationManager:
             )
             # Remove the file
             os.remove(filepath)
+
+    def _update_phase_numbering(self, reference: pd.DataFrame) -> pd.DataFrame:
+        phase_map = reference.copy(deep=True)
+        # Since the distinction between "ice" and "snow" is arbiitrary, these two
+        # classes are jointly referred to as ice.
+        phase_map[reference == ICE] = NEW_ICE
+        phase_map[reference == SNOW] = NEW_ICE
+        # Likewise, "rain" and "drizzle" have been combined as liquid-phase precipitation
+        # and are referred to as rain.
+        phase_map[reference == DRIZZLE] = RAIN
+        phase_map[reference == RAIN] = RAIN  # Redundant but explicit
+        # Reclassify liquid with the new index
+        phase_map[reference == LIQUID] = NEW_LIQUID
+        # Mixed stays the same
+        phase_map[reference == MIXED] = MIXED  # Redundant but explicit
+
+        return phase_map
+
+    def _update_mixed_phases(self, reference: pd.DataFrame) -> pd.DataFrame:
+        modified_mixed = reference.copy(deep=True)
+        # A modified definition of mixed-phase cloud is used here, which
+        # includes those circumstances when clouod ice is identified
+        # directly and continuously below cloud liquid or mixed-phase
+        # regions such that the clouod ice forms from and/or interacts
+        # with the liquid-water containing layer.
+        layers_and_phases = reference.T.apply(self._identify_layers_and_phases)
+        # Now check the reclassification
+        for time in reference.index:
+            for layer in layers_and_phases[time]:
+                if 1 < len(layer):
+                    # First find mixed-ice (under liquid or mixed-phase)
+                    new_phase = None
+                    for i in range(len(layer)):
+                        above = None
+                        if i == len(layer) - 1:
+                            # We're at the top and we don't look below
+                            continue
+                        else:
+                            # Look above
+                            above = layer[i + 1]["phase"]
+                        phase = layer[i]["phase"]
+                        # Look for mixed Ice
+                        if (phase == NEW_ICE) and (above == MIXED):
+                            new_phase = MIXED_ICE
+                        elif (phase == NEW_ICE) and (above == NEW_LIQUID):
+                            new_phase = MIXED_ICE
+                        # Set new phase if required
+                        if new_phase:
+                            base = layer[i]["base"]
+                            top = layer[i]["top"]
+                            modified_mixed.loc[
+                                time,
+                                (base < reference.columns) & (reference.columns < top),
+                            ] = new_phase
+                    # Now find the mixed liquid in the same layer
+                    if new_phase:
+                        # Then all of the liquid goes to mixed liquid
+                        for i in range(len(layer)):
+                            if layer[i]["phase"] == NEW_LIQUID:
+                                base = layer[i]["base"]
+                                top = layer[i]["top"]
+                                modified_mixed.loc[
+                                    time,
+                                    (base < reference.columns)
+                                    & (reference.columns < top),
+                                ] = MIXED_LIQUID
+        return modified_mixed
 
     def _create_monthly_aggregate(self, request: ProcessRequest) -> None:
         results: dict[Phase, list[list[float]]] = {phase: [] for phase in NEW_PHASES}
@@ -4074,13 +4088,15 @@ class ObservationManager:
         # So, when you come into here, you want to make it easy for yourself
         # to summarize the layers as well as the phases
         # You may need to use this two times.
-        below = np.nan
+        if pd.isna(series).all():
+            return list()
+        below = 0
         in_layer = False
         atmospheric_column = []  # Start with a clear column (free of clouds)
         for pointer, index in enumerate(series.index[:-1]):
             center = series[index]
             above = series.iloc[pointer + 1]
-            if np.isnan(below) and not np.isnan(center):
+            if (below == 0) and not (center == 0):
                 # As soon as we come in, we create a new layer list
                 layer_phase_extents = []
                 base = index - 45
@@ -4101,7 +4117,7 @@ class ObservationManager:
                 # Then update the base and phase
                 base = top
                 phase = center
-            if in_layer and np.isnan(above):
+            if in_layer and above == 0:
                 top = index + 45
                 depth = top - base
                 # Add the layer information
@@ -4109,7 +4125,7 @@ class ObservationManager:
                     {
                         "base": base,
                         "top": top,
-                        "depth": top - base,
+                        "depth": depth,
                         "phase": int(phase),
                     }
                 )
@@ -4151,7 +4167,9 @@ class ObservationManager:
                 }
             )
             atmospheric_column.append(layer_phase_extents)
-        elif not np.isnan(center):
+        elif pd.isna(center):
+            pass
+        elif not (center == 0) and not pd.isna(center):
             top = index + 45
             phase = center
             base = index - 45
