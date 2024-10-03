@@ -4095,6 +4095,8 @@ class ObservationManager:
         atmospheric_column = []  # Start with a clear column (free of clouds)
         for pointer, index in enumerate(series.index[:-1]):
             center = series[index]
+            if pd.isna(center):
+                continue
             above = series.iloc[pointer + 1]
             if (below == 0) and not (center == 0):
                 # As soon as we come in, we create a new layer list
@@ -4102,7 +4104,7 @@ class ObservationManager:
                 base = index - 45
                 in_layer = True
                 phase = center
-            if in_layer and phase != center:
+            if in_layer and (phase != center):
                 # Then you need to go ahead and append the phase
                 top = index - 45
                 depth = top - base
