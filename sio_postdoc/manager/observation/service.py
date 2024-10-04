@@ -1716,7 +1716,7 @@ class ObservationManager:
                 cbar.ax.set_yticklabels(colorbar_tick_labels[pane])
             # Set the background color.
             ax.set_facecolor(axis_facecolors[pane])
-        ax.grid(alpha=0.25)
+        ax.grid(alpha=0.75)
         if pane == PlotPane.DLR:
             xy = (0, 0)
             xytext = (+0.7, +0.7)
