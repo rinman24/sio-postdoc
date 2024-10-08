@@ -1112,8 +1112,6 @@ class ObservationManager:
 
     def _isolate_phases(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
-            if target.day != 6:
-                continue
             # Download the appropriate file
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.RECLASSIFY,
@@ -1222,7 +1220,7 @@ class ObservationManager:
             aggregated[~targeted & valid] = 0
             aggregated[targeted] = 1
             aggregated_phases[phase] = aggregated
-        return aggregated
+        return aggregated_phases
 
     @staticmethod
     def _isolate_single_phase(
