@@ -6,7 +6,7 @@ from collections import deque
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Generator
+from typing import Any, Generator
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -105,7 +105,10 @@ from sio_postdoc.manager import (
     FileType,
     InstrumentType,
     Month,
-    Phase,
+    Phase2007,
+    Phase2011,
+    PhaseAggregate,
+    PhaseClass,
     PlotPane,
     Process,
     ResampleMethod,
@@ -142,6 +145,8 @@ from sio_postdoc.manager.observation.plot_labels import (
     plot_ylabels,
 )
 
+Phase = Phase2007 | Phase2011 | PhaseAggregate
+
 OFFSETS: dict[str, int] = {"time": 15, "elevation": 45}
 STEPS: dict[str, int] = {key: value * 2 for key, value in OFFSETS.items()}
 MIN_ELEVATION: int = 500
@@ -160,15 +165,6 @@ NEW_LIQUID: int = 5
 MIXED_LIQUID: int = 4
 MIXED_ICE: int = 2
 NEW_ICE: int = 1
-
-NEW_PHASES: tuple[Phase, ...] = (
-    Phase.ICE,
-    Phase.MIXED_ICE,
-    Phase.MIXED,
-    Phase.MIXED_LIQUID,
-    Phase.LIQUID,
-    Phase.RAIN,
-)
 
 RECLASSIFIED = {"ice": {1, 2}, "liquid": {4, 5}}
 
@@ -779,42 +775,42 @@ class ObservationManager:
             # Now you can delete the data since you read the pickle
             os.remove(filepath)
             # Now resample the data
-            results: dict[Phase, pd.DataFrame] = dict()
-            for phase in phases.keys():
-                phases[phase].replace(np.nan, 0, inplace=True)
-                results[phase] = self._resample(
-                    phases[phase],
-                    request.seconds,
-                    transpose=False,
-                    method=ResampleMethod.MEAN,
-                )
-                results[phase] = self._resample(
-                    results[phase],
-                    request.meters,
-                    transpose=True,
-                    method=ResampleMethod.MEAN,
-                )
-                # You need to drop the last row, since this is technically the next day
-                results[phase] = results[phase].iloc[:-1, :]
-            # Save the file
-            filepath: Path = Path.cwd() / (
-                f"D{target.year}"
-                f"-{str(target.month).zfill(2)}"
-                f"-{str(target.day).zfill(2)}"
-                f"-{request.observatory.name.lower()}"
-                f"-isolated_phases_{request.seconds}seconds_{request.meters}meters"
-                ".pkl"
-            )
-            with open(filepath, "wb") as file:
-                pickle.dump(results, file)
-            # Add to blob storage
-            self.instrument_access.add_blob(
-                name=request.observatory.name.lower(),
-                path=filepath,
-                directory=f"wavelet/01_isolated_phases/{request.seconds}seconds_{request.meters}meters/daily/{request.year}/",
-            )
-            # Remove the file
-            os.remove(filepath)
+            # results: dict[Phase, pd.DataFrame] = dict()
+            # for phase in phases.keys():
+            #     phases[phase].replace(np.nan, 0, inplace=True)
+            #     results[phase] = self._resample(
+            #         phases[phase],
+            #         request.seconds,
+            #         transpose=False,
+            #         method=ResampleMethod.MEAN,
+            #     )
+            #     results[phase] = self._resample(
+            #         results[phase],
+            #         request.meters,
+            #         transpose=True,
+            #         method=ResampleMethod.MEAN,
+            #     )
+            #     # You need to drop the last row, since this is technically the next day
+            #     results[phase] = results[phase].iloc[:-1, :]
+            # # Save the file
+            # filepath: Path = Path.cwd() / (
+            #     f"D{target.year}"
+            #     f"-{str(target.month).zfill(2)}"
+            #     f"-{str(target.day).zfill(2)}"
+            #     f"-{request.observatory.name.lower()}"
+            #     f"-isolated_phases_{request.seconds}seconds_{request.meters}meters"
+            #     ".pkl"
+            # )
+            # with open(filepath, "wb") as file:
+            #     pickle.dump(results, file)
+            # # Add to blob storage
+            # self.instrument_access.add_blob(
+            #     name=request.observatory.name.lower(),
+            #     path=filepath,
+            #     directory=f"wavelet/01_isolated_phases/{request.seconds}seconds_{request.meters}meters/daily/{request.year}/",
+            # )
+            # # Remove the file
+            # os.remove(filepath)
 
     def _create_resampled_files(self, request: ProcessRequest) -> RequestResponse:
         missing_instrument: bool
@@ -1051,70 +1047,73 @@ class ObservationManager:
         return modified_mixed
 
     def _create_monthly_aggregate(self, request: ProcessRequest) -> None:
-        results: dict[Phase, list[list[float]]] = {phase: [] for phase in NEW_PHASES}
-        # How can you create the index that you need.
-        # You should just use a DateTime.datetime
-        index: list[datetime] = []
-        for target in self._dates_in_month(request.year, request.month):
-            midnight: datetime = datetime(
-                year=target.year,
-                month=target.month,
-                day=target.day,
-                tzinfo=timezone.utc,
-            )
-            index += [midnight + timedelta(seconds=i) for i in range(0, 86101, 300)]
-            # Download the appropriate file
-            dl_info: DownloadInfo = DownloadInfo(
-                process=Process.ISOLATED_PHASES,
-                type=FileType.DAILY,
-                inclusive=False,
-                time=False,
-                target=target,
-            )
-            response: RequestResponse = self._download_file(request, dl_info)
-            if not response.status:
-                # because there was no file, you'll need to add a bunch of nans
-                # but you don't know what to add
-                # for each one of the phases, you need to add
-                for phase in NEW_PHASES:
-                    results[phase] += [[np.nan] * 18] * 288
-                continue
-            # Read the pickle file.
-            filename: str = response.items[0]
-            filepath: Path = Path.cwd() / filename
-            phases: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
-            os.remove(filepath)
-            for phase in NEW_PHASES:
-                results[phase] += phases[phase].values.tolist()
-        # Create the final result
-        final: dict[Phase, pd.DataFrame] = {
-            phase: pd.DataFrame(
-                index=index, columns=list(range(0, 17001, 1000)), data=results[phase]
-            )
-            for phase in NEW_PHASES
-        }
-        # Save the file
-        filepath: Path = Path.cwd() / (
-            f"D{target.year}"
-            f"-{str(target.month).zfill(2)}"
-            f"-{str(target.day).zfill(2)}"
-            f"-{request.observatory.name.lower()}"
-            "-monthly_isolated_phases_300seconds_1000meters"
-            ".pkl"
-        )
-        with open(filepath, "wb") as file:
-            pickle.dump(final, file)
-        # Add to blob storage
-        self.instrument_access.add_blob(
-            name=request.observatory.name.lower(),
-            path=filepath,
-            directory=f"wavelet/02_monthly_isolated_phases/300seconds_1000meters/daily/{request.year}/",
-        )
-        # Remove the file
-        os.remove(filepath)
+        # results: dict[Phase, list[list[float]]] = {phase: [] for phase in NEW_PHASES}
+        # # How can you create the index that you need.
+        # # You should just use a DateTime.datetime
+        # index: list[datetime] = []
+        # for target in self._dates_in_month(request.year, request.month):
+        #     midnight: datetime = datetime(
+        #         year=target.year,
+        #         month=target.month,
+        #         day=target.day,
+        #         tzinfo=timezone.utc,
+        #     )
+        #     index += [midnight + timedelta(seconds=i) for i in range(0, 86101, 300)]
+        #     # Download the appropriate file
+        #     dl_info: DownloadInfo = DownloadInfo(
+        #         process=Process.ISOLATED_PHASES,
+        #         type=FileType.DAILY,
+        #         inclusive=False,
+        #         time=False,
+        #         target=target,
+        #     )
+        #     response: RequestResponse = self._download_file(request, dl_info)
+        #     if not response.status:
+        #         # because there was no file, you'll need to add a bunch of nans
+        #         # but you don't know what to add
+        #         # for each one of the phases, you need to add
+        #         for phase in NEW_PHASES:
+        #             results[phase] += [[np.nan] * 18] * 288
+        #         continue
+        #     # Read the pickle file.
+        #     filename: str = response.items[0]
+        #     filepath: Path = Path.cwd() / filename
+        #     phases: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
+        #     os.remove(filepath)
+        #     for phase in NEW_PHASES:
+        #         results[phase] += phases[phase].values.tolist()
+        # # Create the final result
+        # final: dict[Phase, pd.DataFrame] = {
+        #     phase: pd.DataFrame(
+        #         index=index, columns=list(range(0, 17001, 1000)), data=results[phase]
+        #     )
+        #     for phase in NEW_PHASES
+        # }
+        # # Save the file
+        # filepath: Path = Path.cwd() / (
+        #     f"D{target.year}"
+        #     f"-{str(target.month).zfill(2)}"
+        #     f"-{str(target.day).zfill(2)}"
+        #     f"-{request.observatory.name.lower()}"
+        #     "-monthly_isolated_phases_300seconds_1000meters"
+        #     ".pkl"
+        # )
+        # with open(filepath, "wb") as file:
+        #     pickle.dump(final, file)
+        # # Add to blob storage
+        # self.instrument_access.add_blob(
+        #     name=request.observatory.name.lower(),
+        #     path=filepath,
+        #     directory=f"wavelet/02_monthly_isolated_phases/300seconds_1000meters/daily/{request.year}/",
+        # )
+        # # Remove the file
+        # os.remove(filepath)
+        pass
 
     def _isolate_phases(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
+            if target.day != 6:
+                continue
             # Download the appropriate file
             dl_info: DownloadInfo = DownloadInfo(
                 process=Process.RECLASSIFY,
@@ -1126,39 +1125,110 @@ class ObservationManager:
             response: RequestResponse = self._download_file(request, dl_info)
             if not response.status:
                 continue
-            # Read the pickle file.
+
+            # Read the pickle file
             filename: str = response.items[0]
             filepath: Path = Path.cwd() / filename
-            phase_map: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
-            results: dict[Phase, pd.DataFrame] = dict()
-            for phase in NEW_PHASES:
-                results[phase] = self._isolate_single_phase(phase, phase_map)
-            filepath: Path = Path.cwd() / (
-                f"D{target.year}"
-                f"-{str(target.month).zfill(2)}"
-                f"-{str(target.day).zfill(2)}"
-                f"-{request.observatory.name.lower()}"
-                "-isolated_phases"
-                ".pkl"
-            )
-            with open(filepath, "wb") as file:
-                pickle.dump(results, file)
-            # Add to blob storage
-            self.instrument_access.add_blob(
-                name=request.observatory.name.lower(),
-                path=filepath,
-                directory=f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
-            )
-            # Remove the file
+            reclassified: dict[str, pd.DataFrame] = pd.read_pickle(filepath)
+            # Delete the file
             os.remove(filepath)
 
+            # Isolate or aggregate
+            strategies: dict[PhaseClass, Callable] = {
+                PhaseClass.SHUPE_2007: self._isolate_phase_class,
+                PhaseClass.SHUPE_2011: self._isolate_phase_class,
+                PhaseClass.AGGREGATED: self._aggregate_phase_class,
+            }
+            results: dict[PhaseClass, dict[Phase, pd.DataFrame]] = dict()
+            for phase_class in PhaseClass:
+                strategy: Callable = strategies[phase_class]
+                results[phase_class] = strategy(phase_class, reclassified)
+
+            self._local_dump(request, target, results)
+
+            self._push_to_cloud(request, filepath, cleanup=True)
+
     @staticmethod
-    def _isolate_single_phase(phase: Phase, phase_map: pd.DataFrame) -> pd.DataFrame:
-        result: pd.DataFrame = phase_map.copy(deep=True)
-        target: int = phase.value
-        result[phase_map != target] = np.nan
-        result[phase_map == target] = 1
-        return result
+    def _local_dump(request: ProcessRequest, target: date, item: Any) -> Path:
+        suffixes: dict[Process, str] = {Process.ISOLATE: "-isolated_phases.pkl"}
+        filepath: Path = Path.cwd() / (
+            f"D{target.year}"
+            f"-{str(target.month).zfill(2)}"
+            f"-{str(target.day).zfill(2)}"
+            f"-{request.observatory.name.lower()}" + suffixes[request.process]
+        )
+        with open(filepath, "wb") as file:
+            pickle.dump(item, file)
+        return filepath
+
+    def _push_to_cloud(
+        self, request: ProcessRequest, path: Path, cleanup: bool
+    ) -> None:
+        directories: dict[Process, str] = {
+            Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/"
+        }
+        self.instrument_access.add_blob(
+            name=request.observatory.name.lower(),
+            path=path,
+            directory=directories[request.process],
+        )
+        if cleanup:
+            os.remove(path)
+
+    @staticmethod
+    def _isolate_phase_class(
+        phase_class: PhaseClass,
+        reclassified: dict[str, pd.DataFrame],
+    ) -> dict[Phase, pd.DataFrame]:
+        isolated_phases: dict[Phase, pd.DataFrame] = dict()
+        refs: dict[PhaseClass, str] = {
+            PhaseClass.SHUPE_2007: "reference",
+            PhaseClass.SHUPE_2011: "modified_mixed",
+        }
+        ref: pd.DataFrame = reclassified[refs[phase_class]]
+        valid: pd.DataFrame = pd.notna(ref)
+        for phase in phase_class.value:
+            isolated: pd.DataFrame = ref.copy(deep=True)
+            targeted: pd.DataFrame = ref == phase.value
+            isolated[~targeted & valid] = 0
+            isolated[targeted] = 1
+            isolated_phases[phase] = isolated
+        return isolated_phases
+
+    @staticmethod
+    def _aggregate_phase_class(
+        phase_class: PhaseClass,
+        reclassified: dict[str, pd.DataFrame],
+    ) -> dict[Phase, pd.DataFrame]:
+        aggregated_phases: dict[Phase, pd.DataFrame] = dict()
+        ref: pd.DataFrame = reclassified["reference"]
+        valid: pd.DataFrame = pd.notna(ref)
+        for phase in phase_class.value:
+            aggregated: pd.DataFrame = ref.copy(deep=True)
+            targeted: pd.DataFrame
+            match phase:
+                case PhaseAggregate.ICE:
+                    targeted = (ref == Phase2007.SNOW.value) | (
+                        ref == Phase2007.ICE.value
+                    )
+                case PhaseAggregate.MIXED:
+                    targeted = ref == Phase2007.MIXED.value
+                case PhaseAggregate.LIQUID:
+                    targeted = (
+                        (ref == Phase2007.LIQUID.value)
+                        | (ref == Phase2007.DRIZZLE.value)
+                        | (ref == Phase2007.RAIN.value)
+                    )
+            aggregated[~targeted & valid] = 0
+            aggregated[targeted] = 1
+            aggregated_phases[phase] = aggregated
+        return aggregated
+
+    @staticmethod
+    def _isolate_single_phase(
+        phase_class: PhaseClass, reclassified: dict[str, pd.DataFrame]
+    ) -> dict[Phase, pd.DataFrame]:
+        pass
 
     @staticmethod
     def _step_temp_mask(data: dict[str, pd.DataFrame]) -> pd.DataFrame:

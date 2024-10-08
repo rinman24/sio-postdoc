@@ -119,12 +119,39 @@ class PlotPane(Enum):
     MODIFIED_MIXED = auto()
 
 
-class Phase(Enum):
-    """Types of phases from Shupe 2011."""
+class Phase2007(Enum):
+    """Thermodynamic Phase Classifications from Shupe 2007."""
 
-    ICE: int = 1  # NEW_ICE
-    MIXED_ICE: int = 2
-    MIXED: int = 3
-    MIXED_LIQUID: int = 4
-    LIQUID: int = 5  # NEW_LIQUID
-    RAIN: int = 6
+    SNOW = auto()
+    ICE = auto()
+    MIXED = auto()
+    LIQUID = auto()
+    DRIZZLE = auto()
+    RAIN = auto()
+
+
+class Phase2011(Enum):
+    """Thermodynamic Phase Classifications from Shupe 2011."""
+
+    ICE = auto()
+    MIXED_ICE = auto()
+    MIXED = auto()
+    MIXED_LIQUID = auto()
+    LIQUID = auto()
+    RAIN = auto()
+
+
+class PhaseAggregate(Enum):
+    """Aggregate Thermodynamic Phase Classifications from Shupe 2007."""
+
+    ICE = auto()
+    MIXED = auto()
+    LIQUID = auto()
+
+
+class PhaseClass(Enum):
+    """Types of Phase Classifications."""
+
+    SHUPE_2007 = tuple(i for i in Phase2007)
+    SHUPE_2011 = tuple(i for i in Phase2011)
+    AGGREGATED = tuple(i for i in PhaseAggregate)
