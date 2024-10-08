@@ -315,16 +315,7 @@ class ObservationManager:
             Process.ISOLATE: self._isolate_phases,
             Process.MONTHLY: self._create_monthly_aggregate,
         }
-        response: RequestResponse
-        try:
-            response = methods[request.process](request)
-        except KeyError:
-            response = RequestResponse(
-                status=False,
-                message=f"No method found for {request.process}",
-            )
-        finally:
-            return response
+        methods[request.process](request)
 
     def _make_plot(
         self, request: ProcessPlotRequest | ProductPlotRequest
