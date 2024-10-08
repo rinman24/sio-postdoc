@@ -1133,7 +1133,7 @@ class ObservationManager:
                 strategy: Callable = strategies[phase_class]
                 results[phase_class] = strategy(phase_class, reclassified)
 
-            self._local_dump(request, target, results)
+            filepath = self._local_dump(request, target, results)
 
             self._push_to_cloud(request, filepath, cleanup=True)
 
