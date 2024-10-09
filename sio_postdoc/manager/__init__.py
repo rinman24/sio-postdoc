@@ -81,6 +81,7 @@ class Process(Enum):
     ISOLATE = auto()
     MONTHLY = auto()
     ISOLATED_PHASES = auto()
+    NORMALIZE_PHASES = auto()
 
 
 class ResampleMethod(Enum):

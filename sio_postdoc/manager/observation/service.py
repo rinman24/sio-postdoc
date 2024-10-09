@@ -131,7 +131,6 @@ from sio_postdoc.manager.observation.contracts import (
     Instrument,
     Observatory,
     ObservatoryRequest,
-    PhaseTimeseriesRequest,
     ProcessPlotRequest,
     ProcessRequest,
     Product,
@@ -298,8 +297,6 @@ class ObservationManager:
             response = self._process_request(request)
         elif isinstance(request, ContainerContentRequest):
             response = self._get_container_contents(request)
-        elif isinstance(request, PhaseTimeseriesRequest):
-            response = self._create_phase_timeseries(request)
         else:
             response = RequestResponse(
                 status=False,
@@ -313,6 +310,7 @@ class ObservationManager:
             Process.PHASES: self._create_phase_maps,
             Process.RECLASSIFY: self._reclassify_phases,
             Process.ISOLATE: self._isolate_phases,
+            Process.NORMALIZE_PHASES: self._normalize_phases,
             Process.MONTHLY: self._create_monthly_aggregate,
         }
         methods[request.process](request)
@@ -745,8 +743,9 @@ class ObservationManager:
             # Remove the file
             os.remove(filepath)
 
-    def _create_phase_timeseries(
-        self, request: PhaseTimeseriesRequest
+    def _normalize_phases(
+        self,
+        request: ProcessRequest,
     ) -> RequestResponse:
         for target in self._dates_in_month(request.year, request.month):
             dl_info: DownloadInfo = DownloadInfo(
@@ -765,43 +764,34 @@ class ObservationManager:
             phases = pd.read_pickle(filepath)
             # Now you can delete the data since you read the pickle
             os.remove(filepath)
-            # Now resample the data
-            # results: dict[Phase, pd.DataFrame] = dict()
-            # for phase in phases.keys():
-            #     phases[phase].replace(np.nan, 0, inplace=True)
-            #     results[phase] = self._resample(
-            #         phases[phase],
-            #         request.seconds,
-            #         transpose=False,
-            #         method=ResampleMethod.MEAN,
-            #     )
-            #     results[phase] = self._resample(
-            #         results[phase],
-            #         request.meters,
-            #         transpose=True,
-            #         method=ResampleMethod.MEAN,
-            #     )
-            #     # You need to drop the last row, since this is technically the next day
-            #     results[phase] = results[phase].iloc[:-1, :]
-            # # Save the file
-            # filepath: Path = Path.cwd() / (
-            #     f"D{target.year}"
-            #     f"-{str(target.month).zfill(2)}"
-            #     f"-{str(target.day).zfill(2)}"
-            #     f"-{request.observatory.name.lower()}"
-            #     f"-isolated_phases_{request.seconds}seconds_{request.meters}meters"
-            #     ".pkl"
-            # )
-            # with open(filepath, "wb") as file:
-            #     pickle.dump(results, file)
-            # # Add to blob storage
-            # self.instrument_access.add_blob(
-            #     name=request.observatory.name.lower(),
-            #     path=filepath,
-            #     directory=f"wavelet/01_isolated_phases/{request.seconds}seconds_{request.meters}meters/daily/{request.year}/",
-            # )
-            # # Remove the file
-            # os.remove(filepath)
+
+            results: dict[PhaseClass, dict[Phase, pd.DataFrame]] = dict()
+            for phase_class in PhaseClass:
+                results[phase_class] = dict()
+                for phase in phase_class.value:
+                    phase_map: pd.DataFrame = phases[phase_class][phase].copy(deep=True)
+
+                    phase_map = self._resample(
+                        phase_map,
+                        request.seconds,
+                        transpose=False,
+                        method=ResampleMethod.MEAN,
+                    )
+                    phase_map = self._resample(
+                        phase_map,
+                        request.meters,
+                        transpose=True,
+                        method=ResampleMethod.MEAN,
+                    )
+
+                    # Remove the last index
+                    phase_map = phase_map.iloc[:-1, :]
+                    # Then add it to results
+                    results[phase_class][phase] = phase_map
+
+            filepath = self._local_dump(request, target, results)
+
+            self._push_to_cloud(request, filepath, cleanup=True)
 
     def _create_resampled_files(self, request: ProcessRequest) -> RequestResponse:
         missing_instrument: bool
@@ -1139,7 +1129,10 @@ class ObservationManager:
 
     @staticmethod
     def _local_dump(request: ProcessRequest, target: date, item: Any) -> Path:
-        suffixes: dict[Process, str] = {Process.ISOLATE: "-isolated_phases.pkl"}
+        suffixes: dict[Process, str] = {
+            Process.ISOLATE: "-isolated_phases.pkl",
+            Process.NORMALIZE_PHASES: f"-normalized_phases_{request.seconds}_seconds_{request.meters}_meters.pkl",
+        }
         filepath: Path = Path.cwd() / (
             f"D{target.year}"
             f"-{str(target.month).zfill(2)}"
@@ -1154,7 +1147,8 @@ class ObservationManager:
         self, request: ProcessRequest, path: Path, cleanup: bool
     ) -> None:
         directories: dict[Process, str] = {
-            Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/"
+            Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
+            Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}/",
         }
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),

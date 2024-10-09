@@ -93,13 +93,8 @@ class ProcessRequest(ObservatoryRequest):
     """Encapsulate the request of processing steps."""
 
     process: Process
-
-
-class PhaseTimeseriesRequest(ObservatoryRequest):
-    """Encapsulate the averaging of timeseries."""
-
-    seconds: int
-    meters: int
+    seconds: int | None = None
+    meters: int | None = None
 
 
 class RequestResponse(BaseModel):
