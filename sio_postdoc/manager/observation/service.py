@@ -2,7 +2,7 @@
 
 import os
 import pickle
-from collections import deque
+from collections import defaultdict, deque
 from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -41,10 +41,7 @@ from sio_postdoc.engine.transformation.contracts import (
     VerticalTransition,
 )
 from sio_postdoc.engine.transformation.service import TransformationEngine
-from sio_postdoc.engine.transformation.strategies.base import (
-    SECONDS_PER_DAY,
-    TransformationStrategy,
-)
+from sio_postdoc.engine.transformation.strategies.base import TransformationStrategy
 from sio_postdoc.engine.transformation.strategies.daily.products.arscl import (
     Arscl1Cloth,
     ArsclKazr1Kollias,
@@ -224,6 +221,9 @@ PRODUCTS = dict(
 LOWEST_RANGE_GATE_COUNT: int = 6
 LOWEST_RANGE_GATES_THRESH: int = -40
 
+SECONDS_PER_DAY: int = int(24 * 3600)
+MAX_ELEVATION: int = int(17e3)
+
 Mask = tuple[tuple[int, ...], ...]
 
 
@@ -311,7 +311,7 @@ class ObservationManager:
             Process.RECLASSIFY: self._reclassify_phases,
             Process.ISOLATE: self._isolate_phases,
             Process.NORMALIZE_PHASES: self._normalize_phases,
-            Process.MONTHLY: self._create_monthly_aggregate,
+            Process.MONTHLY_TIMESERIES: self._create_monthly_timeseries,
         }
         methods[request.process](request)
 
@@ -439,7 +439,9 @@ class ObservationManager:
             message=message,
         )
 
-    def _get_container_contents(self, request: FileRequest) -> RequestResponse:
+    def _get_container_contents(
+        self, request: ContainerContentRequest
+    ) -> RequestResponse:
         prefix: str
         if request.process:
             prefixes: dict[Process, str] = {
@@ -447,7 +449,7 @@ class ObservationManager:
                 Process.PHASES: f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}",
                 Process.RECLASSIFY: f"cloud_phase_steps/03-shupe-2011-phases/daily/{request.year}",
                 Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}",
-                Process.ISOLATED_PHASES: f"wavelet/01_isolated_phases/300seconds_1000meters/daily/{request.year}",
+                Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}",
             }
             prefix = prefixes[request.process]
         elif request.product:
@@ -1027,69 +1029,98 @@ class ObservationManager:
                                 ] = MIXED_LIQUID
         return modified_mixed
 
-    def _create_monthly_aggregate(self, request: ProcessRequest) -> None:
-        # results: dict[Phase, list[list[float]]] = {phase: [] for phase in NEW_PHASES}
-        # # How can you create the index that you need.
-        # # You should just use a DateTime.datetime
-        # index: list[datetime] = []
-        # for target in self._dates_in_month(request.year, request.month):
-        #     midnight: datetime = datetime(
-        #         year=target.year,
-        #         month=target.month,
-        #         day=target.day,
-        #         tzinfo=timezone.utc,
-        #     )
-        #     index += [midnight + timedelta(seconds=i) for i in range(0, 86101, 300)]
-        #     # Download the appropriate file
-        #     dl_info: DownloadInfo = DownloadInfo(
-        #         process=Process.ISOLATED_PHASES,
-        #         type=FileType.DAILY,
-        #         inclusive=False,
-        #         time=False,
-        #         target=target,
-        #     )
-        #     response: RequestResponse = self._download_file(request, dl_info)
-        #     if not response.status:
-        #         # because there was no file, you'll need to add a bunch of nans
-        #         # but you don't know what to add
-        #         # for each one of the phases, you need to add
-        #         for phase in NEW_PHASES:
-        #             results[phase] += [[np.nan] * 18] * 288
-        #         continue
-        #     # Read the pickle file.
-        #     filename: str = response.items[0]
-        #     filepath: Path = Path.cwd() / filename
-        #     phases: dict[str, pd.DataFrame | pd.Series] = pd.read_pickle(filepath)
-        #     os.remove(filepath)
-        #     for phase in NEW_PHASES:
-        #         results[phase] += phases[phase].values.tolist()
-        # # Create the final result
-        # final: dict[Phase, pd.DataFrame] = {
-        #     phase: pd.DataFrame(
-        #         index=index, columns=list(range(0, 17001, 1000)), data=results[phase]
-        #     )
-        #     for phase in NEW_PHASES
-        # }
-        # # Save the file
-        # filepath: Path = Path.cwd() / (
-        #     f"D{target.year}"
-        #     f"-{str(target.month).zfill(2)}"
-        #     f"-{str(target.day).zfill(2)}"
-        #     f"-{request.observatory.name.lower()}"
-        #     "-monthly_isolated_phases_300seconds_1000meters"
-        #     ".pkl"
-        # )
-        # with open(filepath, "wb") as file:
-        #     pickle.dump(final, file)
-        # # Add to blob storage
-        # self.instrument_access.add_blob(
-        #     name=request.observatory.name.lower(),
-        #     path=filepath,
-        #     directory=f"wavelet/02_monthly_isolated_phases/300seconds_1000meters/daily/{request.year}/",
-        # )
-        # # Remove the file
-        # os.remove(filepath)
-        pass
+    def _create_monthly_timeseries(self, request: ProcessRequest) -> None:
+        # This could me a method called get no response values
+        resolutions: dict[str, int] = {
+            "seconds": request.seconds,
+            "meters": request.meters,
+        }
+        sizes: dict[str, int] = {
+            # Subtract one from index to be EXCLUSIVE of the max seconds (next day)
+            "index": len(range(0, SECONDS_PER_DAY - 1, resolutions["seconds"])),
+            # Add one to columns to be inclusive of max elevation
+            "columns": len(range(0, MAX_ELEVATION + 1, resolutions["meters"])),
+        }
+        no_response_values: list[list[int]] = [[np.nan] * sizes["columns"]] * sizes[
+            "index"
+        ]
+
+        # Create a container for the index
+        monthly_index: list[datetime] = []
+        # Create a container for the values
+        monthly_values: dict[PhaseClass, dict[PhaseClass, list[list[float]]]] = (
+            defaultdict(lambda: defaultdict(list))
+        )
+
+        # Process each day
+        for target in self._dates_in_month(request.year, request.month):
+            midnight: datetime = datetime(
+                year=target.year,
+                month=target.month,
+                day=target.day,
+                tzinfo=timezone.utc,
+            )
+            day_added = False
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.NORMALIZE_PHASES,
+                type=FileType.DAILY,
+                inclusive=False,
+                time=False,
+                target=target,
+                seconds=request.seconds,
+                meters=request.meters,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if response.status:
+                # Read the pickle file.
+                filename: str = response.items[0]
+                filepath: Path = Path.cwd() / filename
+                phases = pd.read_pickle(filepath)
+                # Now you can delete the data since you read the pickle
+                os.remove(filepath)
+
+            # Process each Phase in the Phase Class
+            for phase_class in PhaseClass:
+                for phase in phase_class.value:
+                    # Take care of the index
+                    # NOTE: This only needs to be done once per day
+                    if not day_added:
+                        if not response.status:
+                            monthly_index += [
+                                midnight + timedelta(seconds=i)
+                                for i in range(
+                                    0, SECONDS_PER_DAY - 1, resolutions["seconds"]
+                                )
+                            ]
+                        else:
+                            monthly_index += [
+                                midnight + timedelta(seconds=i)
+                                for i in phases[phase_class][phase].index
+                            ]
+                        day_added = True
+                    # Now add the values
+                    if not response.status:
+                        monthly_values[phase_class][phase] += no_response_values
+                    else:
+                        monthly_values[phase_class][phase] += phases[phase_class][
+                            phase
+                        ].values.tolist()
+
+        # Column values
+        elevations: list[int] = list(range(0, MAX_ELEVATION + 1, resolutions["meters"]))
+        # Now that you're done with all the days you need to make DataFrames out of each one
+        results: dict[PhaseClass, dict[Phase, pd.DataFrame]] = defaultdict(dict)
+        for phase_class in PhaseClass:
+            for phase in phase_class.value:
+                results[phase_class][phase] = pd.DataFrame(
+                    index=monthly_index,
+                    columns=elevations,
+                    data=monthly_values[phase_class][phase],
+                )
+
+        filepath = self._local_dump(request, target, results)
+
+        self._push_to_cloud(request, filepath, cleanup=True)
 
     def _isolate_phases(self, request: ProcessRequest) -> None:
         for target in self._dates_in_month(request.year, request.month):
@@ -1129,16 +1160,25 @@ class ObservationManager:
 
     @staticmethod
     def _local_dump(request: ProcessRequest, target: date, item: Any) -> Path:
+        year: str = str(target.year)
+        month: str = str(target.month).zfill(2)
+        day: str = str(target.day).zfill(2)
+        observatory: str = request.observatory.name.lower()
+        prefixes: dict[Process, str] = {
+            Process.MONTHLY_TIMESERIES: f"D{year}-{month}-{observatory}",
+        }
         suffixes: dict[Process, str] = {
             Process.ISOLATE: "-isolated_phases.pkl",
             Process.NORMALIZE_PHASES: f"-normalized_phases_{request.seconds}_seconds_{request.meters}_meters.pkl",
+            Process.MONTHLY_TIMESERIES: f"-monthly_timeseries_{request.seconds}_seconds_{request.meters}_meters.pkl",
         }
-        filepath: Path = Path.cwd() / (
-            f"D{target.year}"
-            f"-{str(target.month).zfill(2)}"
-            f"-{str(target.day).zfill(2)}"
-            f"-{request.observatory.name.lower()}" + suffixes[request.process]
+
+        prefix: str = prefixes.get(
+            request.process, f"D{year}-{month}-{day}-{observatory}"
         )
+        suffix: str = suffixes[request.process]
+        filepath: Path = Path.cwd() / (prefix + suffix)
+
         with open(filepath, "wb") as file:
             pickle.dump(item, file)
         return filepath
@@ -1149,6 +1189,7 @@ class ObservationManager:
         directories: dict[Process, str] = {
             Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
             Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}/",
+            Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}/",
         }
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
@@ -1670,9 +1711,14 @@ class ObservationManager:
         if dli.process:
             process: Process = dli.process
             product = None
+            kwargs = {
+                "seconds": obsr.seconds,
+                "meters": obsr.meters,
+            }
         elif dli.product:
             process = None
             product: Product = dli.product
+            kwargs = dict()
         response: RequestResponse = self.process(
             ContainerContentRequest(
                 observatory=obsr.observatory,
@@ -1680,6 +1726,7 @@ class ObservationManager:
                 product=product,
                 type=dli.type,
                 year=obsr.year,
+                **kwargs,
             )
         )
         if response.status:

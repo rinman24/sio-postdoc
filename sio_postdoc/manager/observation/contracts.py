@@ -42,6 +42,8 @@ class ContainerContentRequest(BaseModel):
     product: Product | None = None
     type: FileType
     year: int
+    seconds: int | None = None
+    meters: int | None = None
 
 
 class FileRequest(ObservatoryRequest):
@@ -65,6 +67,8 @@ class DownloadInfo(BaseModel):
     inclusive: bool
     time: bool
     target: date
+    seconds: int | None = None
+    meters: int | None = None
 
 
 class ProductPlotRequest(ObservatoryRequest):
