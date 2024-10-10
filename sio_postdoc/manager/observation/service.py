@@ -1290,8 +1290,12 @@ class ObservationManager:
             Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
             Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}/",
             Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}/",
-            Process.MONTHLY_WAVELET: f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/",
         }
+        if request.process == Process.MONTHLY_WAVELET:
+            directories[Process.MONTHLY_WAVELET] = (
+                f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/"
+            )
+
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
             path=path,
