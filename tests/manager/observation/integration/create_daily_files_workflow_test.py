@@ -93,6 +93,39 @@ def test_process_monthly_phases(manager: ObservationManager):
     manager.process(request)
 
 
+def test_top_hat():
+    th1 = TopHat(j=1)
+    assert th1.len() == 4
+    assert th1.norm() == 0.5
+    assert th1.values() == (
+        -0.5,
+        0.5,
+        0.5,
+        -0.5,
+    )
+    th3 = TopHat(j=3)
+    assert th3.len() == 16
+    assert th3.norm() == 0.25
+    assert th3.values() == (
+        -0.25,
+        -0.25,
+        -0.25,
+        -0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        0.25,
+        -0.25,
+        -0.25,
+        -0.25,
+        -0.25,
+    )
+
+
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
 def test_process_wavelet_two(manager: ObservationManager):
     request = ProcessRequest(

@@ -1,6 +1,6 @@
 """Encapsulate windows for analysis."""
 
-from math import ceil, floor, sqrt
+from math import sqrt
 from typing import Protocol
 
 
@@ -18,8 +18,8 @@ class TopHat(Wavelet):
     def __init__(self, j: int) -> None:
         """Initialize the `TopHat` wavelet."""
         self._j: int = j
-        self._norm: float = 1 / sqrt(2 ** (self._j + 1))
-        self._len: int = 2**j
+        self._norm: float = 1 / sqrt(2 ** (j + 1))
+        self._len: int = 2 ** (j + 1)
         self._values: tuple[float, ...] = self._get_values()
 
     def _get_values(self) -> tuple[float, ...]:
