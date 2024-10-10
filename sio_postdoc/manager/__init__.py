@@ -181,3 +181,5 @@ class WaveletOrder(Enum):
     EIGHT = 8
     NINE = 9
     TEN = 10
+    ELEVEN = 11
+    TWELVE = 12
