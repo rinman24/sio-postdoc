@@ -1269,9 +1269,7 @@ class ObservationManager:
         if request.process == Process.MONTHLY_WAVELET:
             # The request.wavelet may be None in which case there is no name
             # The wavelet order may be None in which case there is no value
-            suffixes[Process.MONTHLY_WAVELET] = (
-                f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl",
-            )
+            suffixes[Process.MONTHLY_WAVELET] = f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl"
 
         prefix: str = prefixes.get(
             request.process, f"D{year}-{month}-{day}-{observatory}"
@@ -1292,9 +1290,7 @@ class ObservationManager:
             Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}/",
         }
         if request.process == Process.MONTHLY_WAVELET:
-            directories[Process.MONTHLY_WAVELET] = (
-                f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/"
-            )
+            directories[Process.MONTHLY_WAVELET] = f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/"
 
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
