@@ -2,6 +2,8 @@
 
 from typing import Callable
 
+from typing_extensions import deprecated
+
 from sio_postdoc.engine import DType
 from sio_postdoc.engine.transformation.contracts import Direction, MaskRequest
 from sio_postdoc.engine.transformation.window import GridWindow
@@ -14,6 +16,7 @@ Mask = tuple[tuple[int, ...], ...]
 class TransformationEngine:
     """Define a `TransformationEngine` for analyzing time-height pixels."""
 
+    @deprecated("You no longer use this workflow.")
     def get_mask(self, request: MaskRequest) -> Mask:
         """Derive a mask based on the threashold."""
         window: GridWindow = GridWindow(length=request.length, height=request.height)
@@ -41,6 +44,7 @@ class TransformationEngine:
                 current_values: tuple[int, ...] = tuple(
                     request.values[i][j] for i, j in window.members()
                 )
+                # This is the problem is that you're checking for the mins...
                 if any(v == request.dtype.min for v in current_values):
                     mask_value: int = MASK_TYPE.min
                 else:
