@@ -1266,10 +1266,12 @@ class ObservationManager:
             Process.NORMALIZE_PHASES: f"-normalized_phases_{request.seconds}_seconds_{request.meters}_meters.pkl",
             Process.MONTHLY_TIMESERIES: f"-monthly_timeseries_{request.seconds}_seconds_{request.meters}_meters.pkl",
         }
-        if isinstance(request, Process.MONTHLY_WAVELET):
+        if request.process == Process.MONTHLY_WAVELET:
             # The request.wavelet may be None in which case there is no name
             # The wavelet order may be None in which case there is no value
-            suffixes[Process.MONTHLY_WAVELET] = f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl",
+            suffixes[Process.MONTHLY_WAVELET] = (
+                f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl",
+            )
 
         prefix: str = prefixes.get(
             request.process, f"D{year}-{month}-{day}-{observatory}"
