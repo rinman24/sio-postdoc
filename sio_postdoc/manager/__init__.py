@@ -2,6 +2,8 @@
 
 from enum import Enum, auto
 
+from sio_postdoc.engine.transformation.wavelet import TopHat
+
 
 class InstrumentType(Enum):
     """Instrument types."""
@@ -69,6 +71,7 @@ class FileType(Enum):
 
     RAW = auto()
     DAILY = auto()
+    MONTHLY = auto()
 
 
 class Process(Enum):
@@ -82,6 +85,7 @@ class Process(Enum):
     ISOLATED_PHASES = auto()
     NORMALIZE_PHASES = auto()
     MONTHLY_TIMESERIES = auto()
+    MONTHLY_WAVELET = auto()
 
 
 class ResampleMethod(Enum):
@@ -156,3 +160,23 @@ class PhaseClass(Enum):
     SHUPE_2007 = tuple(i for i in Phase2007)
     SHUPE_2011 = tuple(i for i in Phase2011)
     AGGREGATED = tuple(i for i in PhaseAggregate)
+
+
+class Wavelet(Enum):
+    """Wavelet shapes."""
+
+    TOP_HAT = TopHat
+
+
+class WaveletOrder(Enum):
+    """Valid wavelet orders."""
+
+    TWO = 2
+    THREE = 3
+    FOUR = 4
+    FIVE = 5
+    SIX = 6
+    SEVEN = 7
+    EIGHT = 8
+    NINE = 9
+    TEN = 10

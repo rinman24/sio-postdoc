@@ -29,7 +29,11 @@ class NamesByDate(AbstractDateStrategy):
 
     @staticmethod
     def apply(
-        target: date, content: Content, time: bool = True, inclusive: bool = True
+        target: date,
+        content: Content,
+        time: bool = True,
+        filename_day: bool = True,
+        inclusive: bool = True,
     ) -> Content:
         """TODO: Implement.
 
@@ -48,7 +52,11 @@ class NamesByDate(AbstractDateStrategy):
         end: datetime = start + timedelta(days=1)
         previous_entry: str = ""
         for entry in content:
-            current: datetime = utility.extract_datetime(entry, time=time).datetime
+            current: datetime = utility.extract_datetime(
+                entry,
+                time=time,
+                filename_day=filename_day,
+            ).datetime
             if current == start:
                 results.append(entry)
             elif start < current < end:

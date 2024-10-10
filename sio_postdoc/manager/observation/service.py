@@ -98,6 +98,7 @@ from sio_postdoc.engine.transformation.strategies.raw.sheba.mmcr import ShebaMmc
 from sio_postdoc.engine.transformation.strategies.raw.utqiagvik.kazr import (
     UtqiagvikKazrRaw,
 )
+from sio_postdoc.engine.transformation.wavelet import Wavelet
 from sio_postdoc.manager import (
     FileType,
     InstrumentType,
@@ -312,6 +313,7 @@ class ObservationManager:
             Process.ISOLATE: self._isolate_phases,
             Process.NORMALIZE_PHASES: self._normalize_phases,
             Process.MONTHLY_TIMESERIES: self._create_monthly_timeseries,
+            Process.MONTHLY_WAVELET: self._wavelet_transform,
         }
         methods[request.process](request)
 
@@ -419,6 +421,7 @@ class ObservationManager:
                 content=request.content,
                 strategy=NamesByDate(),
                 time=request.time,
+                filename_day=request.filename_day,
                 inclusive=request.inclusive,
             )
         if selected:
@@ -450,6 +453,7 @@ class ObservationManager:
                 Process.RECLASSIFY: f"cloud_phase_steps/03-shupe-2011-phases/daily/{request.year}",
                 Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}",
                 Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}",
+                Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}",
             }
             prefix = prefixes[request.process]
         elif request.product:
@@ -1158,6 +1162,95 @@ class ObservationManager:
 
             self._push_to_cloud(request, filepath, cleanup=True)
 
+    def _wavelet_transform(self, request: ProcessRequest) -> None:
+        # Show progress
+        print(f"{request.year} {request.month.name.capitalize()}.")
+        # Get the previous and next months and years
+        targets: tuple[date, date, date] = self._get_bookend_months(
+            request.year, request.month.value
+        )
+        # Download the appropriate files
+        missing_month = False
+        months: list[dict[PhaseClass, dict[Phase, pd.DataFrame]]] = list()
+        for target in targets:
+            dl_info: DownloadInfo = DownloadInfo(
+                process=Process.MONTHLY_TIMESERIES,
+                type=FileType.MONTHLY,
+                inclusive=False,
+                time=False,
+                filename_day=False,
+                target=target,
+            )
+            response: RequestResponse = self._download_file(request, dl_info)
+            if not response.status:
+                missing_month = True
+                break
+            # Read the pickle file.
+            filename: str = response.items[0]
+            filepath: Path = Path.cwd() / filename
+            months.append(pd.read_pickle(filepath))
+            # Delete the file
+            os.remove(filepath)
+
+        if missing_month:
+            return None
+        # If we got here, we have all three months that we need.
+        # Now concatinate the files soo that you can perform the wavelet transformatioins.
+        concatinated: dict[PhaseClass, dict[Phase, pd.DataFrame]] = defaultdict(dict)
+        for phase_class in PhaseClass:
+            for phase in phase_class.value:
+                dataframes: list[pd.DataFrames] = [
+                    month[phase_class][phase] for month in months
+                ]
+                result = pd.concat(dataframes)
+                concatinated[phase_class][phase] = result
+        wavelet: Wavelet = request.wavelet.value(j=request.wavelet_order.value)
+
+        for phase_class in PhaseClass:
+            for phase in phase_class.value:
+                # You want to apply a rolling window across the indexs of the dataframe
+                print(f"\t{phase_class.name.capitalize()}: {phase.name.capitalize()}")
+                concatinated[phase_class][phase] = (
+                    concatinated[phase_class][phase]
+                    .rolling(
+                        wavelet.len(),
+                        center=True,
+                    )
+                    .apply(lambda window: sum(window * wavelet.values()))
+                )
+        # Now that you have them all, you only want to keep the ones that are in the given month
+        for phase_class in PhaseClass:
+            for phase in phase_class.value:
+                valid_indexes = (
+                    concatinated[phase_class][phase].index.month == request.month.value
+                )
+                concatinated[phase_class][phase] = concatinated[phase_class][
+                    phase
+                ].iloc[valid_indexes, :]
+        # Now that we have removed all of the values we don't want we need to save the file
+        filepath = self._local_dump(request, target, concatinated)
+
+        self._push_to_cloud(request, filepath, cleanup=True)
+
+    @staticmethod
+    def _get_bookend_months(year: int, month: int) -> tuple[date, date, date]:
+        current_result: date = date(year, month, 1)
+
+        previous_month: int = month - 1
+        previous_year: int = year
+        next_month: int = month + 1
+        next_year: int = year
+        if month == 1:
+            previous_month = 12
+            previous_year = year - 1
+        elif month == 12:
+            next_month = 1
+            next_year = year + 1
+        previous_result: date = date(previous_year, previous_month, 1)
+        next_result: date = date(next_year, next_month, 1)
+
+        return (previous_result, current_result, next_result)
+
     @staticmethod
     def _local_dump(request: ProcessRequest, target: date, item: Any) -> Path:
         year: str = str(target.year)
@@ -1166,11 +1259,13 @@ class ObservationManager:
         observatory: str = request.observatory.name.lower()
         prefixes: dict[Process, str] = {
             Process.MONTHLY_TIMESERIES: f"D{year}-{month}-{observatory}",
+            Process.MONTHLY_WAVELET: f"D{year}-{month}-{observatory}",
         }
         suffixes: dict[Process, str] = {
             Process.ISOLATE: "-isolated_phases.pkl",
             Process.NORMALIZE_PHASES: f"-normalized_phases_{request.seconds}_seconds_{request.meters}_meters.pkl",
             Process.MONTHLY_TIMESERIES: f"-monthly_timeseries_{request.seconds}_seconds_{request.meters}_meters.pkl",
+            Process.MONTHLY_WAVELET: f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl",
         }
 
         prefix: str = prefixes.get(
@@ -1190,6 +1285,7 @@ class ObservationManager:
             Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
             Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}/",
             Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}/",
+            Process.MONTHLY_WAVELET: f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/",
         }
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
@@ -1725,23 +1821,29 @@ class ObservationManager:
                 process=process,
                 product=product,
                 type=dli.type,
-                year=obsr.year,
+                year=dli.target.year,
                 **kwargs,
             )
         )
         if response.status:
+            filename_days: dict[FileType, bool] = {
+                FileType.RAW: True,
+                FileType.DAILY: True,
+                FileType.MONTHLY: False,
+            }
             return self.process(
                 FileRequest(
                     process=process,
                     product=product,
                     observatory=obsr.observatory,
-                    year=obsr.year,
-                    month=obsr.month,
+                    year=dli.target.year,
+                    month=dli.target.month,
                     day=dli.target.day,
                     type=dli.type,
                     content=response.items,
                     inclusive=dli.inclusive,
                     time=dli.time,
+                    filename_day=filename_days[dli.type],
                 )
             )
         return RequestResponse(status="False", message="No container found")

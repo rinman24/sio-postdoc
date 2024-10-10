@@ -24,21 +24,18 @@ class TopHat(Wavelet):
 
     def _get_values(self) -> tuple[float, ...]:
         # For the tophat the shape is
-        ends: tuple[int, ...] = (-self.norm,) * int(self.len / 4)
-        middle: tuple[int, ...] = (self.norm,) * int(self.len / 2)
+        ends: tuple[int, ...] = (-self.norm(),) * int(self.len() / 4)
+        middle: tuple[int, ...] = (self.norm(),) * int(self.len() / 2)
         return ends + middle + ends
 
-    @property
     def norm(self) -> float:
         """Return the normalization factor of the wavelet."""
         return self._norm
 
-    @property
     def len(self) -> int:
         """Return the length of the wavelet."""
         return self._len
 
-    @property
     def values(self) -> tuple[int, ...]:
         """Return the values of the wavelet."""
         return self._values

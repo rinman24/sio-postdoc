@@ -11,6 +11,8 @@ from sio_postdoc.manager import (
     Observatory,
     Process,
     Product,
+    Wavelet,
+    WaveletOrder,
 )
 
 
@@ -56,6 +58,7 @@ class FileRequest(ObservatoryRequest):
     content: tuple[str, ...]
     inclusive: bool
     time: bool
+    filename_day: bool = True
 
 
 class DownloadInfo(BaseModel):
@@ -99,6 +102,8 @@ class ProcessRequest(ObservatoryRequest):
     process: Process
     seconds: int | None = None
     meters: int | None = None
+    wavelet: Wavelet | None = None
+    wavelet_order: WaveletOrder | None = None
 
 
 class RequestResponse(BaseModel):

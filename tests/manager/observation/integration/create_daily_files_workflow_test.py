@@ -6,19 +6,26 @@ import pytest
 from dotenv import load_dotenv
 
 from sio_postdoc.engine.transformation.wavelet import TopHat
-from sio_postdoc.manager import Instrument, Month, Observatory, Process, Product
+from sio_postdoc.manager import (
+    Instrument,
+    Month,
+    Observatory,
+    Process,
+    Product,
+    Wavelet,
+    WaveletOrder,
+)
 from sio_postdoc.manager.observation.contracts import (
     DailyProductRequest,
     DailyRequest,
     ObservatoryRequest,
-    PhaseTimeseriesRequest,
     ProcessPlotRequest,
     ProcessRequest,
 )
 from sio_postdoc.manager.observation.service import ObservationManager
 
 # load_dotenv(override=True)
-# manager = ObservationManager()
+# manager: ObservationManager = ObservationManager()
 
 
 @pytest.fixture(scope="module")
@@ -42,22 +49,11 @@ def test_process_plot_request(manager: ObservationManager):
         observatory=Observatory.UTQIAGVIK,
         year=2022,
         month=Month.OCT,
-        day=5,
-        process=Process.PHASES,
+        day=6,
+        process=Process.RESAMPLE,
         # top=6,
     )
     manager.process(request)
-
-
-@pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_tophat_wavelet():
-    tophat2 = TopHat(j=2)
-    tophat3 = TopHat(j=3)
-    tophat4 = TopHat(j=4)
-    tophat5 = TopHat(j=5)
-    tophat6 = TopHat(j=6)
-    tophat7 = TopHat(j=7)
-    print("I am here.")
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
@@ -72,13 +68,42 @@ def test_monthly_phase_fractions(manager: ObservationManager):
 
 
 @pytest.mark.skip(reason="Used for User Acceptance Testing.")
-def test_process_average_timeseries(manager: ObservationManager):
-    request = PhaseTimeseriesRequest(
+def test_process_normalized_phases(manager: ObservationManager):
+    request = ProcessRequest(
         observatory=Observatory.UTQIAGVIK,
-        month=Month.MAR,
+        month=Month.OCT,
         year=2022,
+        process=Process.NORMALIZE_PHASES,
         seconds=int(5 * 60),
         meters=1000,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_monthly_phases(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.OCT,
+        year=2022,
+        process=Process.MONTHLY_TIMESERIES,
+        seconds=int(5 * 60),
+        meters=1000,
+    )
+    manager.process(request)
+
+
+@pytest.mark.skip(reason="Used for User Acceptance Testing.")
+def test_process_wavelet_two(manager: ObservationManager):
+    request = ProcessRequest(
+        observatory=Observatory.UTQIAGVIK,
+        month=Month.OCT,
+        year=2022,
+        process=Process.MONTHLY_WAVELET,
+        seconds=int(5 * 60),
+        meters=1000,
+        wavelet=Wavelet.TOP_HAT,
+        wavelet_order=WaveletOrder.TWO,
     )
     manager.process(request)
 
