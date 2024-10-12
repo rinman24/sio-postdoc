@@ -36,6 +36,6 @@ class TopHat(Wavelet):
     """Encapsulate a top hat wavelet transform."""
 
     def _get_values(self) -> tuple[float, ...]:
-        ends: tuple[int, ...] = (-1,) * int(self.len() / 4)
-        middle: tuple[int, ...] = (1,) * int(self.len() / 2)
+        ends: tuple[int, ...] = (-1,) * int(self.length / 4)
+        middle: tuple[int, ...] = (1,) * int(self.length / 2)
         return ends + middle + ends
