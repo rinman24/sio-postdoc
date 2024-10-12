@@ -1,41 +1,41 @@
 """Encapsulate windows for analysis."""
 
-from math import sqrt
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 
-class Wavelet(Protocol):
+class Wavelet(ABC):
     """Define protocol for wavelets."""
 
-    def norm(self) -> float: ...
-    def len(self) -> int: ...
-    def values(self) -> tuple[int, ...]: ...
+    def __init__(self, j: int) -> None:
+        """Initialize the wavelet."""
+        self._j: int = j
+        self._len: int = 2 ** (j + 1)
+        self._values: tuple[float, ...] = self._get_values()
+
+    @abstractmethod
+    def _get_values(self) -> tuple[float, ...]:
+        pass
+
+    @property
+    def order(self) -> int:
+        """Return the order of the wavelet."""
+        return self._j
+
+    @property
+    def length(self) -> int:
+        """Return the length of the wavelet."""
+        return self._len
+
+    @property
+    def values(self) -> tuple[int, ...]:
+        """Return the values of the wavelet."""
+        return self._values
 
 
 class TopHat(Wavelet):
     """Encapsulate a top hat wavelet transform."""
 
-    def __init__(self, j: int) -> None:
-        """Initialize the `TopHat` wavelet."""
-        self._j: int = j
-        self._norm: float = 1 / sqrt(2 ** (j + 1))
-        self._len: int = 2 ** (j + 1)
-        self._values: tuple[float, ...] = self._get_values()
-
     def _get_values(self) -> tuple[float, ...]:
-        # For the tophat the shape is
-        ends: tuple[int, ...] = (-self.norm(),) * int(self.len() / 4)
-        middle: tuple[int, ...] = (self.norm(),) * int(self.len() / 2)
+        ends: tuple[int, ...] = (-1,) * int(self.len() / 4)
+        middle: tuple[int, ...] = (1,) * int(self.len() / 2)
         return ends + middle + ends
-
-    def norm(self) -> float:
-        """Return the normalization factor of the wavelet."""
-        return self._norm
-
-    def len(self) -> int:
-        """Return the length of the wavelet."""
-        return self._len
-
-    def values(self) -> tuple[int, ...]:
-        """Return the values of the wavelet."""
-        return self._values

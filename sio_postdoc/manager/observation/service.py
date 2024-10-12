@@ -314,6 +314,7 @@ class ObservationManager:
             Process.NORMALIZE_PHASES: self._normalize_phases,
             Process.MONTHLY_TIMESERIES: self._create_monthly_timeseries,
             Process.MONTHLY_WAVELET: self._wavelet_transform,
+            Process.MONTHLY_PERIODOGRAM: self._wavelet_periodogram,
         }
         methods[request.process](request)
 
@@ -446,15 +447,23 @@ class ObservationManager:
         self, request: ContainerContentRequest
     ) -> RequestResponse:
         prefix: str
+        resolution_description: str = (
+            f"{request.seconds}_seconds_{request.meters}_meters"
+        )
+        year: int = request.year
         if request.process:
             prefixes: dict[Process, str] = {
-                Process.RESAMPLE: f"cloud_phase_steps/01-resampled_frames/daily/{request.year}",
-                Process.PHASES: f"cloud_phase_steps/02-shupe-2007-phases/daily/{request.year}",
-                Process.RECLASSIFY: f"cloud_phase_steps/03-shupe-2011-phases/daily/{request.year}",
-                Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}",
-                Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}",
-                Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}",
+                Process.RESAMPLE: f"cloud_phase_steps/01-resampled_frames/daily/{year}",
+                Process.PHASES: f"cloud_phase_steps/02-shupe-2007-phases/daily/{year}",
+                Process.RECLASSIFY: f"cloud_phase_steps/03-shupe-2011-phases/daily/{year}",
+                Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{year}",
+                Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{resolution_description}/daily/{year}",
+                Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{resolution_description}/monthly/{year}",
             }
+            if request.process == Process.MONTHLY_WAVELET:
+                prefixes[Process.MONTHLY_WAVELET] = (
+                    f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}"
+                )
             prefix = prefixes[request.process]
         elif request.product:
             prefix = f"products/{request.product.name.lower()}/{request.type.name.lower()}/{request.year}/"
@@ -1194,31 +1203,29 @@ class ObservationManager:
 
         if missing_month:
             return None
-        # If we got here, we have all three months that we need.
-        # Now concatinate the files soo that you can perform the wavelet transformatioins.
+
+        # Concatinate the files so that you can perform the wavelet transformatioins
         concatinated: dict[PhaseClass, dict[Phase, pd.DataFrame]] = defaultdict(dict)
         for phase_class in PhaseClass:
             for phase in phase_class.value:
-                dataframes: list[pd.DataFrames] = [
-                    month[phase_class][phase] for month in months
-                ]
-                result = pd.concat(dataframes)
-                concatinated[phase_class][phase] = result
+                concatinated[phase_class][phase] = pd.concat(
+                    [month[phase_class][phase] for month in months]
+                )
         wavelet: Wavelet = request.wavelet.value(j=request.wavelet_order.value)
 
+        # Apply the wavelet transform
         for phase_class in PhaseClass:
             for phase in phase_class.value:
-                # You want to apply a rolling window across the indexs of the dataframe
                 print(f"\t{phase_class.name.capitalize()}: {phase.name.capitalize()}")
                 concatinated[phase_class][phase] = (
                     concatinated[phase_class][phase]
                     .rolling(
-                        wavelet.len(),
+                        wavelet.length,
                         center=True,
                     )
                     .apply(lambda window: sum(window * wavelet.values()))
                 )
-        # Now that you have them all, you only want to keep the ones that are in the given month
+        # Keep only the ones in the target month
         for phase_class in PhaseClass:
             for phase in phase_class.value:
                 valid_indexes = (
@@ -1228,7 +1235,43 @@ class ObservationManager:
                     phase
                 ].iloc[valid_indexes, :]
         # Now that we have removed all of the values we don't want we need to save the file
-        filepath = self._local_dump(request, target, concatinated)
+        current_month: date = date(request.year, request.month.value, 1)
+        filepath = self._local_dump(request, current_month, concatinated)
+
+        self._push_to_cloud(request, filepath, cleanup=True)
+
+    def _wavelet_periodogram(self, request: ProcessRequest) -> None:
+        # Show progress
+        print(f"{request.year} {request.month.name.capitalize()}.")
+        target = date(request.year, request.month.value, 1)
+        dl_info: DownloadInfo = DownloadInfo(
+            process=Process.MONTHLY_WAVELET,
+            type=FileType.MONTHLY,
+            inclusive=False,
+            time=False,
+            filename_day=False,
+            target=target,
+        )
+        response: RequestResponse = self._download_file(request, dl_info)
+        if not response.status:
+            return None
+        # Read the pickle file.
+        filename: str = response.items[0]
+        filepath: Path = Path.cwd() / filename
+        wavelets = pd.read_pickle(filepath)
+        # Delete the file
+        os.remove(filepath)
+
+        wavelet: Wavelet = request.wavelet.value(j=request.wavelet_order.value)
+
+        periodograms: dict[PhaseClass, dict[Phase, pd.DataFrame]] = defaultdict(dict)
+        for phase_class in PhaseClass:
+            for phase in phase_class.value:
+                periodograms[phase_class][phase] = (
+                    wavelets[phase_class][phase] ** 2
+                ) * wavelet.power_norm()
+
+        filepath = self._local_dump(request, target, periodograms)
 
         self._push_to_cloud(request, filepath, cleanup=True)
 
@@ -1251,46 +1294,54 @@ class ObservationManager:
 
         return (previous_result, current_result, next_result)
 
-    @staticmethod
-    def _local_dump(request: ProcessRequest, target: date, item: Any) -> Path:
-        year: str = str(target.year)
-        month: str = str(target.month).zfill(2)
-        day: str = str(target.day).zfill(2)
-        observatory: str = request.observatory.name.lower()
-        prefixes: dict[Process, str] = {
-            Process.MONTHLY_TIMESERIES: f"D{year}-{month}-{observatory}",
-            Process.MONTHLY_WAVELET: f"D{year}-{month}-{observatory}",
-        }
-        suffixes: dict[Process, str] = {
-            Process.ISOLATE: "-isolated_phases.pkl",
-            Process.NORMALIZE_PHASES: f"-normalized_phases_{request.seconds}_seconds_{request.meters}_meters.pkl",
-            Process.MONTHLY_TIMESERIES: f"-monthly_timeseries_{request.seconds}_seconds_{request.meters}_meters.pkl",
-        }
-        if request.process == Process.MONTHLY_WAVELET:
-            # The request.wavelet may be None in which case there is no name
-            # The wavelet order may be None in which case there is no value
-            suffixes[Process.MONTHLY_WAVELET] = f"-monthly_wavelet_{request.seconds}_seconds_{request.meters}_meters_{request.wavelet.name.lower()}_order_{request.wavelet_order.value}.pkl"
-
-        prefix: str = prefixes.get(
-            request.process, f"D{year}-{month}-{day}-{observatory}"
-        )
-        suffix: str = suffixes[request.process]
-        filepath: Path = Path.cwd() / (prefix + suffix)
+    def _local_dump(self, request: ProcessRequest, target: date, item: Any) -> Path:
+        filepath: Path = self._generate_filepath(target, request)
 
         with open(filepath, "wb") as file:
             pickle.dump(item, file)
         return filepath
 
+    @staticmethod
+    def _generate_filepath(target: date, request: ProcessRequest) -> Path:
+        year: str = str(target.year)
+        month: str = str(target.month).zfill(2)
+        day: str = str(target.day).zfill(2)
+        observatory: str = request.observatory.name.lower()
+
+        monthly_prefix: str = f"D{year}-{month}-{observatory}"
+        daily_prefix: str = f"D{year}-{month}-{day}-{observatory}"
+        prefixes: dict[Process, str] = {
+            Process.MONTHLY_TIMESERIES: monthly_prefix,
+            Process.MONTHLY_WAVELET: monthly_prefix,
+            Process.MONTHLY_PERIODOGRAM: monthly_prefix,
+        }
+        prefix: str = prefixes.get(request.process, daily_prefix)
+
+        res_desc: str = request.resolution_description
+        wvlt_desc: str = request.wavelet_description
+        suffixes: dict[Process, str] = {
+            Process.ISOLATE: "-isolated_phases.pkl",
+            Process.NORMALIZE_PHASES: f"-normalized_phases_{res_desc}.pkl",
+            Process.MONTHLY_TIMESERIES: f"-monthly_timeseries_{res_desc}.pkl",
+            Process.MONTHLY_WAVELET: f"-monthly_wavelet_{res_desc}_{wvlt_desc}.pkl",
+            Process.MONTHLY_PERIODOGRAM: f"-monthly_periodogram_{res_desc}_{wvlt_desc}.pkl",
+        }
+        suffix: str = suffixes[request.process]
+
+        return Path.cwd() / (prefix + suffix)
+
     def _push_to_cloud(
         self, request: ProcessRequest, path: Path, cleanup: bool
     ) -> None:
+        res_desc: str = request.resolution_description
+        wvlt_path: str = request.wavelet_dir
         directories: dict[Process, str] = {
             Process.ISOLATE: f"cloud_phase_steps/04-isolated-phases/daily/{request.year}/",
-            Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{request.seconds}_seconds_{request.meters}_meters/daily/{request.year}/",
-            Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{request.seconds}_seconds_{request.meters}_meters/monthly/{request.year}/",
+            Process.NORMALIZE_PHASES: f"cloud_phase_steps/05-normalized-phases/{res_desc}/daily/{request.year}/",
+            Process.MONTHLY_TIMESERIES: f"cloud_phase_steps/06-monthly-timeseries/{res_desc}/monthly/{request.year}/",
+            Process.MONTHLY_WAVELET: f"cloud_phase_steps/07-monthly-wavelets/{res_desc}/{wvlt_path}/monthly/{request.year}/",
+            Process.MONTHLY_PERIODOGRAM: f"cloud_phase_steps/08-monthly-periodograms/{res_desc}/{wvlt_path}/monthly/{request.year}/",
         }
-        if request.process == Process.MONTHLY_WAVELET:
-            directories[Process.MONTHLY_WAVELET] = f"cloud_phase_steps/07-monthly-wavelets/{request.seconds}_seconds_{request.meters}_meters/{request.wavelet.name.lower()}/order_{str(request.wavelet_order.value).zfill(2)}/monthly/{request.year}/"
 
         self.instrument_access.add_blob(
             name=request.observatory.name.lower(),
@@ -1815,6 +1866,8 @@ class ObservationManager:
             kwargs = {
                 "seconds": obsr.seconds,
                 "meters": obsr.meters,
+                "wavelet": obsr.wavelet,
+                "wavelet_order": obsr.wavelet_order,
             }
         elif dli.product:
             process = None

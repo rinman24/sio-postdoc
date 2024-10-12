@@ -86,6 +86,7 @@ class Process(Enum):
     NORMALIZE_PHASES = auto()
     MONTHLY_TIMESERIES = auto()
     MONTHLY_WAVELET = auto()
+    MONTHLY_PERIODOGRAM = auto()
 
 
 class ResampleMethod(Enum):

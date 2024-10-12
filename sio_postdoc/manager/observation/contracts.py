@@ -46,6 +46,8 @@ class ContainerContentRequest(BaseModel):
     year: int
     seconds: int | None = None
     meters: int | None = None
+    wavelet: Wavelet | None = None
+    wavelet_order: WaveletOrder | None = None
 
 
 class FileRequest(ObservatoryRequest):
@@ -104,6 +106,41 @@ class ProcessRequest(ObservatoryRequest):
     meters: int | None = None
     wavelet: Wavelet | None = None
     wavelet_order: WaveletOrder | None = None
+
+    @property
+    def resolution_description(self) -> str:
+        """Return a description of the process resolution."""
+        if self.seconds and self.meters:
+            return f"{self.seconds}_seconds_{self.meters}_meters"
+        return ""
+
+    @property
+    def shape(self) -> str:
+        """Return the name of the wavelet."""
+        if self.wavelet:
+            return self.wavelet.name.lower()
+        return ""
+
+    @property
+    def order(self) -> str:
+        """Return the zero-padded order of the wavelet."""
+        if self.wavelet_order:
+            return str(self.wavelet_order.value).zfill(2)
+        return ""
+
+    @property
+    def wavelet_description(self):
+        """Return a description of the process wavelet."""
+        if self.wavelet and self.wavelet_order:
+            return f"{self.shape}_order_{self.order}"
+        return ""
+
+    @property
+    def wavelet_dir(self):
+        """Return the directory describing the process wavelet."""
+        if self.wavelet and self.wavelet_order:
+            return f"{self.shape}/order_{self.order}"
+        return ""
 
 
 class RequestResponse(BaseModel):
