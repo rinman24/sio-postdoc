@@ -1223,7 +1223,7 @@ class ObservationManager:
                         wavelet.length,
                         center=True,
                     )
-                    .apply(lambda window: sum(window * wavelet.values()))
+                    .apply(lambda window: sum(window * wavelet.values))
                 )
         # Keep only the ones in the target month
         for phase_class in PhaseClass:
